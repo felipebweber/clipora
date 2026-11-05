@@ -23,7 +23,8 @@ const erroExtracao = (stderr, codigo = 1) => ({ erro: { fase: 'extracao', stderr
  *  tipo          "video" | "playlist"
  *  stdoutBruto   texto escrito no stdout no lugar do JSON (com codigoSaida)
  *  erro          { fase: "extracao" | "download", stderr, codigo, em (fração 0–1) }
- *  download      { uniao, totalConhecido, resultado }
+ *  download      { uniao, totalConhecido, resultado, videos }
+ *                videos: número de itens baixados quando a prévia mostra vídeo único (padrão 1)
  *                resultado: "normal" | "ja-baixado" | "sem-arquivo" | "arquivo-vazio" | "so-part" | "caminho-fora"
  *  versao        texto de --version; versaoFalha: true faz --version falhar
  */
@@ -115,6 +116,10 @@ export const CENARIOS = {
   'caminho-fora': {
     descricao: 'Sai com 0 e imprime em after_move um caminho fora da pasta de destino.',
     download: { resultado: 'caminho-fora' },
+  },
+  'download-varios-itens': {
+    descricao: 'Prévia (-J) de vídeo único, mas o download baixa 2 itens e imprime 2 linhas after_move, exit 0 (rejeição de carrossel no download).',
+    download: { videos: 2 },
   },
   'rede-cai': {
     descricao: 'A conexão cai a 50% do vídeo: exit 1, .part fica para trás.',

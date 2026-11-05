@@ -32,12 +32,14 @@ pub fn validar(input: &str) -> Result<(Url, Plataforma), &'static str> {
         .collect();
     let result = match host {
         "instagram.com" | "www.instagram.com" | "m.instagram.com" => {
-            if parts.len() != 2 || !matches!(parts[0], "reel" | "reels" | "p") {
+            if !(parts.len() == 2 && matches!(parts[0], "reel" | "reels" | "p")
+                || parts.len() == 3 && !parts[0].is_empty() && parts[1] == "reel")
+            {
                 return Err("LINK_INVALIDO");
             }
             Plataforma::Instagram
         }
-        "tiktok.com" => {
+        "tiktok.com" | "www.tiktok.com" | "m.tiktok.com" => {
             let video = parts.len() == 3
                 && parts[0].starts_with('@')
                 && parts[0].len() > 1
@@ -77,6 +79,10 @@ mod tests {
             "http://www.instagram.com/reels/abc",
             "https://m.instagram.com/p/abc",
             "https://tiktok.com/@user/video/123",
+            "https://www.tiktok.com/@user/video/123",
+            "https://m.tiktok.com/@user/video/123",
+            "https://www.tiktok.com/t/abc",
+            "https://www.instagram.com/judith_steiner/reel/DVn-vNTCIfX/",
             "https://vm.tiktok.com/abc/",
             "https://vt.tiktok.com/abc",
             "https://tiktok.com/t/abc",

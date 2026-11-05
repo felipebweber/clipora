@@ -177,32 +177,42 @@ fn copiar_exclusivo(origem: &Path, destino: &Path) -> io::Result<()> {
 }
 #[derive(Default)]
 struct Progresso {
-    ultimo_parte: f64,
     parte: u8,
     ultimo_global: f64,
 }
 impl Progresso {
-    fn ler(&mut self, linha: &str) -> Option<f64> {
-        let valor = linha
-            .strip_prefix("download:")?
-            .rsplit(':')
-            .next()?
+    fn ler(&mut self, linha: &str) -> Option<Option<f64>> {
+        let resto = linha.strip_prefix("download:")?;
+        let campos: Vec<_> = resto.split(':').collect();
+        if campos.len() != 5 {
+            return Some(None);
+        }
+        let vcodec = campos[3];
+        let acodec = campos[4];
+        let audio = vcodec == "none" && acodec != "none" && acodec != "NA";
+        if audio {
+            self.parte = 1;
+        }
+        let percentual = campos[2]
             .trim()
             .trim_end_matches('%')
             .parse::<f64>()
-            .ok()?;
-        if !valor.is_finite() {
-            return None;
-        }
-        let valor = valor.clamp(0.0, 100.0);
-        if self.ultimo_parte >= 99.0 && valor < self.ultimo_parte - 20.0 {
-            self.parte = 1;
-        }
-        self.ultimo_parte = valor;
-        self.ultimo_global = self
-            .ultimo_global
-            .max((self.parte as f64 * 45.0 + valor * 0.45).min(90.0));
-        Some(self.ultimo_global)
+            .ok()
+            .filter(|v| v.is_finite())
+            .map(|v| v.clamp(0.0, 100.0));
+        let Some(valor) = percentual else {
+            return Some(None);
+        };
+        let combinado = vcodec != "none" && vcodec != "NA" && acodec != "none" && acodec != "NA";
+        let global = if combinado {
+            valor * 0.9
+        } else if audio {
+            45.0 + valor * 0.45
+        } else {
+            valor * 0.45
+        };
+        self.ultimo_global = self.ultimo_global.max(global.min(90.0));
+        Some(Some(self.ultimo_global))
     }
 }
 #[cfg(test)]
@@ -281,6 +291,83 @@ mod tests {
         assert!(caminhos[2].to_string_lossy().ends_with(" (3).mp4"));
         assert!(caminhos.iter().all(|p| fs::metadata(p).unwrap().len() > 0));
     }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn encerrar_mata_processo_e_remove_temporario() {
+        let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/bin");
+        let dir = tempfile::tempdir().unwrap();
+        let controle = Controle::default();
+        let estado = controle.0.clone();
+        let destino = dir.path().to_path_buf();
+        let canal = Channel::new(|_| Ok(()));
+        let processo = tokio::spawn(async move {
+            executar_interno(
+                &estado,
+                &canal,
+                "https://instagram.com/reel/test/",
+                &destino,
+                &fixtures.join("clipora-yt-dlp"),
+                &fixtures.join("clipora-ffmpeg"),
+                Some("com-filho"),
+            )
+            .await
+        });
+        let (pid, pasta) = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let achado = {
+                    let d = controle.0.lock().unwrap();
+                    d.grupo
+                        .as_ref()
+                        .zip(d.temporario.as_ref())
+                        .map(|(g, p)| (g.0, p.clone()))
+                };
+                if let Some(x) = achado {
+                    break x;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        controle.encerrar();
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), processo)
+            .await
+            .unwrap();
+        assert!(!pasta.exists());
+        assert_eq!(unsafe { libc::kill(pid as i32, 0) }, -1);
+    }
+    #[tokio::test]
+    async fn fixture_rejeita_ffmpeg_quebrado() {
+        let script =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/preparar-bin.mjs");
+        let dir = tempfile::tempdir().unwrap();
+        let destino = tempfile::tempdir().unwrap();
+        assert!(
+            std::process::Command::new("node")
+                .arg(script)
+                .arg(dir.path())
+                .args(["--ffmpeg", "quebrado"])
+                .output()
+                .unwrap()
+                .status
+                .success()
+        );
+        let controle = Arc::new(Mutex::new(Dados::default()));
+        let canal = Channel::new(|_| Ok(()));
+        let erro = executar_interno(
+            &controle,
+            &canal,
+            "https://instagram.com/reel/test/",
+            destino.path(),
+            &dir.path().join("clipora-yt-dlp"),
+            &dir.path().join("clipora-ffmpeg"),
+            None,
+        )
+        .await
+        .err()
+        .unwrap();
+        assert_eq!(erro.codigo, "FFMPEG_INDISPONIVEL");
+    }
     #[tokio::test]
     async fn fixture_rejeita_ffmpeg_ausente() {
         let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/bin");
@@ -348,8 +435,9 @@ mod tests {
             ("arquivo-vazio", Some("ARQUIVO_INCOMPLETO")),
             ("so-part", Some("ARQUIVO_INCOMPLETO")),
             ("caminho-fora", Some("ARQUIVO_INCOMPLETO")),
-            ("rede-cai", Some("DOWNLOAD_FALHOU")),
+            ("rede-cai", Some("SEM_CONEXAO")),
             ("sem-espaco", Some("ESPACO_INSUFICIENTE")),
+            ("download-varios-itens", Some("CONTEUDO_NAO_SUPORTADO")),
         ] {
             let dir = tempfile::tempdir().unwrap();
             let controle = Arc::new(Mutex::new(Dados::default()));
@@ -371,6 +459,13 @@ mod tests {
                     "{cenario}"
                 ),
                 None => assert!(resultado.is_ok(), "{cenario}: {:?}", resultado.err()),
+            }
+            if cenario == "download-varios-itens" {
+                assert_eq!(
+                    fs::read_dir(dir.path()).unwrap().count(),
+                    0,
+                    "nenhum arquivo ou temporário pode restar"
+                );
             }
         }
     }
@@ -409,7 +504,7 @@ mod tests {
         let pasta = tempfile::tempdir().unwrap();
         let controle = Arc::new(Mutex::new(Dados::default()));
         let canal = Channel::new(|_| Ok(()));
-        let url = "https://tiktok.com/@scout2015/video/6718335390845095173";
+        let url = "https://www.instagram.com/reel/DUl354timp1/";
         let (arquivo, _) =
             executar_interno(&controle, &canal, url, pasta.path(), &yt, &ffmpeg, None)
                 .await
@@ -503,11 +598,26 @@ mod tests {
         assert!(!nome.contains(':'));
     }
     #[test]
+    fn progresso_combinado_e_indeterminado() {
+        let mut p = Progresso::default();
+        assert_eq!(p.ler("download:100:100:100%:h264:aac"), Some(Some(90.0)));
+        assert_eq!(p.ler("download:10:NA:NA:h264:aac"), Some(None));
+    }
+    #[test]
     fn progresso_duas_partes_nunca_recua() {
         let mut progresso = Progresso::default();
-        let a = progresso.ler("download:50:100:50.0%").unwrap();
-        let b = progresso.ler("download:100:100:100.0%").unwrap();
-        let c = progresso.ler("download:1:100:1.0%").unwrap();
+        let a = progresso
+            .ler("download:50:100:50.0%:h264:none")
+            .unwrap()
+            .unwrap();
+        let b = progresso
+            .ler("download:100:100:100.0%:h264:none")
+            .unwrap()
+            .unwrap();
+        let c = progresso
+            .ler("download:1:100:1.0%:none:aac")
+            .unwrap()
+            .unwrap();
         assert!(a <= b && b <= c);
     }
 }
@@ -537,9 +647,83 @@ pub struct Dados {
     pub atualizacao: bool,
     pub arquivos: std::collections::HashMap<String, PathBuf>,
     pub tarefa: Option<tokio::task::AbortHandle>,
+    pub encerrando: bool,
+    pub temporario: Option<PathBuf>,
+    #[cfg(unix)]
+    pub grupo: Option<Arc<crate::processos::Grupo>>,
+    #[cfg(windows)]
+    pub grupo: Option<Arc<crate::processos::GrupoWindows>>,
 }
 #[derive(Default)]
 pub struct Controle(pub Arc<Mutex<Dados>>);
+impl Controle {
+    pub fn encerrar(&self) {
+        if let Ok(mut dados) = self.0.lock() {
+            dados.encerrando = true;
+            if let Some(grupo) = dados.grupo.take() {
+                grupo.terminar();
+            }
+            if let Some(tarefa) = dados.tarefa.take() {
+                tarefa.abort();
+            }
+            if let Some(pasta) = dados.temporario.take() {
+                let _ = fs::remove_dir_all(pasta);
+            }
+        }
+    }
+}
+struct RegistroGrupo {
+    controle: Arc<Mutex<Dados>>,
+    #[cfg(unix)]
+    grupo: Arc<crate::processos::Grupo>,
+    #[cfg(windows)]
+    grupo: Arc<crate::processos::GrupoWindows>,
+}
+impl Drop for RegistroGrupo {
+    fn drop(&mut self) {
+        if let Ok(mut dados) = self.controle.lock() {
+            if dados
+                .grupo
+                .as_ref()
+                .is_some_and(|g| Arc::ptr_eq(g, &self.grupo))
+            {
+                dados.grupo = None;
+            }
+            dados.temporario = None;
+        }
+    }
+}
+// Somente diretórios antigos com prefixo próprio; não segue links simbólicos.
+pub fn limpar_antigos(pasta: &Path) {
+    if let Ok(entradas) = fs::read_dir(pasta) {
+        for entrada in entradas.flatten() {
+            if !entrada
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".clipora-")
+            {
+                continue;
+            }
+            let Ok(meta) = entrada.metadata() else {
+                continue;
+            };
+            if !entrada
+                .file_type()
+                .is_ok_and(|t| t.is_dir() && !t.is_symlink())
+            {
+                continue;
+            }
+            if meta
+                .modified()
+                .ok()
+                .and_then(|m| m.elapsed().ok())
+                .is_some_and(|idade| idade >= std::time::Duration::from_secs(24 * 60 * 60))
+            {
+                let _ = fs::remove_dir_all(entrada.path());
+            }
+        }
+    }
+}
 #[derive(Clone, Serialize)]
 #[serde(
     tag = "tipo",
@@ -585,13 +769,25 @@ pub async fn executar(
     bin: PathBuf,
     ffmpeg: PathBuf,
 ) {
-    let resultado = executar_interno(&controle, &canal, &url, &pasta, &bin, &ffmpeg, None).await;
+    let resultado = executar_interno(
+        &controle,
+        &canal,
+        &url,
+        &pasta,
+        &bin,
+        &ffmpeg,
+        #[cfg(test)]
+        None,
+    )
+    .await;
     if let Ok(mut dados) = controle.lock() {
         if let Ok((ref caminho, _)) = resultado {
             dados.arquivos.insert(id, caminho.clone());
         }
         dados.ativo = None;
         dados.tarefa = None;
+        dados.grupo = None;
+        dados.temporario = None;
     }
     match resultado {
         Ok((caminho, renomeado)) => {
@@ -618,7 +814,7 @@ async fn executar_interno(
     destino: &Path,
     bin: &Path,
     ffmpeg: &Path,
-    cenario: Option<&str>,
+    #[cfg(test)] cenario: Option<&str>,
 ) -> Result<(PathBuf, bool), ErroClipora> {
     use std::process::Stdio;
     use tokio::process::Command;
@@ -626,35 +822,87 @@ async fn executar_interno(
     if !ffmpeg.is_file() {
         return Err(err("FFMPEG_INDISPONIVEL", "FFmpeg ausente"));
     }
+    let mut versao = Command::new(ffmpeg);
+    versao
+        .arg("-version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    #[cfg(windows)]
+    versao.creation_flags(0x08000000);
+    let status = tokio::time::timeout(std::time::Duration::from_secs(5), versao.status()).await;
+    if !matches!(status, Ok(Ok(s)) if s.success()) {
+        return Err(err(
+            "FFMPEG_INDISPONIVEL",
+            "FFmpeg não executável ou tempo esgotado",
+        ));
+    }
     let temp = tempfile::Builder::new()
         .prefix(".clipora-")
         .tempdir_in(destino)
         .map_err(|e| err("PASTA_SEM_PERMISSAO", e.to_string()))?;
+    {
+        let mut dados = controle
+            .lock()
+            .map_err(|_| err("ERRO_INTERNO", "estado indisponível"))?;
+        if dados.encerrando {
+            return Err(err("DOWNLOAD_FALHOU", "aplicativo encerrando"));
+        }
+        dados.temporario = Some(temp.path().to_path_buf());
+    }
     let modelo = temp.path().join("%(id)s.%(ext)s");
     let mut comando = Command::new(bin);
     comando.args(["--ignore-config", "--no-update", "--no-playlist", "--ffmpeg-location"]).arg(ffmpeg)
-        .args(["-f", "bv*+ba/b", "--merge-output-format", "mp4", "--remux-video", "mp4", "--newline", "--progress", "--progress-template", "download:download:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress._percent_str)s", "--progress-template", "postprocess:postprocess:%(progress.status)s", "--print", "after_move:CLIPORA_RESULT:%(filepath)j\t%(title)j\t%(id)j", "-o"]).arg(modelo).arg("--").arg(url)
+        .args(["-f", "bv*+ba/b", "--merge-output-format", "mp4", "--remux-video", "mp4", "--newline", "--progress", "--progress-template", "download:download:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress._percent_str)s:%(info.vcodec)s:%(info.acodec)s", "--progress-template", "postprocess:postprocess:%(progress.status)s", "--print", "after_move:CLIPORA_RESULT:%(filepath)j\t%(title)j\t%(id)j", "-o"]).arg(modelo).arg("--").arg(url)
         .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
+    #[cfg(test)]
     if let Some(cenario) = cenario {
         comando
             .env("CLIPORA_FALSO_CENARIO", cenario)
-            .env("CLIPORA_FALSO_INTERVALO_MS", "40");
+            .env("CLIPORA_FALSO_INTERVALO_MS", "40")
+            .env("CLIPORA_FALSO_PASTA_FORA", destino);
     }
     #[cfg(unix)]
     comando.process_group(0);
     #[cfg(windows)]
     comando.creation_flags(0x08000000);
-    let mut filho = comando
-        .spawn()
-        .map_err(|e| err("DOWNLOAD_FALHOU", e.to_string()))?;
+    let mut filho = comando.spawn().map_err(|e| {
+        err(
+            if matches!(
+                e.kind(),
+                io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied
+            ) {
+                "YTDLP_INDISPONIVEL"
+            } else {
+                "DOWNLOAD_FALHOU"
+            },
+            e.to_string(),
+        )
+    })?;
     #[cfg(unix)]
-    let _grupo = crate::processos::Grupo(
+    let grupo = Arc::new(crate::processos::Grupo(
         filho
             .id()
             .ok_or_else(|| err("ERRO_INTERNO", "PID ausente"))?,
-    );
+    ));
     #[cfg(windows)]
-    let _grupo = crate::processos::GrupoWindows::novo(&filho).map_err(|e| err(e, "job Windows"))?;
+    let grupo =
+        Arc::new(crate::processos::GrupoWindows::novo(&filho).map_err(|e| err(e, "job Windows"))?);
+    {
+        let mut dados = controle
+            .lock()
+            .map_err(|_| err("ERRO_INTERNO", "estado indisponível"))?;
+        if dados.encerrando {
+            grupo.terminar();
+            return Err(err("DOWNLOAD_FALHOU", "aplicativo encerrando"));
+        }
+        dados.grupo = Some(grupo.clone());
+    }
+    let _registro = RegistroGrupo {
+        controle: controle.clone(),
+        grupo: grupo.clone(),
+    };
     let stdout = filho
         .stdout
         .take()
@@ -689,14 +937,18 @@ async fn executar_interno(
             detalhe.push_str(&linha);
             detalhe.push('\n');
         }
-        if linha.to_lowercase().contains("already been downloaded")
-            || linha.to_lowercase().contains("already downloaded")
+        if linha.starts_with("[download]")
+            && (linha.to_lowercase().contains("already been downloaded")
+                || linha.to_lowercase().contains("already downloaded"))
         {
             ja_baixado = true;
         }
-        if let Some(resto) = linha.strip_prefix("CLIPORA_RESULT:") {
+        if !eh_stderr && let Some(resto) = linha.strip_prefix("CLIPORA_RESULT:") {
             let valores: Vec<_> = resto.split('\t').collect();
             if valores.len() == 3 {
+                if resultado.is_some() {
+                    return Err(err("CONTEUDO_NAO_SUPORTADO", "múltiplos arquivos"));
+                }
                 resultado = Some((
                     valores[0].to_string(),
                     valores[1].to_string(),
@@ -718,7 +970,7 @@ async fn executar_interno(
             } else {
                 "baixando_audio"
             };
-            etapa(controle, canal, nome, Some(pct));
+            etapa(controle, canal, nome, pct);
             ultimo = std::time::Instant::now();
         }
     }
@@ -727,7 +979,11 @@ async fn executar_interno(
         .await
         .map_err(|e| err("DOWNLOAD_FALHOU", e.to_string()))?;
     if !status.success() {
-        let codigo = if detalhe.to_lowercase().contains("no space left") {
+        let codigo = if detalhe.to_lowercase().contains("ffmpeg not found")
+            || detalhe.to_lowercase().contains("won't be merged")
+        {
+            "FFMPEG_INDISPONIVEL"
+        } else if detalhe.to_lowercase().contains("no space left") {
             "ESPACO_INSUFICIENTE"
         } else {
             let c = crate::processos::classificar_erro(&detalhe);

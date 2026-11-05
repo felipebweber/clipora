@@ -330,6 +330,35 @@ descrever('yt-dlp falso: download', () => {
     expect(r.codigo).toBe(0);
     expect(arquivos()).toHaveLength(2);
   });
+
+  it('download-varios-itens: prévia de vídeo único, mas o download (args do backend) emite 2 linhas CLIPORA_RESULT', async () => {
+    const env = { CLIPORA_FALSO_CENARIO: 'download-varios-itens' };
+    const url = 'https://www.instagram.com/p/POST3/';
+    // A prévia passa por video_unico: JSON de vídeo único com vcodec.
+    const info = JSON.parse((await previa(url, env)).stdout);
+    expect(info).toMatchObject({ _type: 'video', vcodec: 'h264' });
+    expect(info).not.toHaveProperty('entries');
+
+    // Mesmos argumentos de src-tauri/src/download.rs (executar_interno).
+    const temp = join(dir, '.clipora-teste');
+    const r = await rodar(YTDLP, [
+      '--ignore-config', '--no-update', '--no-playlist', '--ffmpeg-location', FFMPEG,
+      '-f', 'bv*+ba/b', '--merge-output-format', 'mp4', '--remux-video', 'mp4', '--newline', '--progress',
+      '--progress-template', 'download:download:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress._percent_str)s',
+      '--progress-template', 'postprocess:postprocess:%(progress.status)s',
+      '--print', 'after_move:CLIPORA_RESULT:%(filepath)j\t%(title)j\t%(id)j',
+      '-o', join(temp, '%(id)s.%(ext)s'), '--', url,
+    ], { env });
+    expect(r.codigo).toBe(0);
+    const resultados = r.stdout.split('\n').filter((l) => l.startsWith('CLIPORA_RESULT:'));
+    expect(resultados).toHaveLength(2);
+    const campos = resultados.map((l) => l.slice('CLIPORA_RESULT:'.length).split('\t').map((v) => JSON.parse(v)));
+    expect(campos.map(([, , id]) => id)).toEqual(['POST3_1', 'POST3_2']);
+    expect(campos.map(([, titulo]) => titulo)).toEqual(['Item 1 do carrossel', 'Item 2 do carrossel']);
+    for (const [caminho] of campos) expect(statSync(caminho).size).toBeGreaterThan(0);
+    expect(arquivos(temp)).toEqual(['POST3_1.mp4', 'POST3_2.mp4']);
+    expect((await lerRegistro(registro)).some((e) => e.evento === 'varios-itens' && e.quantidade === 2)).toBe(true);
+  });
 });
 
 descrever('FFmpeg falso e ausente', () => {

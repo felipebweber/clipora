@@ -169,6 +169,7 @@ Executar a cada etapa a partir da 3 e obrigatoriamente na 8.
 | V5-14 | Exit 0 sem arquivo | yt-dlp falso sai com 0 sem gerar arquivo nem `after_move:filepath`. | `ARQUIVO_INCOMPLETO`. Nunca "concluído" (fixture `sem-arquivo`). | [I] |
 | V5-15 | Arquivo vazio ou `.part` residual | yt-dlp falso deixa o final com 0 bytes, ou só `.part`. | `ARQUIVO_INCOMPLETO`. O temporário é removido e a pasta do usuário fica sem lixo (fixtures `arquivo-vazio` e `so-part`). | [I] |
 | V5-16 | Caminho informado fora da pasta | yt-dlp falso imprime `after_move:filepath` apontando para `/tmp/outro.mp4`. | `ARQUIVO_INCOMPLETO`. O app não anuncia arquivo fora da pasta de destino (fixture `caminho-fora`). | [I] |
+| V5-18 | Carrossel detectado só no download | Fixture `download-varios-itens`: a prévia passa (vídeo único), mas o yt-dlp baixa 2 itens e emite 2 linhas `after_move`. Chamar `iniciar_download` direto, sem prévia. | `CONTEUDO_NAO_SUPORTADO`. Nenhum arquivo finalizado na pasta de destino e `.clipora-*` removida. Nunca "concluído" com só o último item. | [I] |
 | V5-17 | Sanitização de nomes | Títulos com `/ \ : * ? " < > \|`, emoji, só espaços, `CON`, `NUL.txt`, 500 caracteres e ponto final. | O nome resultante é válido em Windows, macOS e Linux, tem até ~200 bytes e preserva o id. Funciona nos três sistemas. | [U] + [M-SO] |
 
 ### FFmpeg e falhas

@@ -1,12 +1,15 @@
 mod binarios;
 mod download;
+pub mod integridade;
 mod links;
 mod pasta;
 mod previa;
 mod processos;
+mod versao;
 
 use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 fn config_pasta(app: &tauri::AppHandle) -> Result<pasta::ConfigPasta, previa::ErroClipora> {
     let dir = app
@@ -79,8 +82,9 @@ async fn iniciar_download(
             .caminho
             .ok_or_else(|| previa::ErroClipora::novo("PASTA_NAO_DEFINIDA", None))?,
     );
+    download::limpar_antigos(&destino);
     let bin = binarios::resolver(&app, "clipora-yt-dlp")
-        .map_err(|e| previa::ErroClipora::novo("DOWNLOAD_FALHOU", Some(e)))?;
+        .map_err(|e| previa::ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e)))?;
     let ffmpeg = binarios::resolver(&app, "clipora-ffmpeg")
         .map_err(|e| previa::ErroClipora::novo("FFMPEG_INDISPONIVEL", Some(e)))?;
     binarios::resolver(&app, "clipora-ffprobe")
@@ -115,6 +119,7 @@ async fn iniciar_download(
 }
 #[tauri::command]
 async fn abrir_pasta_download(
+    app: tauri::AppHandle,
     controle: State<'_, download::Controle>,
     download_id: String,
 ) -> Result<(), previa::ErroClipora> {
@@ -126,6 +131,18 @@ async fn abrir_pasta_download(
         .get(&download_id)
         .cloned()
         .ok_or_else(|| previa::ErroClipora::novo("ERRO_INTERNO", None))?;
+    if !caminho.is_file() {
+        let pasta = caminho
+            .parent()
+            .filter(|p| p.is_dir())
+            .ok_or_else(|| previa::ErroClipora::novo("PASTA_AUSENTE", None))?
+            .to_string_lossy()
+            .into_owned();
+        return app
+            .opener()
+            .open_path(pasta, None::<&str>)
+            .map_err(|e| previa::ErroClipora::novo("ERRO_INTERNO", Some(e.to_string())));
+    }
     tauri::async_runtime::spawn_blocking(move || tauri_plugin_opener::reveal_item_in_dir(caminho))
         .await
         .map_err(|e| previa::ErroClipora::novo("ERRO_INTERNO", Some(e.to_string())))?
@@ -144,7 +161,7 @@ async fn obter_previa(
         .map_err(|c| previa::ErroClipora::novo(c, None))?;
     links::validar(&url).map_err(|c| previa::ErroClipora::novo(c, None))?;
     let bin = binarios::resolver(&app, "clipora-yt-dlp")
-        .map_err(|e| previa::ErroClipora::novo("PREVIA_INDISPONIVEL", Some(e)))?;
+        .map_err(|e| previa::ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e)))?;
     let ffmpeg = binarios::resolver(&app, "clipora-ffmpeg")
         .map_err(|e| previa::ErroClipora::novo("FFMPEG_INDISPONIVEL", Some(e)))?;
     previa::obter(url, requisicao_id, cancelado, &bin, &ffmpeg).await
@@ -154,9 +171,15 @@ async fn obter_previa(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             app.manage(previa::ControlePrevia::default());
             app.manage(download::Controle::default());
+            if let Ok(config) = config_pasta(app.handle())
+                && let Some(pasta) = config.obter().caminho
+            {
+                download::limpar_antigos(std::path::Path::new(&pasta));
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -170,11 +193,8 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
-            if matches!(event, tauri::RunEvent::Exit)
-                && let Ok(dados) = app.state::<download::Controle>().0.lock()
-                && let Some(tarefa) = &dados.tarefa
-            {
-                tarefa.abort();
+            if matches!(event, tauri::RunEvent::Exit) {
+                app.state::<download::Controle>().encerrar();
             }
         });
 }

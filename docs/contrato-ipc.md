@@ -5,7 +5,7 @@ Contrato para integração; salvo indicação contrária, comandos futuros ainda
 ## Tipos TypeScript
 
 ```ts
-type CodigoErro = 'LINK_INVALIDO' | 'PLATAFORMA_NAO_SUPORTADA' | 'PREVIA_CANCELADA' | 'TEMPO_ESGOTADO' | 'SEM_CONEXAO' | 'LOGIN_NECESSARIO' | 'CONTEUDO_PRIVADO_OU_REMOVIDO' | 'LIMITE_DE_ACESSO' | 'CONTEUDO_NAO_SUPORTADO' | 'PREVIA_INDISPONIVEL' | 'PASTA_NAO_DEFINIDA' | 'PASTA_AUSENTE' | 'PASTA_SEM_PERMISSAO' | 'ESPACO_INSUFICIENTE' | 'FFMPEG_INDISPONIVEL' | 'ARQUIVO_INCOMPLETO' | 'DOWNLOAD_EM_ANDAMENTO' | 'DOWNLOAD_FALHOU' | 'ATUALIZACAO_EM_ANDAMENTO' | 'ATUALIZACAO_INTEGRIDADE' | 'ATUALIZACAO_NAO_SUPORTADA' | 'ATUALIZACAO_FALHOU' | 'ERRO_INTERNO';
+type CodigoErro = 'LINK_INVALIDO' | 'PLATAFORMA_NAO_SUPORTADA' | 'PREVIA_CANCELADA' | 'TEMPO_ESGOTADO' | 'SEM_CONEXAO' | 'LOGIN_NECESSARIO' | 'CONTEUDO_PRIVADO_OU_REMOVIDO' | 'LIMITE_DE_ACESSO' | 'CONTEUDO_NAO_SUPORTADO' | 'PREVIA_INDISPONIVEL' | 'PASTA_NAO_DEFINIDA' | 'PASTA_AUSENTE' | 'PASTA_SEM_PERMISSAO' | 'ESPACO_INSUFICIENTE' | 'FFMPEG_INDISPONIVEL' | 'ARQUIVO_INCOMPLETO' | 'DOWNLOAD_EM_ANDAMENTO' | 'DOWNLOAD_FALHOU' | 'ATUALIZACAO_EM_ANDAMENTO' | 'ATUALIZACAO_INTEGRIDADE' | 'ATUALIZACAO_NAO_SUPORTADA' | 'ATUALIZACAO_FALHOU' | 'YTDLP_INDISPONIVEL' | 'ERRO_INTERNO';
 type ErroClipora = { codigo: CodigoErro; mensagem: string; detalhe?: string };
 type Plataforma = 'instagram' | 'tiktok';
 type Previa = { requisicaoId: number; urlOriginal: string; urlNormalizada: string; titulo: string | null; plataforma: Plataforma; duracaoSegundos: number | null; capaDataUrl: string | null };
@@ -41,7 +41,7 @@ use serde::Serialize;
 use tauri::ipc::Channel;
 #[derive(Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum CodigoErro { LinkInvalido, PlataformaNaoSuportada, PreviaCancelada, TempoEsgotado, SemConexao, LoginNecessario, ConteudoPrivadoOuRemovido, LimiteDeAcesso, ConteudoNaoSuportado, PreviaIndisponivel, PastaNaoDefinida, PastaAusente, PastaSemPermissao, EspacoInsuficiente, FfmpegIndisponivel, ArquivoIncompleto, DownloadEmAndamento, DownloadFalhou, AtualizacaoEmAndamento, AtualizacaoIntegridade, AtualizacaoNaoSuportada, AtualizacaoFalhou, ErroInterno }
+enum CodigoErro { LinkInvalido, PlataformaNaoSuportada, PreviaCancelada, TempoEsgotado, SemConexao, LoginNecessario, ConteudoPrivadoOuRemovido, LimiteDeAcesso, ConteudoNaoSuportado, PreviaIndisponivel, PastaNaoDefinida, PastaAusente, PastaSemPermissao, EspacoInsuficiente, FfmpegIndisponivel, ArquivoIncompleto, DownloadEmAndamento, DownloadFalhou, AtualizacaoEmAndamento, AtualizacaoIntegridade, AtualizacaoNaoSuportada, AtualizacaoFalhou, YtdlpIndisponivel, ErroInterno }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ErroClipora { codigo: CodigoErro, mensagem: String, #[serde(skip_serializing_if = "Option::is_none")] detalhe: Option<String> }
@@ -98,7 +98,7 @@ async fn atualizar_ytdlp(versao_esperada: String, on_evento: Channel<EventoAtual
 
 ## Prévia e política de URL
 
-O frontend gera `requisicaoId` crescente e ignora `PREVIA_CANCELADA`. Nova prévia cancela e mata a árvore do processo anterior; prazo de 30 s retorna `TEMPO_ESGOTADO`. O backend ecoa a URL original, sua forma normalizada e o ID. Aceita HTTP(S), sem credenciais ou porta; HTTP é normalizado para HTTPS: `instagram.com` e `www.`/`m.` em `/reel/`, `/reels/`, `/p/`; `tiktok.com/@u/video/id`, `vm.tiktok.com`, `vt.tiktok.com` e `tiktok.com/t/`. Post `/p/` aceita apenas um vídeo; foto ou carrossel com vários itens retorna `CONTEUDO_NAO_SUPORTADO`. A validação Rust é autoritativa; frontend apenas pré-filtra. A miniatura é baixada no Rust com limite de tamanho e Content-Type `image/*`, retornada como data URL ou `null`; CSP não autoriza imagens HTTPS diretamente.
+O frontend gera `requisicaoId` e ignora `PREVIA_CANCELADA`. A última chamada recebida vence, mesmo que o contador reinicie; nova prévia cancela e mata a árvore do processo anterior; prazo de 30 s retorna `TEMPO_ESGOTADO`. O backend ecoa a URL original, sua forma normalizada e o ID. Aceita HTTP(S), sem credenciais ou porta; HTTP é normalizado para HTTPS: `instagram.com` e `www.`/`m.` em `/reel/`, `/reels/`, `/p/` e `/<usuario>/reel/<id>/`; `tiktok.com/@u/video/id` (também `www.` e `m.`), `vm.tiktok.com`, `vt.tiktok.com` e `tiktok.com/t/`. Post `/p/` aceita apenas um vídeo; foto ou carrossel com vários itens retorna `CONTEUDO_NAO_SUPORTADO`. A validação Rust é autoritativa; frontend apenas pré-filtra. A miniatura é baixada no Rust com limite de tamanho e Content-Type `image/*`, retornada como data URL ou `null`; CSP não autoriza imagens HTTPS diretamente.
 
 ## Primeiro download
 

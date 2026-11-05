@@ -113,6 +113,7 @@ A coluna "Esperado no backend" é o que o Clipora deve fazer segundo o [contrato
 | `arquivo-vazio` | Final com 0 bytes, exit 0 | `ARQUIVO_INCOMPLETO` (V5-15) |
 | `so-part` | Só `…fv1080.mp4.part`, exit 0 | `ARQUIVO_INCOMPLETO` e limpeza (V5-15) |
 | `caminho-fora` | `after_move` com `<CLIPORA_FALSO_PASTA_FORA ou tmp/clipora-fixtures-fora>/fora.mp4` (o arquivo existe e é sobrescrito a cada execução, sem acumular), exit 0 | `ARQUIVO_INCOMPLETO` (V5-16) |
+| `download-varios-itens` | `-J` mostra vídeo **único** (a prévia passa), mas o download baixa 2 itens (`<id>_1`, `<id>_2`) e imprime **2 linhas** `after_move` (por exemplo, 2× `CLIPORA_RESULT:`), exit 0. Evento `varios-itens` no registro. Ajustável com `download.videos` no arquivo de cenário | `CONTEUDO_NAO_SUPORTADO`, sem finalizar nenhum arquivo e com o temporário limpo (V5-18) |
 | `rede-cai` | Para a 50% do vídeo: "unable to download video data: ('Connection broken: IncompleteRead…", exit 1, `.part` fica | `SEM_CONEXAO` e limpeza (V5-22) |
 | `sem-espaco` | Para a 50%: "[Errno 28] No space left on device", exit 1, `.part` fica | `ESPACO_INSUFICIENTE` (V5-23) |
 | `CLIPORA_FFMPEG_FALSO=falha` | "ERROR: Postprocessing: Conversion failed!", exit 1. Ficam `.fv1080.mp4`, `.fa128.m4a` e `.temp.mp4` parcial | `DOWNLOAD_FALHOU` e limpeza (V5-21) |

@@ -525,7 +525,16 @@ async function executar(op, cenario) {
     (!op.flags.has('--no-simulate') && (dump || (op.prints.length > 0 && !estagiosPosteriores)));
   if (simular) return 0;
 
-  for (const v of videos) {
+  // download.videos > 1: a prévia (-J) mostra um vídeo único, mas o download
+  // produz vários itens, cada um com o próprio after_move. Testa a rejeição de
+  // carrossel no download, independente da checagem feita na prévia.
+  const quantidade = cenario.download.videos ?? 1;
+  const paraBaixar =
+    quantidade > 1 && cenario.tipo !== 'playlist'
+      ? Array.from({ length: quantidade }, (_, i) => metadadosPadrao({ ...alvo, id: `${alvo.id}_${i + 1}` }, url, { ...cenario.metadados, title: `Item ${i + 1} do carrossel`, playlist_index: i + 1 }))
+      : videos;
+  if (paraBaixar !== videos) registrar({ programa: 'yt-dlp', evento: 'varios-itens', quantidade });
+  for (const v of paraBaixar) {
     const codigo = await baixarVideo({ saida, cenario, op, info: v, intervaloMs });
     if (codigo !== 0) return codigo;
   }

@@ -8,11 +8,6 @@ pub struct ControlePrevia(Mutex<Option<(u64, watch::Sender<bool>)>>);
 impl ControlePrevia {
     pub fn iniciar(&self, id: u64) -> Result<watch::Receiver<bool>, &'static str> {
         let mut atual = self.0.lock().map_err(|_| "ERRO_INTERNO")?;
-        if let Some((anterior, _)) = atual.as_ref()
-            && id <= *anterior
-        {
-            return Err("PREVIA_CANCELADA");
-        }
         let (tx, rx) = watch::channel(false);
         if let Some((_, old)) = atual.replace((id, tx)) {
             let _ = old.send(true);
@@ -87,6 +82,35 @@ fn video_unico(dados: &serde_json::Value) -> Result<&serde_json::Value, &'static
     }
 }
 
+fn ip_publico(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(ip) => {
+            let o = ip.octets();
+            !(ip.is_private()
+                || ip.is_loopback()
+                || ip.is_link_local()
+                || ip.is_unspecified()
+                || ip.is_broadcast()
+                || ip.is_multicast()
+                || o[0] == 0
+                || o[0] >= 224
+                || (o[0] == 100 && (64..=127).contains(&o[1]))
+                || (o[0] == 198 && (o[1] == 18 || o[1] == 19)))
+        }
+        IpAddr::V6(ip) => {
+            if let Some(v4) = ip.to_ipv4_mapped() {
+                return ip_publico(IpAddr::V4(v4));
+            }
+            !(ip.is_loopback()
+                || ip.is_unspecified()
+                || ip.is_multicast()
+                || (ip.segments()[0] & 0xfe00) == 0xfc00
+                || (ip.segments()[0] & 0xffc0) == 0xfe80)
+        }
+    }
+}
+
 async fn capa(url: &str) -> Option<String> {
     use base64::Engine;
     use futures_util::StreamExt;
@@ -94,7 +118,20 @@ async fn capa(url: &str) -> Option<String> {
     if u.scheme() != "https" || !u.username().is_empty() || u.password().is_some() {
         return None;
     }
+    let host = u.host_str()?.to_string();
+    if u.port_or_known_default()? != 443 {
+        return None;
+    }
+    let ips: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host.as_str(), 443))
+        .await
+        .ok()?
+        .collect();
+    if ips.is_empty() || ips.iter().any(|a| !ip_publico(a.ip())) {
+        return None;
+    }
     let cliente = reqwest::Client::builder()
+        .resolve_to_addrs(&host, &ips)
+        .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(std::time::Duration::from_secs(8))
         .build()
@@ -109,11 +146,10 @@ async fn capa(url: &str) -> Option<String> {
         .next()?
         .trim()
         .to_ascii_lowercase();
-    if !mime.starts_with("image/")
-        || !mime
-            .bytes()
-            .all(|c| c.is_ascii_alphanumeric() || b"/-+.".contains(&c))
-    {
+    if !matches!(
+        mime.as_str(),
+        "image/jpeg" | "image/png" | "image/webp" | "image/gif" | "image/avif"
+    ) {
         return None;
     }
     const LIMITE: usize = 2 * 1024 * 1024;
@@ -143,6 +179,7 @@ pub async fn obter(
     bin: &std::path::Path,
     ffmpeg: &std::path::Path,
 ) -> Result<Previa, ErroClipora> {
+    let prazo = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
     let cancelado_processo = cancelado.clone();
     let tarefa = async {
         let (normalizada, plataforma) =
@@ -167,24 +204,50 @@ pub async fn obter(
         let dados: Metadados = serde_json::from_value(item.clone())
             .map_err(|e| ErroClipora::novo("PREVIA_INDISPONIVEL", Some(e.to_string())))?;
         let imagem = match dados.thumbnail {
-            Some(link) => capa(&link).await,
+            Some(link) => tokio::time::timeout_at(prazo, capa(&link))
+                .await
+                .unwrap_or(None),
             None => None,
         };
         Ok(Previa {
             requisicao_id: id,
             url_original: url,
             url_normalizada: normalizada.to_string(),
-            titulo: dados.title,
+            titulo: dados
+                .title
+                .map(|s| s.trim().to_owned())
+                .filter(|s| !s.is_empty()),
             plataforma,
             duracao_segundos: dados.duration,
             capa_data_url: imagem,
         })
     };
-    tokio::select! { biased; _ = cancelado.changed() => Err(ErroClipora::novo("PREVIA_CANCELADA", None)), r = tokio::time::timeout(std::time::Duration::from_secs(30), tarefa) => r.unwrap_or_else(|_| Err(ErroClipora::novo("TEMPO_ESGOTADO", None))) }
+    tokio::select! { biased; _ = cancelado.changed() => Err(ErroClipora::novo("PREVIA_CANCELADA", None)), r = tarefa => r }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    #[ignore = "teste manual de rede com sidecar local"]
+    async fn reel_com_usuario_real() {
+        let url = "https://www.instagram.com/judith_steiner/reel/DVn-vNTCIfX/";
+        assert!(crate::links::validar(url).is_ok());
+        let bin = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("binaries/clipora-yt-dlp-aarch64-apple-darwin");
+        let controle = ControlePrevia::default();
+        match obter(
+            url.to_string(),
+            1,
+            controle.iniciar(1).unwrap(),
+            &bin,
+            std::path::Path::new("/opt/homebrew/bin/ffmpeg"),
+        )
+        .await
+        {
+            Ok(p) => println!("{url}: OK título={:?}", p.titulo),
+            Err(e) => println!("{url}: {} {:?}", e.codigo, e.detalhe),
+        }
+    }
     #[tokio::test]
     #[ignore = "teste manual de rede com sidecar local"]
     async fn verificar_links_publicos() {
@@ -209,6 +272,92 @@ mod tests {
             }
         }
     }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn ytdlp_ausente_e_sem_execucao_retornam_codigo_especifico() {
+        let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../tests/fixtures/preparar-bin.mjs");
+        for flag in ["--sem-ytdlp", "--ytdlp-nao-executavel"] {
+            let dir = tempfile::tempdir().unwrap();
+            assert!(
+                std::process::Command::new("node")
+                    .arg(&script)
+                    .arg(dir.path())
+                    .arg(flag)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+            let controle = ControlePrevia::default();
+            let erro = obter(
+                "https://instagram.com/reel/test/".into(),
+                1,
+                controle.iniciar(1).unwrap(),
+                &dir.path().join("clipora-yt-dlp"),
+                &dir.path().join("clipora-ffmpeg"),
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(erro.codigo, "YTDLP_INDISPONIVEL", "{flag}");
+        }
+    }
+    #[tokio::test]
+    async fn erros_reais_dos_fixtures_e_titulo_vazio() {
+        let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../tests/fixtures/preparar-bin.mjs");
+        for (cenario, esperado) in [
+            ("login", "LOGIN_NECESSARIO"),
+            ("privado", "CONTEUDO_PRIVADO_OU_REMOVIDO"),
+            ("removido", "CONTEUDO_PRIVADO_OU_REMOVIDO"),
+            ("limite", "LIMITE_DE_ACESSO"),
+            ("sem-conexao", "SEM_CONEXAO"),
+            ("sem-conexao-linux", "SEM_CONEXAO"),
+            ("sem-conexao-windows", "SEM_CONEXAO"),
+            ("foto", "CONTEUDO_NAO_SUPORTADO"),
+            ("extrator-quebrado", "PREVIA_INDISPONIVEL"),
+            ("sem-titulo-sem-capa", "OK"),
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let status = std::process::Command::new("node")
+                .arg(&script)
+                .arg(dir.path())
+                .args(["--cenario", cenario])
+                .output()
+                .unwrap();
+            assert!(status.status.success(), "{cenario}");
+            let estado = ControlePrevia::default();
+            let resultado = obter(
+                "https://instagram.com/reel/test/".into(),
+                1,
+                estado.iniciar(1).unwrap(),
+                &dir.path().join("clipora-yt-dlp"),
+                &dir.path().join("clipora-ffmpeg"),
+            )
+            .await;
+            if esperado == "OK" {
+                assert!(resultado.unwrap().titulo.is_none());
+            } else {
+                assert_eq!(resultado.unwrap_err().codigo, esperado, "{cenario}");
+            }
+        }
+    }
+    #[test]
+    fn bloqueia_enderecos_de_rede_privada() {
+        for ip in [
+            "127.0.0.1",
+            "10.0.0.1",
+            "192.168.0.1",
+            "169.254.1.1",
+            "100.64.0.1",
+            "::1",
+            "fe80::1",
+            "fc00::1",
+            "::ffff:127.0.0.1",
+        ] {
+            assert!(!ip_publico(ip.parse().unwrap()), "{ip}");
+        }
+        assert!(ip_publico("8.8.8.8".parse().unwrap()));
+    }
     #[test]
     fn post_instagram_aceita_somente_um_video() {
         for (json, aceito) in [
@@ -229,12 +378,13 @@ mod tests {
         }
     }
     #[test]
-    fn nova_requisicao_cancela_anterior_e_id_antigo_nao_cancela_atual() {
+    fn ultima_requisicao_cancela_anterior_ate_apos_reinicio() {
         let estado = ControlePrevia::default();
         let mut primeira = estado.iniciar(1).unwrap();
-        let segunda = estado.iniciar(2).unwrap();
+        let mut segunda = estado.iniciar(2).unwrap();
         assert!(*primeira.borrow_and_update());
-        assert!(estado.iniciar(1).is_err());
-        assert!(!*segunda.borrow());
+        let terceira = estado.iniciar(1).unwrap();
+        assert!(*segunda.borrow_and_update());
+        assert!(!*terceira.borrow());
     }
 }
