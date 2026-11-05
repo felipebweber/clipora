@@ -4,6 +4,10 @@
   --cor-texto: #1a1a1a;
   --cor-texto-suave: #555;
   --cor-borda: #d4d4d4;
+  /* Bordas de controles (campo, botões secundários): ≥ 3:1 com o fundo
+     (WCAG 1.4.11). --cor-borda fica só para separadores/cartões decorativos. */
+  --cor-borda-controle: #767676;
+  --cor-erro-controle: #c4352b;
   --cor-superficie: #ffffff;
   --cor-destaque: #2f6fed;
   --cor-destaque-texto: #ffffff;
@@ -24,6 +28,8 @@
     --cor-texto: #f1f1f3;
     --cor-texto-suave: #b7b7bd;
     --cor-borda: #3a3a40;
+    --cor-borda-controle: #85858e;
+    --cor-erro-controle: #ff7b6e;
     --cor-superficie: #26262b;
     --cor-destaque: #5b8cff;
     --cor-destaque-texto: #0b1020;
@@ -72,7 +78,7 @@ h1 {
 
 .campo-link input {
   padding: 0.6rem 0.75rem;
-  border: 1px solid var(--cor-borda);
+  border: 1px solid var(--cor-borda-controle);
   border-radius: 0.5rem;
   background-color: var(--cor-superficie);
   color: var(--cor-texto);
@@ -85,7 +91,8 @@ h1 {
 }
 
 .campo-link input[aria-invalid="true"] {
-  border-color: var(--cor-erro-borda);
+  border-color: var(--cor-erro-controle);
+  border-width: 2px;
 }
 
 .campo-link-dica {
@@ -236,7 +243,7 @@ button:focus-visible {
 .conclusao button {
   align-self: flex-start;
   padding: 0.5rem 1.25rem;
-  border: 1px solid var(--cor-borda);
+  border: 1px solid var(--cor-borda-controle);
   border-radius: 0.5rem;
   background-color: var(--cor-fundo);
   color: var(--cor-texto);
@@ -267,7 +274,7 @@ button:focus-visible {
 .configuracoes-conteudo button {
   align-self: flex-start;
   padding: 0.5rem 1.25rem;
-  border: 1px solid var(--cor-borda);
+  border: 1px solid var(--cor-borda-controle);
   border-radius: 0.5rem;
   background-color: var(--cor-fundo);
   color: var(--cor-texto);
@@ -281,7 +288,7 @@ button:focus-visible {
 
 .erro-acoes button {
   padding: 0.4rem 1rem;
-  border: 1px solid var(--cor-erro-borda);
+  border: 1px solid var(--cor-erro-controle);
   border-radius: 0.5rem;
   background-color: var(--cor-superficie);
   color: var(--cor-texto);
@@ -363,4 +370,144 @@ button:focus-visible {
 
 .configuracoes-ytdlp {
   margin-top: 0.5rem !important;
+}
+
+/* Tela "Sobre e licenças" (diálogo modal). */
+.dialogo-fundo {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem;
+  background-color: rgb(0 0 0 / 0.55);
+  overflow-y: auto;
+}
+
+.dialogo {
+  width: 100%;
+  max-width: 40rem;
+  margin: auto 0;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid var(--cor-borda-controle);
+  border-radius: 0.75rem;
+  background-color: var(--cor-superficie);
+  color: var(--cor-texto);
+}
+
+.dialogo:focus-visible {
+  outline: 3px solid var(--cor-destaque);
+  outline-offset: 2px;
+}
+
+.dialogo p,
+.dialogo h2,
+.dialogo h3,
+.dialogo h4 {
+  margin: 0;
+}
+
+.dialogo h2 {
+  font-size: 1.25rem;
+}
+
+.dialogo h3 {
+  font-size: 1.05rem;
+  margin-top: 0.5rem;
+}
+
+.dialogo h4 {
+  font-size: 1rem;
+}
+
+.dialogo-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dialogo button {
+  align-self: flex-start;
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--cor-borda-controle);
+  border-radius: 0.5rem;
+  background-color: var(--cor-fundo);
+  color: var(--cor-texto);
+}
+
+.cartao-licenca {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.85rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 0.6rem;
+}
+
+.endereco {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.endereco code,
+.sobre-nota code {
+  font-size: 0.85rem;
+  user-select: all;
+}
+
+.dialogo .botao-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--cor-destaque);
+  text-decoration: underline;
+}
+
+.sobre-nota {
+  font-size: 0.85rem;
+  color: var(--cor-texto-suave);
+  overflow-wrap: anywhere;
+}
+
+.licencas-filtro {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--cor-borda-controle);
+  border-radius: 0.4rem;
+  background-color: var(--cor-superficie);
+  color: var(--cor-texto);
+  font-size: 0.95rem;
+}
+
+.licencas-lista {
+  max-height: 12rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.5rem 0.75rem 0.5rem 1.75rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.licencas-texto {
+  max-height: 20rem;
+  overflow: auto;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--cor-borda-controle);
+  border-radius: 0.4rem;
+  background-color: var(--cor-fundo);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.licencas-texto:focus-visible,
+.licencas-lista:focus-visible,
+.licencas-filtro:focus-visible {
+  outline: 3px solid var(--cor-destaque);
+  outline-offset: 2px;
 }

@@ -298,37 +298,23 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn atualizacao_local_assinada_e_falhas() {
-        use sequoia_openpgp::{
-            cert::CertBuilder,
-            policy::StandardPolicy,
-            serialize::{
-                Serialize as _,
-                stream::{Message, Signer},
-            },
+        use pgp::{
+            composed::{ArmorOptions, DetachedSignature, KeyType, SecretKeyParamsBuilder},
+            crypto::hash::HashAlgorithm,
+            types::{KeyDetails, Password},
         };
+        use rand::thread_rng;
         use std::io::{Read, Write};
-        let (cert, _) = CertBuilder::general_purpose(Some("Clipora Test <test@example.invalid>"))
-            .generate()
-            .unwrap();
-        let politica = StandardPolicy::new();
-        let key = cert
-            .keys()
-            .secret()
-            .with_policy(&politica, None)
-            .supported()
-            .alive()
-            .revoked(false)
-            .for_signing()
-            .next()
-            .unwrap()
-            .key()
-            .clone()
-            .into_keypair()
-            .unwrap();
-        let mut pubkey = Vec::new();
-        cert.armored().serialize(&mut pubkey).unwrap();
-        let chave = String::from_utf8(pubkey).unwrap();
-        let fingerprint = cert.fingerprint().to_hex();
+        let mut params = SecretKeyParamsBuilder::default();
+        params
+            .key_type(KeyType::Rsa(2048))
+            .can_certify(false)
+            .can_sign(true)
+            .primary_user_id("Clipora Test <test@example.invalid>".into());
+        let secret = params.build().unwrap().generate(thread_rng()).unwrap();
+        let public = secret.to_public_key();
+        let chave = public.to_armored_string(ArmorOptions::default()).unwrap();
+        let fingerprint = public.fingerprint().to_string().replace(' ', "");
         let mut zip_writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
         zip_writer
             .start_file(
@@ -341,13 +327,15 @@ mod tests {
             .unwrap();
         let zip = zip_writer.finish().unwrap().into_inner();
         let somas = format!("{:x}  asset.zip\n", Sha256::digest(&zip)).into_bytes();
-        let mut assinatura = Vec::new();
-        {
-            let msg = Message::new(&mut assinatura);
-            let mut sign = Signer::new(msg, key).unwrap().detached().build().unwrap();
-            sign.write_all(&somas).unwrap();
-            sign.finalize().unwrap();
-        }
+        let sig = DetachedSignature::sign_binary_data(
+            thread_rng(),
+            &secret.primary_key,
+            &Password::empty(),
+            HashAlgorithm::Sha256,
+            somas.as_slice(),
+        )
+        .unwrap();
+        let assinatura = sig.to_armored_bytes(ArmorOptions::default()).unwrap();
         let mut zip_writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
         zip_writer
             .start_file(
@@ -359,27 +347,15 @@ mod tests {
         let zip_invalido = zip_writer.finish().unwrap().into_inner();
         let somas_invalido =
             format!("{:x}  asset.zip\n", Sha256::digest(&zip_invalido)).into_bytes();
-        let key = cert
-            .keys()
-            .secret()
-            .with_policy(&politica, None)
-            .supported()
-            .alive()
-            .revoked(false)
-            .for_signing()
-            .next()
-            .unwrap()
-            .key()
-            .clone()
-            .into_keypair()
-            .unwrap();
-        let mut assinatura_invalido = Vec::new();
-        {
-            let msg = Message::new(&mut assinatura_invalido);
-            let mut sign = Signer::new(msg, key).unwrap().detached().build().unwrap();
-            sign.write_all(&somas_invalido).unwrap();
-            sign.finalize().unwrap();
-        }
+        let sig = DetachedSignature::sign_binary_data(
+            thread_rng(),
+            &secret.primary_key,
+            &Password::empty(),
+            HashAlgorithm::Sha256,
+            somas_invalido.as_slice(),
+        )
+        .unwrap();
+        let assinatura_invalido = sig.to_armored_bytes(ArmorOptions::default()).unwrap();
         for caso in ["sucesso", "hash", "assinatura", "versao", "binario"] {
             let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
             listener.set_nonblocking(true).unwrap();

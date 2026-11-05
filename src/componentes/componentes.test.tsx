@@ -98,7 +98,7 @@ describe("ConfiguracoesPainel (M3/L3)", () => {
       ...over,
     };
   }
-  const props = { verificacaoYtdlp: null, falhaVerificacaoYtdlp: null };
+  const props = { verificacaoYtdlp: null, falhaVerificacaoYtdlp: null, aoAbrirSobre: () => {} };
 
   it("mostra os estados ausente e sem_permissao", () => {
     const { rerender } = render(
@@ -129,7 +129,7 @@ describe("ConfiguracoesPainel (M3/L3)", () => {
         {...props}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent(/sem permissão/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/não tem permissão para salvar/i);
   });
 
   it("desabilita 'Alterar pasta' durante o download, com a explicação", () => {
@@ -146,6 +146,7 @@ describe("ConfiguracoesPainel (M3/L3)", () => {
         bloqueado={false}
         verificacaoYtdlp={null}
         falhaVerificacaoYtdlp={{ codigo: "SEM_CONEXAO", mensagem: "x" }}
+        aoAbrirSobre={() => {}}
       />,
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();

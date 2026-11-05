@@ -25,3 +25,16 @@ describe("seleção do serviço (src/servicos/index.ts)", () => {
     expect(modulo.servico).toBeInstanceOf(modulo.ServicoCliporaTauri);
   });
 });
+
+describe("cenários do simulado para revisão manual (?cenario=)", () => {
+  it("combina cenários conhecidos e ignora desconhecidos", async () => {
+    const { opcoesDoCenario } = await import("./index");
+    expect(opcoesDoCenario("")).toEqual({});
+    const opcoes = opcoesDoCenario("?cenario=falha-atualizacao,sem-licencas,inexistente");
+    expect(opcoes).toMatchObject({
+      falhaAtualizacao: "ATUALIZACAO_INTEGRIDADE",
+      licencasIndisponiveis: true,
+      verificacaoYtdlpInicial: { atualizacaoDisponivel: true },
+    });
+  });
+});

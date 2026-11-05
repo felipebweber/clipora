@@ -12,6 +12,70 @@ use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LicencasResposta {
+    resumo: serde_json::Value,
+    texto_completo: String,
+}
+
+fn ler_licencas(app: &tauri::AppHandle) -> Result<LicencasResposta, previa::ErroClipora> {
+    let dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| previa::ErroClipora::novo("LICENCAS_INDISPONIVEIS", Some(e.to_string())))?
+        .join("licencas");
+    ler_licencas_de(&dir)
+}
+
+fn ler_licencas_de(dir: &std::path::Path) -> Result<LicencasResposta, previa::ErroClipora> {
+    let resumo = std::fs::read(dir.join("licencas.json"))
+        .map_err(|e| previa::ErroClipora::novo("LICENCAS_INDISPONIVEIS", Some(e.to_string())))?;
+    let resumo = serde_json::from_slice(&resumo)
+        .map_err(|e| previa::ErroClipora::novo("LICENCAS_INDISPONIVEIS", Some(e.to_string())))?;
+    let texto_completo = std::fs::read_to_string(dir.join("THIRD_PARTY_LICENSES.txt"))
+        .map_err(|e| previa::ErroClipora::novo("LICENCAS_INDISPONIVEIS", Some(e.to_string())))?;
+    Ok(LicencasResposta {
+        resumo,
+        texto_completo,
+    })
+}
+
+#[tauri::command]
+fn obter_licencas(app: tauri::AppHandle) -> Result<LicencasResposta, previa::ErroClipora> {
+    ler_licencas(&app)
+}
+
+#[tauri::command]
+async fn abrir_link_licenca(
+    app: tauri::AppHandle,
+    componente_id: String,
+    tipo: String,
+) -> Result<(), previa::ErroClipora> {
+    let licencas = ler_licencas(&app)?;
+    let campo = match tipo.as_str() {
+        "codigoFonte" => "codigoFonte",
+        "projeto" => "projeto",
+        _ => return Err(previa::ErroClipora::novo("LINK_INVALIDO", None)),
+    };
+    let url = licencas
+        .resumo
+        .get("componentes")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|itens| {
+            itens.iter().find(|item| {
+                item.get("id").and_then(serde_json::Value::as_str) == Some(&componente_id)
+            })
+        })
+        .and_then(|item| item.get(campo))
+        .and_then(serde_json::Value::as_str)
+        .filter(|url| url::Url::parse(url).is_ok_and(|u| u.scheme() == "https"))
+        .ok_or_else(|| previa::ErroClipora::novo("LINK_INVALIDO", None))?;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| previa::ErroClipora::novo("ERRO_INTERNO", Some(e.to_string())))
+}
+
 fn config_pasta(app: &tauri::AppHandle) -> Result<pasta::ConfigPasta, previa::ErroClipora> {
     let dir = app
         .path()
@@ -117,6 +181,11 @@ async fn iniciar_download(
         download_id: download_id.clone(),
         percentual: None,
         etapa: "preparando".into(),
+        previa: dados
+            .previa
+            .as_ref()
+            .filter(|p| p.url_normalizada == normalizada.as_str())
+            .cloned(),
     });
     let shared = controle.0.clone();
     let tarefa = tauri::async_runtime::spawn(download::executar(
@@ -214,7 +283,13 @@ async fn obter_previa(
         .map_err(|e| previa::ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e)))?;
     let ffmpeg = binarios::resolver(&app, "clipora-ffmpeg")
         .map_err(|e| previa::ErroClipora::novo("FFMPEG_INDISPONIVEL", Some(e)))?;
-    previa::obter(url, requisicao_id, cancelado, &bin, &ffmpeg).await
+    let resultado = previa::obter(url, requisicao_id, cancelado, &bin, &ffmpeg).await;
+    if let Ok(ref previa) = resultado
+        && let Ok(mut dados) = controle.0.lock()
+    {
+        dados.previa = Some(previa.clone());
+    }
+    resultado
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -239,6 +314,8 @@ pub fn run() {
             obter_previa,
             verificar_ytdlp,
             atualizar_ytdlp,
+            obter_licencas,
+            abrir_link_licenca,
             obter_estado,
             obter_pasta_destino,
             selecionar_pasta_destino,
@@ -252,4 +329,27 @@ pub fn run() {
                 app.state::<download::Controle>().encerrar();
             }
         });
+}
+
+#[cfg(test)]
+mod licencas_tests {
+    use super::*;
+    #[test]
+    fn le_json_e_texto_completo_e_exige_ambos() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("licencas.json"),
+            r#"{"formato":1,"componentes":[]}"#,
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("THIRD_PARTY_LICENSES.txt"), "avisos").unwrap();
+        let resposta = ler_licencas_de(dir.path()).unwrap();
+        assert_eq!(resposta.resumo["formato"], 1);
+        assert_eq!(resposta.texto_completo, "avisos");
+        std::fs::remove_file(dir.path().join("THIRD_PARTY_LICENSES.txt")).unwrap();
+        assert_eq!(
+            ler_licencas_de(dir.path()).unwrap_err().codigo,
+            "LICENCAS_INDISPONIVEIS"
+        );
+    }
 }

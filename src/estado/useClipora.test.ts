@@ -35,6 +35,8 @@ function criarServicoControlavel() {
     selecionar_pasta_destino: vi.fn(),
     verificar_ytdlp: vi.fn(),
     atualizar_ytdlp: vi.fn(),
+    obter_licencas: vi.fn(),
+    abrir_link_licenca: vi.fn(),
   };
   return { servico, resolucoesPrevia };
 }
@@ -418,7 +420,7 @@ describe("useClipora: abrir pasta com falha (M7)", () => {
 
     await act(async () => result.current.abrirPasta());
     expect(result.current.aviso).toBe(
-      "Não foi possível abrir a pasta. A pasta de destino não existe mais. Escolha outra.",
+      "Não foi possível abrir a pasta. A pasta de destino não existe mais. Escolha outra em Configurações.",
     );
     expect(result.current.estado.tipo).toBe("concluido"); // não bloqueia
   });

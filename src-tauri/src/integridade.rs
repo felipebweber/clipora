@@ -1,65 +1,39 @@
-//! Verificação de releases. Sequoia fornece política OpenPGP e verificação de
-//! assinaturas; backend RustCrypto evita dependência de GPG/sistema. Esse
-//! backend é marcado experimental/tempo variável pelo projeto, mas aqui apenas
-//! verificamos assinaturas públicas, sem operar com chaves secretas.
+//! Verificação de releases com rPGP, biblioteca OpenPGP permissiva MIT/Apache-2.0.
 use anyhow::{Context, Result, bail};
-use sequoia_openpgp::{
-    self as openpgp, Cert, KeyHandle,
-    parse::{
-        Parse,
-        stream::{DetachedVerifierBuilder, MessageLayer, MessageStructure, VerificationHelper},
-    },
-    policy::StandardPolicy,
+use pgp::{
+    composed::{Deserializable, DetachedSignature, SignedPublicKey},
+    types::KeyDetails,
 };
 use sha2::{Digest, Sha256};
 
 pub const CHAVE: &str = include_str!("../../scripts/chaves/yt-dlp.asc");
 pub const FINGERPRINT: &str = "AC0CBBE6848D6A873464AF4E57CF65933B5A7581";
-struct Verificador(Cert);
-impl VerificationHelper for Verificador {
-    fn get_certs(&mut self, _: &[KeyHandle]) -> openpgp::Result<Vec<Cert>> {
-        Ok(vec![self.0.clone()])
-    }
-    fn check(&mut self, estrutura: MessageStructure) -> openpgp::Result<()> {
-        let mut valido = false;
-        for camada in estrutura {
-            if let MessageLayer::SignatureGroup { results } = camada {
-                for resultado in results {
-                    if resultado.is_ok() {
-                        valido = true;
-                    }
-                }
-            }
-        }
-        if !valido {
-            bail!("assinatura OpenPGP inválida ou ausente");
-        }
-        Ok(())
-    }
-}
 pub fn verificar_assinatura(
     somas: &[u8],
     assinatura: &[u8],
     chave: &str,
     fingerprint: &str,
 ) -> Result<()> {
-    let cert = Cert::from_bytes(chave.as_bytes()).context("chave OpenPGP inválida")?;
-    if !cert
-        .fingerprint()
-        .to_hex()
-        .eq_ignore_ascii_case(fingerprint)
-    {
+    let (chave, _) =
+        SignedPublicKey::from_armor_single(chave.as_bytes()).context("chave OpenPGP inválida")?;
+    let real = chave.fingerprint().to_string().replace(' ', "");
+    if !real.eq_ignore_ascii_case(fingerprint) {
         bail!("impressão digital inesperada");
     }
-    let politica = StandardPolicy::new();
-    let helper = Verificador(cert);
-    let mut verificador = DetachedVerifierBuilder::from_bytes(assinatura)
-        .context("assinatura ausente ou inválida")?
-        .with_policy(&politica, None, helper)?;
-    verificador
-        .verify_bytes(somas)
-        .context("assinatura das somas inválida")?;
-    Ok(())
+    chave
+        .verify_bindings()
+        .context("vínculos da chave inválidos")?;
+    let assinatura = if assinatura.starts_with(b"-----BEGIN PGP SIGNATURE-----") {
+        DetachedSignature::from_armor_single(assinatura)
+            .map(|(sig, _)| sig)
+            .context("assinatura ausente ou inválida")?
+    } else {
+        DetachedSignature::from_bytes(std::io::Cursor::new(assinatura))
+            .context("assinatura ausente ou inválida")?
+    };
+    assinatura
+        .verify(&chave.primary_key, somas)
+        .context("assinatura das somas inválida")
 }
 pub fn verificar_hash(asset: &[u8], somas: &[u8], nome: &str) -> Result<()> {
     let texto = std::str::from_utf8(somas)?;
@@ -78,7 +52,6 @@ pub fn verificar_hash(asset: &[u8], somas: &[u8], nome: &str) -> Result<()> {
     }
     Ok(())
 }
-/// Verifica a assinatura da lista com a chave fixada antes do hash do asset.
 pub fn verificar_asset(asset: &[u8], somas: &[u8], assinatura: &[u8], nome: &str) -> Result<()> {
     verificar_assinatura(somas, assinatura, CHAVE, FINGERPRINT)?;
     verificar_hash(asset, somas, nome)

@@ -287,3 +287,63 @@ describe("App: recuperação ao abrir (obter_estado)", () => {
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 });
+
+describe("App: revisão de experiência (etapa 8)", () => {
+  it("Enter no campo carrega a prévia na hora, sem esperar o debounce", async () => {
+    const usuario = userEvent.setup();
+    const servico = criarSimulado();
+    const espiao = vi.spyOn(servico, "obter_previa");
+    render(<App servico={servico} />);
+
+    await usuario.click(campoLink());
+    await usuario.paste("https://www.instagram.com/reel/abc/");
+    await usuario.keyboard("{Enter}");
+    expect(espiao).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(botaoBaixar()).toBeEnabled());
+
+    // Enter de novo com a mesma prévia pronta não refaz a requisição.
+    await usuario.keyboard("{Enter}");
+    expect(espiao).toHaveBeenCalledTimes(1);
+  });
+
+  it("Esc com o foco no aviso de erro fecha o aviso", async () => {
+    const usuario = userEvent.setup();
+    render(<App servico={criarSimulado()} />);
+    await usuario.click(campoLink());
+    await usuario.paste("https://exemplo.com/x");
+    await usuario.keyboard("{Enter}");
+    const entendi = await screen.findByRole("button", { name: /entendi/i });
+    entendi.focus();
+    await usuario.keyboard("{Escape}");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(campoLink()).toHaveFocus();
+  });
+
+  it("componente ausente (YTDLP_INDISPONIVEL): só 'Entendi', a ação é reinstalar", async () => {
+    const usuario = userEvent.setup();
+    const servico = criarSimulado();
+    vi.spyOn(servico, "obter_previa").mockRejectedValue({ codigo: "YTDLP_INDISPONIVEL", mensagem: "x" });
+    render(<App servico={servico} />);
+    await usuario.click(campoLink());
+    await usuario.paste("https://www.instagram.com/reel/abc/");
+    await usuario.keyboard("{Enter}");
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(/reinstale o clipora/i);
+    expect(within(alerta).queryByRole("button", { name: /tentar novamente/i })).not.toBeInTheDocument();
+  });
+
+  it("atualização não suportada: sem botão de tentar de novo", async () => {
+    const usuario = userEvent.setup();
+    render(
+      <App
+        servico={criarSimulado({
+          verificacaoYtdlpInicial: COM_ATUALIZACAO,
+          falhaAtualizacao: "ATUALIZACAO_NAO_SUPORTADA",
+        })}
+      />,
+    );
+    await usuario.click(await screen.findByRole("button", { name: /^atualizar$/i }));
+    await within(avisoAtualizacao()).findByRole("alert", {}, { timeout: 3000 });
+    expect(within(avisoAtualizacao()).queryByRole("button")).not.toBeInTheDocument();
+  });
+});

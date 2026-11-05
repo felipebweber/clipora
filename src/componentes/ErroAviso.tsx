@@ -17,7 +17,15 @@ export function ErroAviso({ erro, aoTentarNovamente, aoFechar, refBotao }: Props
   const sugestao = sugestaoDoErro(erro);
 
   return (
-    <div id="erro-aviso" className="erro" role="alert">
+    // Esc com o foco no aviso equivale a "Entendi".
+    <div
+      id="erro-aviso"
+      className="erro"
+      role="alert"
+      onKeyDown={(evento) => {
+        if (evento.key === "Escape") aoFechar();
+      }}
+    >
       <p className="erro-mensagem">{mensagem}</p>
       {sugestao && <p className="erro-sugestao">{sugestao}</p>}
       <div className="erro-acoes">

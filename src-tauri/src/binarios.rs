@@ -26,13 +26,6 @@ pub fn resolver_ytdlp(app: &AppHandle) -> Result<(PathBuf, &'static str), String
     } else {
         "yt-dlp"
     };
-    #[cfg(target_os = "macos")]
-    let base = std::env::current_exe()
-        .map_err(|e| e.to_string())?
-        .parent()
-        .ok_or("diretório do executável ausente")?
-        .join("../Helpers/yt-dlp");
-    #[cfg(not(target_os = "macos"))]
     let base = app
         .path()
         .resource_dir()

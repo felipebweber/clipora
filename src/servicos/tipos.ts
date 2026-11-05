@@ -1,5 +1,7 @@
 import type {
   EstadoPersistido,
+  Licencas,
+  TipoLinkLicenca,
   EventoAtualizacao,
   EventoDownload,
   PastaDestino,
@@ -42,4 +44,8 @@ export interface ServicoClipora {
     versaoEsperada: string;
     onEvento: (evento: EventoAtualizacao) => void;
   }): Promise<ResultadoAtualizacao>;
+
+  obter_licencas(): Promise<Licencas>;
+
+  abrir_link_licenca(args: { componenteId: string; tipo: TipoLinkLicenca }): Promise<void>;
 }

@@ -4,7 +4,9 @@ import type {
   EstadoPersistido,
   EventoAtualizacao,
   EventoDownload,
+  Licencas,
   PastaDestino,
+  TipoLinkLicenca,
   Previa,
   ResultadoAtualizacao,
   VerificacaoYtdlp,
@@ -96,5 +98,19 @@ export class ServicoCliporaTauri implements ServicoClipora {
       versaoEsperada,
       onEvento: canal,
     });
+  }
+
+  obter_licencas(): Promise<Licencas> {
+    return this.chamar<Licencas>("obter_licencas");
+  }
+
+  abrir_link_licenca({
+    componenteId,
+    tipo,
+  }: {
+    componenteId: string;
+    tipo: TipoLinkLicenca;
+  }): Promise<void> {
+    return this.chamar<void>("abrir_link_licenca", { componenteId, tipo });
   }
 }

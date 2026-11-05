@@ -160,6 +160,17 @@ export function useClipora(
     [estado, solicitarPrevia],
   );
 
+  /** Enter no campo: carrega a prévia na hora, sem esperar o debounce. */
+  const confirmarLink = useCallback(() => {
+    const texto = textoLink.trim();
+    if (!texto || !podeEditarLink(estado)) return;
+    if (estado.tipo === "pronto" && estado.previa.urlOriginal === texto) return;
+    if (estado.tipo === "carregando_previa" && estado.url === texto) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = null;
+    solicitarPrevia(texto);
+  }, [estado, textoLink, solicitarPrevia]);
+
   const criarOuvinteDeEventos = useCallback(
     (downloadId: string) => (evento: EventoDownload) => {
       if (evento.tipo === "progresso") {
@@ -268,6 +279,7 @@ export function useClipora(
     textoLink,
     aviso,
     aoAlterarLink,
+    confirmarLink,
     baixar,
     tentarNovamente,
     reconhecerErro,

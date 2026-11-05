@@ -45,16 +45,16 @@ impl ErroClipora {
         }
     }
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Previa {
-    requisicao_id: u64,
-    url_original: String,
-    url_normalizada: String,
-    titulo: Option<String>,
-    plataforma: Plataforma,
-    duracao_segundos: Option<f64>,
-    capa_data_url: Option<String>,
+    pub requisicao_id: u64,
+    pub url_original: String,
+    pub url_normalizada: String,
+    pub titulo: Option<String>,
+    pub plataforma: Plataforma,
+    pub duracao_segundos: Option<f64>,
+    pub capa_data_url: Option<String>,
 }
 #[derive(Deserialize)]
 struct Metadados {

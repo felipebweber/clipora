@@ -27,7 +27,8 @@ export function AvisoAtualizacao({ atualizacao, downloadEmAndamento }: Props) {
   const { fase, versaoDisponivel, podeAtualizar, atualizar } = atualizacao;
   if (fase.tipo === "inativo" && !versaoDisponivel) return null;
 
-  const botaoAtualizar = versaoDisponivel && (fase.tipo === "inativo" || fase.tipo === "erro") && (
+  const podeRepetir = fase.tipo === "erro" && fase.erro.codigo !== "ATUALIZACAO_NAO_SUPORTADA";
+  const botaoAtualizar = versaoDisponivel && (fase.tipo === "inativo" || podeRepetir) && (
     <button
       type="button"
       className="aviso-atualizacao-botao"

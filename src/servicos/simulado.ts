@@ -5,7 +5,9 @@ import type {
   EventoAtualizacao,
   EventoDownload,
   ErroClipora,
+  Licencas,
   PastaDestino,
+  TipoLinkLicenca,
   Plataforma,
   Previa,
   ResultadoAtualizacao,
@@ -61,6 +63,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
 
   private atualizando = false;
   private readonly falhaAtualizacao: CodigoErro | null;
+  private readonly licencasIndisponiveis: boolean;
 
   private verificacaoYtdlp: VerificacaoYtdlp = {
     versaoAtual: "2024.08.06",
@@ -78,6 +81,8 @@ export class ServicoCliporaSimulado implements ServicoClipora {
       pastaInicial?: PastaDestino;
       verificacaoYtdlpInicial?: VerificacaoYtdlp;
       falhaAtualizacao?: CodigoErro;
+      /** Simula o arquivo de licenças ausente (como em dev sem o gerador). */
+      licencasIndisponiveis?: boolean;
     } = {},
   ) {
     this.atrasoPreviaMs = opcoes.atrasoPreviaMs ?? 400;
@@ -86,6 +91,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
     if (opcoes.pastaInicial) this.pastaAtual = opcoes.pastaInicial;
     if (opcoes.verificacaoYtdlpInicial) this.verificacaoYtdlp = opcoes.verificacaoYtdlpInicial;
     this.falhaAtualizacao = opcoes.falhaAtualizacao ?? null;
+    this.licencasIndisponiveis = opcoes.licencasIndisponiveis ?? false;
   }
 
   async obter_previa({
@@ -261,7 +267,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
 
   async obter_estado(): Promise<EstadoPersistido> {
     return {
-      download: this.downloadAtivo,
+      download: this.downloadAtivo ? { ...this.downloadAtivo, previa: null } : null,
       atualizacaoEmAndamento: this.atualizando,
     };
   }
@@ -342,8 +348,79 @@ export class ServicoCliporaSimulado implements ServicoClipora {
     return { versaoInstalada: versaoEsperada };
   }
 
+  async obter_licencas(): Promise<Licencas> {
+    if (this.licencasIndisponiveis) {
+      throw {
+        codigo: "LICENCAS_INDISPONIVEIS",
+        mensagem: "licencas/licencas.json not found in resource_dir",
+      } satisfies ErroClipora;
+    }
+    return LICENCAS_SIMULADAS;
+  }
+
+  /** Links abertos (para testes); nenhum navegador é aberto de verdade. */
+  readonly linksAbertos: Array<{ componenteId: string; tipo: TipoLinkLicenca }> = [];
+
+  async abrir_link_licenca(args: { componenteId: string; tipo: TipoLinkLicenca }): Promise<void> {
+    if (!LICENCAS_SIMULADAS.resumo.componentes.some((c) => c.id === args.componenteId)) {
+      throw { codigo: "ERRO_INTERNO", mensagem: "unknown component" } satisfies ErroClipora;
+    }
+    this.linksAbertos.push(args);
+  }
+
   /** Utilitário para testes: define a pasta de destino "persistida" diretamente. */
   definirPastaParaTeste(pasta: PastaDestino): void {
     this.pastaAtual = pasta;
   }
 }
+
+/** Amostra no formato de src-tauri/binaries/licencas/licencas.json (formato 1). */
+const LICENCAS_SIMULADAS: Licencas = {
+  resumo: {
+    formato: 1,
+    app: { nome: "Clipora", versao: "0.1.0" },
+    alvo: "simulado",
+    componentes: [
+      {
+        id: "yt-dlp",
+        nome: "yt-dlp",
+        versao: "2024.08.06",
+        licenca: "GPL-3.0-or-later (executável PyInstaller; código do yt-dlp: Unlicense)",
+        papel: "Obtém o vídeo público a partir do link.",
+        codigoFonte: "https://github.com/yt-dlp/yt-dlp/releases/download/2024.08.06/yt-dlp.tar.gz",
+        projeto: "https://github.com/yt-dlp/yt-dlp",
+      },
+      {
+        id: "ffmpeg",
+        nome: "FFmpeg (ffmpeg e ffprobe)",
+        versao: "8.1.3",
+        licenca: "LGPL-2.1-or-later",
+        papel: "Junta vídeo e áudio sem recodificar (remux).",
+        codigoFonte: "https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz",
+        sha256Fonte: "7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd3178a3",
+        projeto: "https://ffmpeg.org/",
+      },
+    ],
+    crates: [
+      { nome: "tauri", versao: "2.9.0", licenca: "Apache-2.0 OR MIT" },
+      { nome: "serde", versao: "1.0.228", licenca: "MIT OR Apache-2.0" },
+      { nome: "sequoia-openpgp", versao: "2.4.2", licenca: "LGPL-2.0-or-later" },
+    ],
+    npm: [
+      { nome: "react", versao: "19.3.1", licenca: "MIT", projeto: "https://react.dev/" },
+      { nome: "react-dom", versao: "19.3.1", licenca: "MIT", projeto: "https://react.dev/" },
+    ],
+    arquivoCompleto: "THIRD_PARTY_LICENSES.txt",
+  },
+  textoCompleto: [
+    "Clipora 0.1.0 — avisos de licença de terceiros (simulado)",
+    "",
+    "<script>alert('isto deve aparecer como texto, nunca executar')</script>",
+    "",
+    "GNU GENERAL PUBLIC LICENSE",
+    "Version 3, 29 June 2007",
+    "",
+    "GNU LESSER GENERAL PUBLIC LICENSE",
+    "Version 2.1, February 1999",
+  ].join("\n"),
+};

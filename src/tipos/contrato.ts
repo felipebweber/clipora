@@ -36,6 +36,7 @@ export type CodigoErro =
   | "ATUALIZACAO_NAO_SUPORTADA"
   | "ATUALIZACAO_FALHOU"
   | "YTDLP_INDISPONIVEL"
+  | "LICENCAS_INDISPONIVEIS"
   | "ERRO_INTERNO";
 
 /** Lista em runtime dos códigos válidos, usada para validar erros vindos do
@@ -66,6 +67,7 @@ export const CODIGOS_ERRO = [
   "ATUALIZACAO_NAO_SUPORTADA",
   "ATUALIZACAO_FALHOU",
   "YTDLP_INDISPONIVEL",
+  "LICENCAS_INDISPONIVEIS",
   "ERRO_INTERNO",
 ] as const satisfies readonly CodigoErro[];
 
@@ -121,11 +123,10 @@ export type EventoDownload =
   | { tipo: "erro"; erro: ErroClipora };
 
 /**
- * `previa` ainda não existe na versão atual do contrato (o Ferrugem vai
- * estendê-lo para `previa: Previa | null`, permitindo reconstruir a tela
- * "baixando" após recarregar o webview). Até lá, é tratada como opcional —
- * o frontend cai num estado de recuperação sem prévia (ver
- * src/estado/maquina.ts, ação `estado_recuperado`).
+ * `previa` é `null` quando a prévia não foi carregada ou pertence a outra
+ * URL. Continua opcional no tipo para tolerar um backend anterior a essa
+ * extensão do contrato; nos dois casos o frontend cai num estado de
+ * recuperação sem prévia (ver src/estado/maquina.ts, `estado_recuperado`).
  */
 export type EstadoDownloadAtivo = {
   downloadId: string;
@@ -179,3 +180,46 @@ export const CODIGOS_ERRO_PASTA: readonly CodigoErro[] = [
 export function ehErroDePasta(erro: ErroClipora): boolean {
   return CODIGOS_ERRO_PASTA.includes(erro.codigo);
 }
+
+// ── Licenças ─────────────────────────────────────────────────────────────────
+// `obter_licencas()` lê `licencas/licencas.json` (formato 1, gerado por
+// scripts/gerar-licencas.mjs) e `THIRD_PARTY_LICENSES.txt` dos recursos do
+// app. Arquivo ausente/inválido rejeita com LICENCAS_INDISPONIVEIS.
+
+export type ComponenteLicenca = {
+  id: string;
+  nome: string;
+  versao: string;
+  licenca: string;
+  papel: string;
+  codigoFonte: string;
+  projeto: string;
+  binario?: string;
+  sha256Fonte?: string;
+};
+
+export type PacoteLicenca = {
+  nome: string;
+  versao: string;
+  licenca: string;
+  projeto?: string;
+};
+
+export type ResumoLicencas = {
+  formato: number;
+  app: { nome: string; versao: string };
+  alvo: string;
+  componentes: ComponenteLicenca[];
+  crates: PacoteLicenca[];
+  npm: PacoteLicenca[];
+  arquivoCompleto: string;
+};
+
+export type Licencas = {
+  resumo: ResumoLicencas;
+  textoCompleto: string;
+};
+
+/** `abrir_link_licenca` abre no navegador padrão apenas URLs HTTPS do resumo
+ * empacotado, identificadas pelo componente — nunca uma URL do frontend. */
+export type TipoLinkLicenca = "codigoFonte" | "projeto";

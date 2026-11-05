@@ -3,12 +3,21 @@ import type { Ref } from "react";
 type Props = {
   valor: string;
   aoAlterar: (valor: string) => void;
+  /** Enter: carregar a prévia imediatamente. */
+  aoConfirmar?: () => void;
   desabilitado: boolean;
   temErro: boolean;
   refInput?: Ref<HTMLInputElement>;
 };
 
-export function CampoLink({ valor, aoAlterar, desabilitado, temErro, refInput }: Props) {
+export function CampoLink({
+  valor,
+  aoAlterar,
+  aoConfirmar,
+  desabilitado,
+  temErro,
+  refInput,
+}: Props) {
   const descricoes = [desabilitado ? "campo-link-dica" : null, temErro ? "erro-aviso" : null]
     .filter(Boolean)
     .join(" ");
@@ -26,6 +35,12 @@ export function CampoLink({ valor, aoAlterar, desabilitado, temErro, refInput }:
         value={valor}
         disabled={desabilitado}
         onChange={(evento) => aoAlterar(evento.target.value)}
+        onKeyDown={(evento) => {
+          if (evento.key === "Enter") {
+            evento.preventDefault();
+            aoConfirmar?.();
+          }
+        }}
         aria-invalid={temErro || undefined}
         aria-describedby={descricoes || undefined}
       />

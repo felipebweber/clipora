@@ -1,9 +1,0 @@
-{
-  "bundle": {
-    "macOS": {
-      "files": {
-        "Helpers/yt-dlp": "binaries/yt-dlp"
-      }
-    }
-  }
-}

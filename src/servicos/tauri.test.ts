@@ -190,3 +190,26 @@ describe("ServicoCliporaTauri: conversão de erros rejeitados pelo invoke", () =
     ).rejects.toMatchObject({ codigo: "ERRO_INTERNO" });
   });
 });
+
+describe("ServicoCliporaTauri: licenças", () => {
+  it("obter_licencas sem argumentos; LICENCAS_INDISPONIVEIS chega intacto", async () => {
+    invokeMock.mockResolvedValueOnce({ resumo: {}, textoCompleto: "" });
+    await new ServicoCliporaTauri().obter_licencas();
+    expect(invokeMock).toHaveBeenCalledWith("obter_licencas", undefined);
+
+    invokeMock.mockRejectedValueOnce({ codigo: "LICENCAS_INDISPONIVEIS", mensagem: "missing" });
+    await expect(new ServicoCliporaTauri().obter_licencas()).rejects.toEqual({
+      codigo: "LICENCAS_INDISPONIVEIS",
+      mensagem: "missing",
+    });
+  });
+
+  it("abrir_link_licenca envia só { componenteId, tipo } (nunca uma URL)", async () => {
+    invokeMock.mockResolvedValue(null);
+    await new ServicoCliporaTauri().abrir_link_licenca({ componenteId: "ffmpeg", tipo: "codigoFonte" });
+    expect(invokeMock).toHaveBeenCalledWith("abrir_link_licenca", {
+      componenteId: "ffmpeg",
+      tipo: "codigoFonte",
+    });
+  });
+});

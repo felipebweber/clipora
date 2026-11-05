@@ -218,6 +218,19 @@ impl Progresso {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn estado_de_download_expõe_previa_ou_null_para_reidratar_a_tela() {
+        let estado = EstadoDownload {
+            download_id: "d-1".into(),
+            percentual: Some(12.0),
+            etapa: "baixando_video".into(),
+            previa: None,
+        };
+        let valor = serde_json::to_value(estado).unwrap();
+        assert_eq!(valor["downloadId"], "d-1");
+        assert_eq!(valor["previa"], serde_json::Value::Null);
+        assert_eq!(valor["etapa"], "baixando_video");
+    }
     #[tokio::test]
     #[ignore = "download real, exige rede e yt-dlp local"]
     async fn downloads_reais_tem_audio_e_video() {
@@ -367,6 +380,7 @@ mod tests {
             download_id: "id".into(),
             percentual: None,
             etapa: "baixando_video".into(),
+            previa: None,
         });
         assert!(matches!(
             c.entrar_atualizacao(&crate::previa::ControlePrevia::default())
@@ -672,6 +686,7 @@ pub struct EstadoDownload {
     pub download_id: String,
     pub percentual: Option<f64>,
     pub etapa: String,
+    pub previa: Option<crate::previa::Previa>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -682,6 +697,7 @@ pub struct Estado {
 #[derive(Default)]
 pub struct Dados {
     pub ativo: Option<EstadoDownload>,
+    pub previa: Option<crate::previa::Previa>,
     pub atualizacao: bool,
     pub previas_ativas: usize,
     pub arquivos: std::collections::HashMap<String, PathBuf>,

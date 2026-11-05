@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AvisoAtualizacao } from "./componentes/AvisoAtualizacao";
 import { CampoLink } from "./componentes/CampoLink";
 import { ConfiguracoesPainel } from "./componentes/ConfiguracoesPainel";
 import { ErroAviso } from "./componentes/ErroAviso";
 import { PreviaCard } from "./componentes/PreviaCard";
 import { ProgressoDownloadView } from "./componentes/ProgressoDownload";
+import { SobreLicencas } from "./componentes/SobreLicencas";
 import { permiteNovaTentativa } from "./erros/mensagens";
 import type { EstadoApp } from "./estado/maquina";
 import { useAtualizacaoYtdlp } from "./estado/useAtualizacaoYtdlp";
@@ -46,6 +47,7 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
     textoLink,
     aviso,
     aoAlterarLink,
+    confirmarLink,
     baixar,
     tentarNovamente,
     reconhecerErro,
@@ -83,8 +85,19 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
     alvo.current?.focus();
   }, [estado.tipo]);
 
+  // Tela "Sobre e licenças": modal; o resto da janela fica inerte enquanto
+  // ela está aberta e o foco volta ao botão que a abriu.
+  const [sobreAberto, setSobreAberto] = useState(false);
+  const refBotaoSobre = useRef<HTMLButtonElement>(null);
+  const fecharSobre = useCallback(() => {
+    setSobreAberto(false);
+    // Depois que o diálogo sai e o <main> deixa de ser inerte.
+    requestAnimationFrame(() => refBotaoSobre.current?.focus());
+  }, []);
+
   return (
-    <main className="app">
+    <>
+    <main className="app" inert={sobreAberto}>
       <h1>Clipora</h1>
       <p className="subtitulo">
         Cole o link de um vídeo público do Instagram Reels ou do TikTok para baixá-lo.
@@ -95,6 +108,7 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
       <CampoLink
         valor={textoLink}
         aoAlterar={aoAlterarLink}
+        aoConfirmar={confirmarLink}
         desabilitado={!podeEditarLink}
         temErro={erroAtual !== null}
         refInput={refCampo}
@@ -175,8 +189,18 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
         bloqueado={downloadEmAndamento}
         verificacaoYtdlp={atualizacao.verificacao}
         falhaVerificacaoYtdlp={atualizacao.falhaVerificacao}
+        aoAbrirSobre={() => setSobreAberto(true)}
+        refBotaoSobre={refBotaoSobre}
       />
     </main>
+    {sobreAberto && (
+      <SobreLicencas
+        servico={servico}
+        aoFechar={fecharSobre}
+        verificacaoYtdlp={atualizacao.verificacao}
+      />
+    )}
+    </>
   );
 }
 

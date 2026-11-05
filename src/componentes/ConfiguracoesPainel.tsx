@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { mensagemDoErro } from "../erros/mensagens";
 import type { UsePastaDestinoRetorno } from "../estado/usePastaDestino";
 import type { ErroClipora, PastaDestino, VerificacaoYtdlp } from "../tipos/contrato";
@@ -8,6 +9,9 @@ type Props = {
   bloqueado: boolean;
   verificacaoYtdlp: VerificacaoYtdlp | null;
   falhaVerificacaoYtdlp: ErroClipora | null;
+  aoAbrirSobre: () => void;
+  /** Recebe o botão "Sobre e licenças", para devolver o foco ao fechar. */
+  refBotaoSobre?: Ref<HTMLButtonElement>;
 };
 
 function descricaoPasta(pasta: PastaDestino | null): { caminho: string; nota: string | null } {
@@ -35,6 +39,8 @@ export function ConfiguracoesPainel({
   bloqueado,
   verificacaoYtdlp,
   falhaVerificacaoYtdlp,
+  aoAbrirSobre,
+  refBotaoSobre,
 }: Props) {
   const { caminho, nota } = descricaoPasta(pasta);
   const problema = pasta?.estado === "ausente" || pasta?.estado === "sem_permissao";
@@ -86,6 +92,10 @@ export function ConfiguracoesPainel({
             Não foi possível verificar agora se há uma nova versão do yt-dlp.
           </p>
         )}
+
+        <button type="button" ref={refBotaoSobre} onClick={aoAbrirSobre} aria-haspopup="dialog">
+          Sobre e licenças
+        </button>
       </div>
     </details>
   );

@@ -5,7 +5,7 @@ Contrato para integração; salvo indicação contrária, comandos futuros ainda
 ## Tipos TypeScript
 
 ```ts
-type CodigoErro = 'LINK_INVALIDO' | 'PLATAFORMA_NAO_SUPORTADA' | 'PREVIA_CANCELADA' | 'TEMPO_ESGOTADO' | 'SEM_CONEXAO' | 'LOGIN_NECESSARIO' | 'CONTEUDO_PRIVADO_OU_REMOVIDO' | 'LIMITE_DE_ACESSO' | 'CONTEUDO_NAO_SUPORTADO' | 'PREVIA_INDISPONIVEL' | 'PASTA_NAO_DEFINIDA' | 'PASTA_AUSENTE' | 'PASTA_SEM_PERMISSAO' | 'ESPACO_INSUFICIENTE' | 'FFMPEG_INDISPONIVEL' | 'ARQUIVO_INCOMPLETO' | 'DOWNLOAD_EM_ANDAMENTO' | 'DOWNLOAD_FALHOU' | 'ATUALIZACAO_EM_ANDAMENTO' | 'ATUALIZACAO_INTEGRIDADE' | 'ATUALIZACAO_NAO_SUPORTADA' | 'ATUALIZACAO_FALHOU' | 'YTDLP_INDISPONIVEL' | 'ERRO_INTERNO';
+type CodigoErro = 'LINK_INVALIDO' | 'PLATAFORMA_NAO_SUPORTADA' | 'PREVIA_CANCELADA' | 'TEMPO_ESGOTADO' | 'SEM_CONEXAO' | 'LOGIN_NECESSARIO' | 'CONTEUDO_PRIVADO_OU_REMOVIDO' | 'LIMITE_DE_ACESSO' | 'CONTEUDO_NAO_SUPORTADO' | 'PREVIA_INDISPONIVEL' | 'PASTA_NAO_DEFINIDA' | 'PASTA_AUSENTE' | 'PASTA_SEM_PERMISSAO' | 'ESPACO_INSUFICIENTE' | 'FFMPEG_INDISPONIVEL' | 'ARQUIVO_INCOMPLETO' | 'DOWNLOAD_EM_ANDAMENTO' | 'DOWNLOAD_FALHOU' | 'ATUALIZACAO_EM_ANDAMENTO' | 'ATUALIZACAO_INTEGRIDADE' | 'ATUALIZACAO_NAO_SUPORTADA' | 'ATUALIZACAO_FALHOU' | 'YTDLP_INDISPONIVEL' | 'LICENCAS_INDISPONIVEIS' | 'ERRO_INTERNO';
 type ErroClipora = { codigo: CodigoErro; mensagem: string; detalhe?: string };
 type Plataforma = 'instagram' | 'tiktok';
 type Previa = { requisicaoId: number; urlOriginal: string; urlNormalizada: string; titulo: string | null; plataforma: Plataforma; duracaoSegundos: number | null; capaDataUrl: string | null };
@@ -14,10 +14,12 @@ type EventoDownload =
   | { tipo: 'progresso'; etapa: EtapaDownload; percentual: number | null; bytesBaixados?: number; bytesTotais?: number }
   | { tipo: 'concluido'; caminho: string; nomeArquivo: string; renomeado: boolean }
   | { tipo: 'erro'; erro: ErroClipora };
-type EstadoDownload = { downloadId: string; percentual: number | null; etapa: EtapaDownload };
+type EstadoDownload = { downloadId: string; percentual: number | null; etapa: EtapaDownload; previa: Previa | null };
 type Estado = { download: EstadoDownload | null; atualizacaoEmAndamento: boolean };
 type PastaDestino = { caminho: string | null; estado: 'nao_definida' | 'valida' | 'ausente' | 'sem_permissao' };
 type VerificacaoYtdlp = { versaoAtual: string; versaoDisponivel: string | null; atualizacaoDisponivel: boolean; origem: 'empacotada' | 'atualizada'; erroVerificacao: ErroClipora | null };
+type ResumoLicencas = { formato: number; app: { nome: string; versao: string }; alvo: string; componentes: Array<{ id: string; nome: string; versao: string; licenca: string; papel: string; codigoFonte: string; projeto: string; binario?: string; sha256Fonte?: string }>; crates: Array<{ nome: string; versao: string; licenca: string }>; npm: Array<{ nome: string; versao: string; licenca: string; projeto?: string }>; arquivoCompleto: string };
+type Licencas = { resumo: ResumoLicencas; textoCompleto: string };
 type EventoAtualizacao = { tipo: 'progresso'; etapa: string; percentual: number | null };
 // Channel<T> é importado de @tauri-apps/api/core.
 type Comandos = {
@@ -29,6 +31,8 @@ type Comandos = {
   selecionar_pasta_destino: () => Promise<string | null>;
   verificar_ytdlp: () => Promise<VerificacaoYtdlp>;
   atualizar_ytdlp: (args: { versaoEsperada: string; onEvento: Channel<EventoAtualizacao> }) => Promise<{ versaoInstalada: string }>;
+  obter_licencas: () => Promise<Licencas>;
+  abrir_link_licenca: (args: { componenteId: string; tipo: 'codigoFonte' | 'projeto' }) => Promise<void>;
 };
 ```
 
@@ -63,10 +67,13 @@ enum EventoDownload {
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct EstadoDownload { download_id: String, percentual: Option<f64>, etapa: EtapaDownload }
+struct EstadoDownload { download_id: String, percentual: Option<f64>, etapa: EtapaDownload, previa: Option<Previa> }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Estado { download: Option<EstadoDownload>, atualizacao_em_andamento: bool }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Licencas { resumo: serde_json::Value, texto_completo: String }
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 enum EstadoPasta { NaoDefinida, Valida, Ausente, SemPermissao }
@@ -94,7 +101,11 @@ fn obter_pasta_destino() -> Result<PastaDestino, ErroClipora>;
 async fn selecionar_pasta_destino() -> Result<Option<String>, ErroClipora>;
 async fn verificar_ytdlp() -> Result<VerificacaoYtdlp, ErroClipora>;
 async fn atualizar_ytdlp(versao_esperada: String, on_evento: Channel<EventoAtualizacao>) -> Result<ResultadoAtualizacao, ErroClipora>;
+fn obter_licencas() -> Result<Licencas, ErroClipora>;
+async fn abrir_link_licenca(componente_id: String, tipo: String) -> Result<(), ErroClipora>;
 ```
+
+`obter_estado` inclui a prévia associada ao download ativo (`null` quando não foi carregada ou pertence a outra URL) e `atualizacaoEmAndamento`. `obter_licencas` lê somente `licencas/licencas.json` e `licencas/THIRD_PARTY_LICENSES.txt` dos recursos do app, retornando `{ resumo, textoCompleto }`; arquivo ausente ou JSON inválido rejeita com `LICENCAS_INDISPONIVEIS` (inclusive em desenvolvimento sem geração dos avisos). `abrir_link_licenca` aceita apenas IDs de componentes presentes no resumo empacotado e os tipos `codigoFonte`/`projeto`, abrindo URL HTTPS no navegador padrão; nunca recebe uma URL arbitrária.
 
 ## Prévia e política de URL
 
