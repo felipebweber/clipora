@@ -68,19 +68,24 @@ export function useClipora(
   // de qualquer interação do usuário. Falhas aqui não são exibidas: no pior
   // caso, a tela começa vazia como de costume.
   const recuperacaoIniciada = useRef(false);
+  const interacaoDoUsuario = useRef(false);
   useEffect(() => {
     if (recuperacaoIniciada.current) return;
     recuperacaoIniciada.current = true;
     servicoClipora.obter_estado().then(
-      ({ download }) => {
-        if (!download) return;
-        dispatch({
-          tipo: "estado_recuperado",
-          downloadId: download.downloadId,
-          etapa: download.etapa,
-          percentual: download.percentual,
-          previa: download.previa ?? null,
-        });
+      ({ download, ultimoResultado }) => {
+        if (interacaoDoUsuario.current) return;
+        if (download) {
+          dispatch({
+            tipo: "estado_recuperado",
+            downloadId: download.downloadId,
+            etapa: download.etapa,
+            percentual: download.percentual,
+            previa: download.previa ?? null,
+          });
+        } else if (ultimoResultado) {
+          dispatch({ tipo: "download_resultado_recuperado", resultado: ultimoResultado });
+        }
       },
       () => {},
     );
@@ -95,7 +100,7 @@ export function useClipora(
     let ativo = true;
     const id = setInterval(() => {
       servicoClipora.obter_estado().then(
-        ({ download }) => {
+        ({ download, ultimoResultado }) => {
           if (!ativo) return;
           if (download && download.downloadId === downloadRecuperado) {
             dispatch({
@@ -104,6 +109,8 @@ export function useClipora(
               etapa: download.etapa,
               percentual: download.percentual,
             });
+          } else if (ultimoResultado?.downloadId === downloadRecuperado) {
+            dispatch({ tipo: "download_resultado_recuperado", resultado: ultimoResultado });
           } else {
             dispatch({ tipo: "download_recuperado_encerrado", downloadId: downloadRecuperado });
             setAviso(AVISO_DOWNLOAD_RECUPERADO_ENCERRADO);
@@ -141,6 +148,7 @@ export function useClipora(
   const aoAlterarLink = useCallback(
     (valor: string) => {
       if (!podeEditarLink(estado)) return; // bloqueia troca de link durante download
+      interacaoDoUsuario.current = true;
       setTextoLink(valor);
       setAviso(null);
 
@@ -164,6 +172,7 @@ export function useClipora(
   const confirmarLink = useCallback(() => {
     const texto = textoLink.trim();
     if (!texto || !podeEditarLink(estado)) return;
+    interacaoDoUsuario.current = true;
     if (estado.tipo === "pronto" && estado.previa.urlOriginal === texto) return;
     if (estado.tipo === "carregando_previa" && estado.url === texto) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -242,6 +251,7 @@ export function useClipora(
   const baixar = useCallback(() => {
     // Só baixa a prévia pronta que corresponde ao texto atual do campo.
     if (!previaPronta) return;
+    interacaoDoUsuario.current = true;
     const downloadId = gerarIdDownload();
     setAviso(null);
     dispatch({ tipo: "download_iniciado", downloadId });
@@ -251,6 +261,7 @@ export function useClipora(
   /** "Tentar novamente": repete a ação que falhou. */
   const tentarNovamente = useCallback(() => {
     if (estado.tipo !== "erro") return;
+    interacaoDoUsuario.current = true;
     if (estado.origem === "download" && estado.previa) {
       const downloadId = gerarIdDownload();
       dispatch({ tipo: "download_iniciado", downloadId });
@@ -263,6 +274,7 @@ export function useClipora(
   }, [estado, textoLink, executarDownload, solicitarPrevia]);
 
   const reconhecerErro = useCallback(() => {
+    interacaoDoUsuario.current = true;
     dispatch({ tipo: "erro_reconhecido" });
   }, []);
 

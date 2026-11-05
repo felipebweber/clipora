@@ -15,7 +15,7 @@ pub struct Verificacao {
 struct Release {
     tag_name: String,
 }
-fn partes(versao: &str) -> Option<Vec<u32>> {
+pub(crate) fn partes(versao: &str) -> Option<Vec<u32>> {
     let partes: Vec<_> = versao
         .split('.')
         .map(str::parse::<u32>)
@@ -25,6 +25,43 @@ fn partes(versao: &str) -> Option<Vec<u32>> {
         return None;
     }
     Some(partes)
+}
+pub(crate) fn comparar_versoes(a: &str, b: &str) -> Option<std::cmp::Ordering> {
+    Some(partes(a)?.cmp(&partes(b)?))
+}
+pub async fn versao_local(bin: &std::path::Path) -> Result<String, ErroClipora> {
+    let mut cmd = tokio::process::Command::new(bin);
+    cmd.args(["--ignore-config", "--no-update", "--version"])
+        .stdin(std::process::Stdio::null())
+        .kill_on_drop(true);
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000);
+    let out = tokio::time::timeout(std::time::Duration::from_secs(60), cmd.output())
+        .await
+        .map_err(|_| {
+            ErroClipora::novo(
+                "YTDLP_INDISPONIVEL",
+                Some("tempo esgotado ao consultar versão".into()),
+            )
+        })?
+        .map_err(|e| ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e.to_string())))?;
+    if !out.status.success() {
+        return Err(ErroClipora::novo(
+            "YTDLP_INDISPONIVEL",
+            Some(String::from_utf8_lossy(&out.stderr).into_owned()),
+        ));
+    }
+    let version = String::from_utf8(out.stdout)
+        .map_err(|e| ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e.to_string())))?
+        .trim()
+        .to_owned();
+    if partes(&version).is_none() {
+        return Err(ErroClipora::novo(
+            "YTDLP_INDISPONIVEL",
+            Some("versão inválida".into()),
+        ));
+    }
+    Ok(version)
 }
 async fn consultar(cliente: &reqwest::Client, url: &str, atual: &str) -> Verificacao {
     let mut resultado = Verificacao {
@@ -40,6 +77,19 @@ async fn consultar(cliente: &reqwest::Client, url: &str, atual: &str) -> Verific
             .send()
             .await
             .map_err(|e| ("SEM_CONEXAO", e.to_string()))?;
+        if resposta.status() == reqwest::StatusCode::TOO_MANY_REQUESTS
+            || (resposta.status() == reqwest::StatusCode::FORBIDDEN
+                && resposta
+                    .headers()
+                    .get("x-ratelimit-remaining")
+                    .and_then(|h| h.to_str().ok())
+                    == Some("0"))
+        {
+            return Err((
+                "LIMITE_DE_ACESSO",
+                format!("GitHub retornou {}", resposta.status()),
+            ));
+        }
         let mut resposta = resposta
             .error_for_status()
             .map_err(|e| ("ATUALIZACAO_FALHOU", e.to_string()))?;
@@ -75,56 +125,30 @@ async fn consultar(cliente: &reqwest::Client, url: &str, atual: &str) -> Verific
     resultado
 }
 pub async fn verificar(bin: &std::path::Path) -> Result<Verificacao, ErroClipora> {
-    let mut cmd = tokio::process::Command::new(bin);
-    cmd.args(["--ignore-config", "--no-update", "--version"])
-        .stdin(std::process::Stdio::null())
-        .kill_on_drop(true);
-    #[cfg(windows)]
-    cmd.creation_flags(0x08000000);
-    let output = tokio::time::timeout(std::time::Duration::from_secs(60), cmd.output())
-        .await
-        .map_err(|_| {
-            ErroClipora::novo(
-                "YTDLP_INDISPONIVEL",
-                Some("tempo esgotado ao consultar versão".into()),
-            )
-        })?
-        .map_err(|e| ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e.to_string())))?;
-    if !output.status.success() {
-        return Err(ErroClipora::novo(
-            "YTDLP_INDISPONIVEL",
-            Some(String::from_utf8_lossy(&output.stderr).into_owned()),
-        ));
-    }
-    let atual = String::from_utf8(output.stdout)
-        .map_err(|e| ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e.to_string())))?;
-    let atual = atual.trim();
-    if partes(atual).is_none() {
-        return Err(ErroClipora::novo(
-            "YTDLP_INDISPONIVEL",
-            Some("versão inválida".into()),
-        ));
-    }
+    let atual = versao_local(bin).await?;
     let cliente = reqwest::Client::builder()
         .user_agent("Clipora")
         .timeout(std::time::Duration::from_secs(10))
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| ErroClipora::novo("ERRO_INTERNO", Some(e.to_string())))?;
-    Ok(consultar(&cliente, RELEASE, atual).await)
+    Ok(consultar(&cliente, RELEASE, &atual).await)
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::{Read, Write};
     fn servidor(corpo: &'static str) -> String {
+        servidor_status("200 OK", "", corpo)
+    }
+    fn servidor_status(status: &'static str, headers: &'static str, corpo: &'static str) -> String {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let endereco = listener.local_addr().unwrap();
         std::thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
             let mut buf = [0u8; 4096];
             let _ = stream.read(&mut buf);
-            write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", corpo.len(), corpo).unwrap();
+            write!(stream, "HTTP/1.1 {status}\r\n{headers}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", corpo.len(), corpo).unwrap();
         });
         format!("http://{endereco}/releases/latest")
     }
@@ -158,5 +182,21 @@ mod tests {
                 && offline.erro_verificacao.is_some()
                 && offline.versao_disponivel.is_none()
         );
+    }
+    #[tokio::test]
+    async fn rate_limit_do_github_tem_codigo_especifico() {
+        let cliente = reqwest::Client::builder().no_proxy().build().unwrap();
+        for (status, headers) in [
+            ("429 Too Many Requests", ""),
+            ("403 Forbidden", "X-RateLimit-Remaining: 0\r\n"),
+        ] {
+            let r = consultar(
+                &cliente,
+                &servidor_status(status, headers, "{}"),
+                "2026.10.26",
+            )
+            .await;
+            assert_eq!(r.erro_verificacao.unwrap().codigo, "LIMITE_DE_ACESSO");
+        }
     }
 }

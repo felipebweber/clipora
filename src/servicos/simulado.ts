@@ -11,6 +11,7 @@ import type {
   Plataforma,
   Previa,
   ResultadoAtualizacao,
+  ResultadoTerminal,
   VerificacaoYtdlp,
 } from "../tipos/contrato";
 import type { ServicoClipora } from "./tipos";
@@ -56,6 +57,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
 
   private downloadAtivo: { downloadId: string; percentual: number | null; etapa: EtapaDownload } | null =
     null;
+  private ultimoResultado: ResultadoTerminal | null = null;
   private readonly downloadsConcluidos = new Map<
     string,
     { caminho: string; nomeArquivo: string }
@@ -226,6 +228,8 @@ export class ServicoCliporaSimulado implements ServicoClipora {
     const indeterminado = url.includes("indeterminado");
     const falhaNaEtapa = url.includes("falha-download") ? "baixando_video" : null;
 
+    // Um novo download aceito limpa o resultado terminal anterior, como no backend.
+    this.ultimoResultado = null;
     this.downloadAtivo = { downloadId, percentual: null, etapa: "preparando" };
 
     try {
@@ -235,6 +239,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
 
         if (falhaNaEtapa && etapa === falhaNaEtapa) {
           const erro: ErroClipora = { codigo: "DOWNLOAD_FALHOU", mensagem: "simulated failure" };
+          this.ultimoResultado = { downloadId, tipo: "erro", erro };
           this.downloadAtivo = null;
           onEvento({ tipo: "erro", erro });
           throw erro;
@@ -249,6 +254,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
       const nomeArquivo = this.nomeArquivoFalso(url);
       const caminho = `${this.pastaAtual.caminho}/${nomeArquivo}`;
       this.downloadsConcluidos.set(downloadId, { caminho, nomeArquivo });
+      this.ultimoResultado = { downloadId, tipo: "concluido", caminho, nomeArquivo, renomeado: false };
       this.downloadAtivo = null;
       onEvento({ tipo: "concluido", caminho, nomeArquivo, renomeado: false });
     } finally {
@@ -269,6 +275,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
     return {
       download: this.downloadAtivo ? { ...this.downloadAtivo, previa: null } : null,
       atualizacaoEmAndamento: this.atualizando,
+      ultimoResultado: this.ultimoResultado,
     };
   }
 
@@ -404,7 +411,7 @@ const LICENCAS_SIMULADAS: Licencas = {
     crates: [
       { nome: "tauri", versao: "2.9.0", licenca: "Apache-2.0 OR MIT" },
       { nome: "serde", versao: "1.0.228", licenca: "MIT OR Apache-2.0" },
-      { nome: "sequoia-openpgp", versao: "2.4.2", licenca: "LGPL-2.0-or-later" },
+      { nome: "pgp", versao: "0.21.0", licenca: "MIT OR Apache-2.0" },
     ],
     npm: [
       { nome: "react", versao: "19.3.1", licenca: "MIT", projeto: "https://react.dev/" },

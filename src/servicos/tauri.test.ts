@@ -4,11 +4,28 @@ import type { EventoAtualizacao, EventoDownload } from "../tipos/contrato";
 // Channel falso: guarda as instâncias criadas para o teste poder "enviar"
 // mensagens pelo backend, chamando `onmessage` na ordem desejada.
 const { invokeMock, canaisCriados, CanalFalso } = vi.hoisted(() => {
-  const canaisCriados: Array<{ onmessage: (m: unknown) => void }> = [];
+  const canaisCriados: Array<{
+    onmessage: (m: unknown) => void;
+    emit: (m: unknown) => void;
+    close: () => void;
+    fechado: boolean;
+  }> = [];
   class CanalFalso<T> {
     onmessage: (mensagem: T) => void = () => {};
+    fechado = false;
+
+    emit(mensagem: T) {
+      if (!this.fechado) this.onmessage(mensagem);
+    }
+
+    close() {
+      this.fechado = true;
+      // Simula o { end: true } do Tauri, que remove o callback registrado.
+      this.onmessage = () => {};
+    }
+
     constructor() {
-      canaisCriados.push(this as unknown as { onmessage: (m: unknown) => void });
+      canaisCriados.push(this as unknown as (typeof canaisCriados)[number]);
     }
   }
   return { invokeMock: vi.fn(), canaisCriados, CanalFalso };
@@ -55,6 +72,18 @@ describe("ServicoCliporaTauri: nomes de comando e payloads exatos do contrato", 
     invokeMock.mockResolvedValue(null);
     await new ServicoCliporaTauri().abrir_pasta_download({ downloadId: "d1" });
     expect(invokeMock).toHaveBeenCalledWith("abrir_pasta_download", { downloadId: "d1" });
+  });
+
+  it("abrir_link_licenca envia o discriminante restrito da fonte atualizada", async () => {
+    invokeMock.mockResolvedValue(null);
+    await new ServicoCliporaTauri().abrir_link_licenca({
+      componenteId: "yt-dlp",
+      tipo: "codigoFonteAtualizada",
+    });
+    expect(invokeMock).toHaveBeenCalledWith("abrir_link_licenca", {
+      componenteId: "yt-dlp",
+      tipo: "codigoFonteAtualizada",
+    });
   });
 
   it("iniciar_download envia { downloadId, url, onEvento: Channel }", async () => {
@@ -106,21 +135,49 @@ describe("ServicoCliporaTauri: eventos pelo Channel", () => {
     expect(recebidos).toEqual(enviados);
   });
 
-  it("reaproveita o mesmo canal ao repetir o download com o mesmo ID (após escolher a pasta)", async () => {
+  it("cria Channel novo após PASTA_* fechar o anterior e recebe progresso/conclusão na retentativa", async () => {
     invokeMock
-      .mockRejectedValueOnce({ codigo: "PASTA_NAO_DEFINIDA", mensagem: "x" })
-      .mockResolvedValueOnce(null);
+      .mockImplementationOnce((_comando, args) => {
+        args.onEvento.close();
+        return Promise.reject({ codigo: "PASTA_NAO_DEFINIDA", mensagem: "x" });
+      })
+      .mockImplementationOnce((_comando, args) => {
+        args.onEvento.emit({ tipo: "progresso", etapa: "baixando_video", percentual: 50 });
+        args.onEvento.emit({
+          tipo: "concluido",
+          caminho: "/Downloads/clip.mp4",
+          nomeArquivo: "clip.mp4",
+          renomeado: false,
+        });
+        return Promise.resolve(null);
+      });
     const servico = new ServicoCliporaTauri();
-    const onEvento = vi.fn();
-    await expect(servico.iniciar_download({ downloadId: "d1", url: "u", onEvento })).rejects.toMatchObject({
-      codigo: "PASTA_NAO_DEFINIDA",
-    });
+    const recebidos: EventoDownload[] = [];
+    const onEvento = (evento: EventoDownload) => recebidos.push(evento);
+    await expect(
+      servico.iniciar_download({ downloadId: "d1", url: "u", onEvento }),
+    ).rejects.toMatchObject({ codigo: "PASTA_NAO_DEFINIDA" });
+    canaisCriados[0].emit({ tipo: "progresso", etapa: "baixando_video", percentual: 1 });
+    expect(recebidos).toEqual([]); // canal fechado não pode entregar eventos tardios
     await servico.iniciar_download({ downloadId: "d1", url: "u", onEvento });
-    expect(canaisCriados).toHaveLength(1);
-    expect(invokeMock.mock.calls[1][1].onEvento).toBe(invokeMock.mock.calls[0][1].onEvento);
+
+    expect(canaisCriados).toHaveLength(2);
+    expect(canaisCriados[0].fechado).toBe(true);
+    expect(invokeMock.mock.calls[0][1].onEvento).not.toBe(invokeMock.mock.calls[1][1].onEvento);
+    expect(invokeMock.mock.calls.map(([, args]) => args.downloadId)).toEqual(["d1", "d1"]);
+    expect(invokeMock.mock.calls[1][1].onEvento.onmessage).toBe(onEvento);
+    expect(recebidos).toEqual([
+      { tipo: "progresso", etapa: "baixando_video", percentual: 50 },
+      {
+        tipo: "concluido",
+        caminho: "/Downloads/clip.mp4",
+        nomeArquivo: "clip.mp4",
+        renomeado: false,
+      },
+    ]);
 
     await servico.iniciar_download({ downloadId: "d2", url: "u", onEvento });
-    expect(canaisCriados).toHaveLength(2); // novo ID, novo canal
+    expect(canaisCriados).toHaveLength(3); // canal novo para cada chamada IPC
   });
 
   it("repassa os eventos de atualização ao onEvento", async () => {

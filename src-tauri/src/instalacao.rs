@@ -15,9 +15,13 @@ struct Manifesto {
     asset: String,
     #[serde(default, rename = "sha256Zip")]
     sha256_zip: String,
+    #[serde(default)]
+    sha256_somas: String,
+    #[serde(default)]
+    sha256_assinatura: String,
     arquivos: BTreeMap<String, String>,
 }
-fn versao_valida(s: &str) -> bool {
+pub fn versao_valida(s: &str) -> bool {
     let p: Vec<_> = s.split('.').collect();
     (p.len() == 3 || p.len() == 4)
         && p[0].len() == 4
@@ -34,9 +38,53 @@ fn caminho_seguro(s: &str) -> bool {
             .any(|parte| parte.is_empty() || parte == "." || parte == "..")
         && !s.contains('\\')
         && !s.contains(':')
-        && Path::new(s)
-            .components()
-            .all(|c| matches!(c, Component::Normal(_)))
+        && Path::new(s).components().all(|c| match c {
+            Component::Normal(nome) => {
+                let nome = nome.to_string_lossy();
+                let nome = nome.as_ref();
+                if nome.ends_with('.') || nome.ends_with(' ') {
+                    return false;
+                }
+                let base = nome
+                    .split('.')
+                    .next()
+                    .unwrap_or("")
+                    .trim_end_matches(['.', ' '])
+                    .to_ascii_uppercase();
+                !matches!(
+                    base.as_str(),
+                    "CON"
+                        | "PRN"
+                        | "AUX"
+                        | "NUL"
+                        | "COM1"
+                        | "COM2"
+                        | "COM3"
+                        | "COM4"
+                        | "COM5"
+                        | "COM6"
+                        | "COM7"
+                        | "COM8"
+                        | "COM9"
+                        | "LPT1"
+                        | "LPT2"
+                        | "LPT3"
+                        | "LPT4"
+                        | "LPT5"
+                        | "LPT6"
+                        | "LPT7"
+                        | "LPT8"
+                        | "LPT9"
+                )
+            }
+            _ => false,
+        })
+}
+fn ignorado_sistema(nome: &str) -> bool {
+    matches!(
+        nome,
+        ".DS_Store" | "Thumbs.db" | "desktop.ini" | "__pycache__"
+    )
 }
 fn hash_arquivo(path: &Path) -> std::io::Result<String> {
     let mut arquivo = fs::File::open(path)?;
@@ -55,6 +103,10 @@ fn validar_arvore(dir: &Path, pasta: &Path, mapa: &BTreeMap<String, String>) -> 
     for entrada in fs::read_dir(pasta).ok()? {
         let entrada = entrada.ok()?;
         let ty = entrada.file_type().ok()?;
+        let nome = entrada.file_name().to_string_lossy().into_owned();
+        if ignorado_sistema(&nome) {
+            continue;
+        }
         if ty.is_symlink() {
             return None;
         }
@@ -70,7 +122,13 @@ fn validar_arvore(dir: &Path, pasta: &Path, mapa: &BTreeMap<String, String>) -> 
             if rel == "clipora-yt-dlp.json" {
                 continue;
             }
-            let hash = mapa.get(&rel)?; // rejeita qualquer arquivo extra
+            let Some(hash) = mapa.get(&rel) else {
+                eprintln!(
+                    "yt-dlp app-local rejeitado: arquivo extra não reconhecido: {}",
+                    path.display()
+                );
+                return None;
+            };
             if !hash_arquivo(&path).ok()?.eq_ignore_ascii_case(hash) {
                 return None;
             }
@@ -108,6 +166,36 @@ fn validar_instalacao(raiz: &Path, versao: &str) -> Option<PathBuf> {
     {
         return None;
     }
+    if manifesto.asset.is_empty() || manifesto.sha256_zip.is_empty() {
+        if !cfg!(test) {
+            return None;
+        }
+    } else {
+        let somas = fs::read(dir.join("SHA2-256SUMS")).ok()?;
+        let assinatura = fs::read(dir.join("SHA2-256SUMS.sig")).ok()?;
+        if !format!("{:x}", Sha256::digest(&somas)).eq_ignore_ascii_case(&manifesto.sha256_somas)
+            || !format!("{:x}", Sha256::digest(&assinatura))
+                .eq_ignore_ascii_case(&manifesto.sha256_assinatura)
+        {
+            return None;
+        }
+        // Os fixtures de integração assinam com uma chave efêmera. Em builds de produção,
+        // a assinatura persistida é sempre validada contra a chave oficial fixada.
+        #[cfg(not(test))]
+        crate::integridade::verificar_assinatura(
+            &somas,
+            &assinatura,
+            crate::integridade::CHAVE,
+            crate::integridade::FINGERPRINT,
+        )
+        .ok()?;
+        #[cfg(test)]
+        if assinatura.is_empty() {
+            return None;
+        }
+        crate::integridade::verificar_hash_digest(&manifesto.sha256_zip, &somas, &manifesto.asset)
+            .ok()?;
+    }
     validar_arvore(&dir, &dir, &manifesto.arquivos)?;
     for (rel, hash) in &manifesto.arquivos {
         if !caminho_seguro(rel) || hash.len() != 64 || !hash.bytes().all(|b| b.is_ascii_hexdigit())
@@ -134,9 +222,27 @@ fn validar_instalacao(raiz: &Path, versao: &str) -> Option<PathBuf> {
     Some(executavel)
 }
 pub fn resolver_atual(raiz: &Path) -> Option<PathBuf> {
-    let ponteiro = fs::read_to_string(raiz.join("atual")).ok()?;
-    let versao = ponteiro.strip_suffix('\n').unwrap_or(&ponteiro);
+    let versao = versao_ponteiro(raiz, "atual")?;
+    resolver_versao(raiz, &versao)
+}
+pub fn versao_ponteiro(raiz: &Path, nome: &str) -> Option<String> {
+    let ponteiro = fs::read_to_string(raiz.join(nome)).ok()?;
+    let versao = ponteiro.trim();
+    versao_valida(versao).then(|| versao.to_string())
+}
+pub fn resolver_versao(raiz: &Path, versao: &str) -> Option<PathBuf> {
     validar_instalacao(raiz, versao)
+}
+pub fn descartar_ate(raiz: &Path, limite: &str) {
+    for nome in ["atual", "anterior"] {
+        if versao_ponteiro(raiz, nome).is_some_and(|v| {
+            crate::versao::comparar_versoes(&v, limite)
+                .is_some_and(|o| o != std::cmp::Ordering::Greater)
+        }) {
+            let _ = fs::remove_file(raiz.join(nome));
+        }
+    }
+    coleta(raiz);
 }
 fn extrair(
     zip_bytes: &[u8],
@@ -144,6 +250,8 @@ fn extrair(
     executavel_original: &str,
     versao: &str,
     asset: &str,
+    somas: &[u8],
+    assinatura: &[u8],
 ) -> anyhow::Result<()> {
     use anyhow::{Context, bail};
     use std::io::Write;
@@ -244,11 +352,23 @@ fn extrair(
         fs::set_permissions(destino.join(fixo), fs::Permissions::from_mode(0o755))?;
     }
     arquivos.insert(fixo.into(), hash);
+    fs::write(destino.join("SHA2-256SUMS"), somas)?;
+    fs::write(destino.join("SHA2-256SUMS.sig"), assinatura)?;
+    arquivos.insert(
+        "SHA2-256SUMS".into(),
+        hash_arquivo(&destino.join("SHA2-256SUMS"))?,
+    );
+    arquivos.insert(
+        "SHA2-256SUMS.sig".into(),
+        hash_arquivo(&destino.join("SHA2-256SUMS.sig"))?,
+    );
     let manifesto = Manifesto {
         versao: versao.into(),
         executavel: fixo.into(),
         asset: asset.into(),
         sha256_zip: format!("{:x}", Sha256::digest(zip_bytes)),
+        sha256_somas: format!("{:x}", Sha256::digest(somas)),
+        sha256_assinatura: format!("{:x}", Sha256::digest(assinatura)),
         arquivos,
     };
     let mut arquivo = fs::OpenOptions::new()
@@ -263,6 +383,11 @@ fn extrair(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn espaco_insuficiente_e_identificado_antes_do_download() {
+        assert!(!espaco_suficiente(ESPACO_MINIMO_ATUALIZACAO - 1));
+        assert!(espaco_suficiente(ESPACO_MINIMO_ATUALIZACAO));
+    }
     #[tokio::test]
     #[ignore = "download real da release oficial para diretório temporário"]
     async fn atualizacao_real_github_temporaria() {
@@ -356,7 +481,31 @@ mod tests {
         )
         .unwrap();
         let assinatura_invalido = sig.to_armored_bytes(ArmorOptions::default()).unwrap();
-        for caso in ["sucesso", "hash", "assinatura", "versao", "binario"] {
+        let mut zw = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        zw.start_file("../escape", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zw.write_all(b"escape").unwrap();
+        let zip_traversal = zw.finish().unwrap().into_inner();
+        let somas_traversal =
+            format!("{:x}  asset.zip\n", Sha256::digest(&zip_traversal)).into_bytes();
+        let assinatura_traversal = DetachedSignature::sign_binary_data(
+            thread_rng(),
+            &secret.primary_key,
+            &Password::empty(),
+            HashAlgorithm::Sha256,
+            somas_traversal.as_slice(),
+        )
+        .unwrap()
+        .to_armored_bytes(ArmorOptions::default())
+        .unwrap();
+        for caso in [
+            "sucesso",
+            "hash",
+            "assinatura",
+            "versao",
+            "binario",
+            "traversal",
+        ] {
             let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
             listener.set_nonblocking(true).unwrap();
             let addr = listener.local_addr().unwrap();
@@ -365,6 +514,12 @@ mod tests {
                     zip_invalido.clone(),
                     somas_invalido.clone(),
                     assinatura_invalido.clone(),
+                )
+            } else if caso == "traversal" {
+                (
+                    zip_traversal.clone(),
+                    somas_traversal.clone(),
+                    assinatura_traversal.clone(),
                 )
             } else {
                 (zip.clone(), somas.clone(), assinatura.clone())
@@ -422,6 +577,15 @@ mod tests {
                 exe: "fixture",
             };
             let dir = tempfile::tempdir().unwrap();
+            if caso == "sucesso" {
+                fs::create_dir_all(dir.path().join("2026.10.26")).unwrap();
+                fs::write(
+                    dir.path().join("2026.10.26/clipora-yt-dlp.json"),
+                    b"corrompido",
+                )
+                .unwrap();
+                fs::write(dir.path().join("atual"), "2026.10.26\n").unwrap();
+            }
             let canal = tauri::ipc::Channel::new(|_| Ok(()));
             let result = atualizar_com(dir.path(), "2026.10.26", &canal, &fontes).await;
             match caso {
@@ -431,6 +595,10 @@ mod tests {
                 }
                 "versao" | "binario" => {
                     assert_eq!(result.err().unwrap().codigo, "ATUALIZACAO_FALHOU")
+                }
+                "traversal" => {
+                    assert_eq!(result.err().unwrap().codigo, "ATUALIZACAO_INTEGRIDADE");
+                    assert!(!dir.path().join("escape").exists());
                 }
                 _ => assert_eq!(
                     result.err().unwrap().codigo,
@@ -480,6 +648,8 @@ mod tests {
                 executavel: "yt-dlp".into(),
                 asset: String::new(),
                 sha256_zip: String::new(),
+                sha256_somas: String::new(),
+                sha256_assinatura: String::new(),
                 arquivos: BTreeMap::from([(
                     "yt-dlp".into(),
                     format!("{:x}", Sha256::digest(b"abc")),
@@ -510,6 +680,16 @@ mod tests {
             resolver_atual(raiz.path()).unwrap(),
             raiz.path().join("2026.10.25/yt-dlp")
         );
+        let novo_antes = raiz.path().join(".tmp-novo-antes");
+        preparar(&novo_antes, "2026.10.27");
+        let result = ativar(raiz.path(), &novo_antes, "2026.10.27", || {
+            Err(anyhow::anyhow!("falha simulada antes da troca do ponteiro"))
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            resolver_atual(raiz.path()).unwrap(),
+            raiz.path().join("2026.10.25/yt-dlp")
+        );
     }
     #[test]
     fn extracao_recusa_traversal_e_cria_manifesto() {
@@ -529,7 +709,9 @@ mod tests {
                 dir.path(),
                 "yt-dlp_macos",
                 "2026.10.26",
-                "fixture.zip"
+                "fixture.zip",
+                b"",
+                b""
             )
             .is_err()
         );
@@ -540,6 +722,8 @@ mod tests {
             "yt-dlp_macos",
             "2026.10.26",
             "fixture.zip",
+            b"",
+            b"",
         )
         .unwrap();
         assert!(bom.path().join("yt-dlp").is_file());
@@ -551,6 +735,19 @@ mod tests {
         assert!(versao_valida("2026.10.26"));
         assert!(versao_valida("2026.10.26.1"));
         assert!(!versao_valida("../2026.10.26"));
+        for reservado in [
+            "CON",
+            "NUL.txt",
+            "COM1.log",
+            "arquivo.",
+            "arquivo ",
+            "pasta/PRN",
+        ] {
+            assert!(!caminho_seguro(reservado), "{reservado}");
+        }
+        for valido in ["conjunto.txt", "COM10.log", "sub/arquivo.dat"] {
+            assert!(caminho_seguro(valido), "{valido}");
+        }
         std::fs::write(dir.path().join("atual"), "../teste").unwrap();
         assert!(resolver_atual(dir.path()).is_none());
         let pasta = dir.path().join("2026.10.26");
@@ -573,6 +770,69 @@ mod tests {
         }
         std::fs::write(pasta.join("yt-dlp"), b"adulterado").unwrap();
         assert!(resolver_atual(dir.path()).is_none());
+    }
+
+    #[test]
+    fn urls_de_releases_e_redirecionamentos_sao_restritos_a_https_oficial() {
+        for ok in [
+            "https://github.com/yt-dlp/yt-dlp/releases/latest",
+            "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest",
+        ] {
+            assert!(fontes_url_permitida(ok));
+        }
+        for no in [
+            "http://github.com/yt-dlp/yt-dlp",
+            "https://evil.example/yt-dlp",
+            "https://github.com.evil.example/release",
+        ] {
+            assert!(!fontes_url_permitida(no), "{no}");
+        }
+        assert!(redirect_permitido(
+            &url::Url::parse("https://release-assets.githubusercontent.com/asset").unwrap()
+        ));
+        assert!(fontes_url_permitida(
+            "https://release-assets.githubusercontent.com/asset"
+        ));
+        assert!(!redirect_permitido(
+            &url::Url::parse("http://release-assets.githubusercontent.com/asset").unwrap()
+        ));
+        #[cfg(test)]
+        assert!(fontes_url_permitida("http://127.0.0.1:12345/fixture"));
+    }
+
+    #[tokio::test]
+    async fn baixar_aplica_limite_de_tamanho_e_para_redirecionamento_nao_oficial() {
+        use std::io::{Read, Write};
+        fn servidor(resposta: String) -> String {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let addr = listener.local_addr().unwrap();
+            std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut request = [0; 1024];
+                let _ = stream.read(&mut request);
+                stream.write_all(resposta.as_bytes()).unwrap();
+            });
+            format!("http://{addr}/asset")
+        }
+        let cliente = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::custom(|a| {
+                if fontes_url_permitida(a.url().as_str()) && a.previous().len() < 5 {
+                    a.follow()
+                } else {
+                    a.error("redirecionamento não autorizado")
+                }
+            }))
+            .build()
+            .unwrap();
+        let grande = servidor(
+            "HTTP/1.1 200 OK\r\nContent-Length: 10\r\nConnection: close\r\n\r\n0123456789".into(),
+        );
+        assert!(baixar(&cliente, &grande, 5).await.is_err());
+
+        let redirecionamento = servidor(
+            "HTTP/1.1 302 Found\r\nLocation: https://evil.example/payload\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into(),
+        );
+        assert!(baixar(&cliente, &redirecionamento, 1024).await.is_err());
     }
 }
 
@@ -600,10 +860,28 @@ fn asset_plataforma() -> Option<(&'static str, &'static str)> {
         _ => None,
     }
 }
+const ESPACO_MINIMO_ATUALIZACAO: u64 = 400 * 1024 * 1024;
+fn espaco_suficiente(disponivel: u64) -> bool {
+    disponivel >= ESPACO_MINIMO_ATUALIZACAO
+}
 async fn baixar(cliente: &reqwest::Client, url: &str, limite: usize) -> anyhow::Result<Vec<u8>> {
+    baixar_com_progresso(cliente, url, limite, |_, _| {}).await
+}
+async fn baixar_com_progresso<F>(
+    cliente: &reqwest::Client,
+    url: &str,
+    limite: usize,
+    mut progresso: F,
+) -> anyhow::Result<Vec<u8>>
+where
+    F: FnMut(usize, Option<usize>),
+{
     use futures_util::StreamExt;
     let resposta = cliente.get(url).send().await?.error_for_status()?;
-    if resposta.content_length().is_some_and(|n| n > limite as u64) {
+    let total = resposta
+        .content_length()
+        .and_then(|n| usize::try_from(n).ok());
+    if total.is_some_and(|n| n > limite) {
         anyhow::bail!("arquivo excede limite");
     }
     let mut fluxo = resposta.bytes_stream();
@@ -614,8 +892,35 @@ async fn baixar(cliente: &reqwest::Client, url: &str, limite: usize) -> anyhow::
             anyhow::bail!("arquivo excede limite");
         }
         dados.extend_from_slice(&chunk);
+        progresso(dados.len(), total);
     }
     Ok(dados)
+}
+fn redirect_permitido(url: &url::Url) -> bool {
+    url.scheme() == "https"
+        && url.host_str().is_some_and(|host| {
+            matches!(
+                host,
+                "github.com"
+                    | "api.github.com"
+                    | "objects.githubusercontent.com"
+                    | "release-assets.githubusercontent.com"
+            )
+        })
+}
+fn fontes_url_permitida(endereco: &str) -> bool {
+    let Ok(url) = url::Url::parse(endereco) else {
+        return false;
+    };
+    #[cfg(test)]
+    if url.scheme() == "http"
+        && url
+            .host_str()
+            .is_some_and(|h| h == "127.0.0.1" || h == "localhost")
+    {
+        return true;
+    }
+    redirect_permitido(&url)
 }
 fn gravar_ponteiro(raiz: &Path, nome: &str, valor: &str) -> anyhow::Result<()> {
     use std::io::Write;
@@ -664,24 +969,39 @@ fn ativar<F: FnOnce() -> anyhow::Result<()>>(
     use anyhow::{Context, bail};
     let versao_dir = raiz.join(esperada);
     if versao_dir.exists() {
-        let anterior: Manifesto =
-            serde_json::from_slice(&fs::read(versao_dir.join("clipora-yt-dlp.json"))?)?;
-        let novo: Manifesto =
-            serde_json::from_slice(&fs::read(temporario.join("clipora-yt-dlp.json"))?)?;
-        if validar_instalacao(raiz, esperada).is_none() || anterior != novo {
-            bail!("versão existente difere do asset verificado");
+        if validar_instalacao(raiz, esperada).is_some() {
+            let anterior: Manifesto =
+                serde_json::from_slice(&fs::read(versao_dir.join("clipora-yt-dlp.json"))?)?;
+            let novo: Manifesto =
+                serde_json::from_slice(&fs::read(temporario.join("clipora-yt-dlp.json"))?)?;
+            if anterior != novo {
+                bail!("versão existente difere do asset verificado");
+            }
+        } else {
+            let lixo = tempfile::Builder::new()
+                .prefix(".tmp-lixo-")
+                .tempdir_in(raiz)?;
+            let diretorio_lixo = lixo.keep();
+            let destino_lixo = diretorio_lixo.join("instalacao-corrompida");
+            fs::rename(&versao_dir, &destino_lixo).context("isolar instalação corrompida")?;
+            fs::rename(temporario, &versao_dir).context("reinstalar versão corrompida")?;
         }
     } else {
         fs::rename(temporario, &versao_dir).context("mover versão")?;
     }
     let original = fs::read_to_string(raiz.join("atual")).ok();
-    if let Some(atual) = original.as_deref() {
-        let atual = atual.trim();
-        if atual != esperada && versao_valida(atual) && validar_instalacao(raiz, atual).is_some() {
-            gravar_ponteiro(raiz, "anterior", atual)?;
+    let ativado = trocar().and_then(|_| {
+        let esperado = versao_dir.join(if cfg!(windows) {
+            "yt-dlp.exe"
+        } else {
+            "yt-dlp"
+        });
+        if resolver_atual(raiz).as_deref() != Some(esperado.as_path()) {
+            bail!("ponteiro atual não resolve para o executável recém-instalado");
         }
-    }
-    if let Err(erro) = trocar() {
+        Ok(())
+    });
+    if let Err(erro) = ativado {
         let rollback = match original {
             Some(ref atual) => gravar_ponteiro(raiz, "atual", atual.trim_end_matches('\n')),
             None => match fs::remove_file(raiz.join("atual")) {
@@ -694,6 +1014,14 @@ fn ativar<F: FnOnce() -> anyhow::Result<()>>(
             Ok(()) => Err(erro),
             Err(e) => Err(erro.context(format!("rollback do ponteiro falhou: {e}"))),
         };
+    }
+    if let Some(atual) = original.as_deref().map(str::trim)
+        && atual != esperada
+        && versao_valida(atual)
+        && validar_instalacao(raiz, atual).is_some()
+    {
+        // A cópia anterior é atualizada somente após a nova versão ter sido ativada e verificada.
+        gravar_ponteiro(raiz, "anterior", atual)?;
     }
     Ok(())
 }
@@ -743,16 +1071,24 @@ async fn atualizar_com(
     };
     let cliente = reqwest::Client::builder()
         .user_agent("Clipora")
-        .timeout(std::time::Duration::from_secs(120))
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .read_timeout(std::time::Duration::from_secs(30))
         .redirect(reqwest::redirect::Policy::custom(|a| {
-            if a.url().scheme() == "https" && a.previous().len() < 5 {
+            let permitido = fontes_url_permitida(a.url().as_str());
+            if permitido && a.previous().len() < 5 {
                 a.follow()
             } else {
-                a.stop()
+                a.error("redirecionamento não autorizado")
             }
         }))
         .build()
         .map_err(|e| falha("ATUALIZACAO_FALHOU", e.to_string()))?;
+    if !fontes_url_permitida(fontes.api) {
+        return Err(falha(
+            "ATUALIZACAO_FALHOU",
+            "API de atualização não autorizada".into(),
+        ));
+    }
     enviar("verificando", None);
     let api = baixar(&cliente, fontes.api, 1024 * 1024)
         .await
@@ -765,7 +1101,7 @@ async fn atualizar_com(
     fs::create_dir_all(raiz).map_err(|e| falha("ATUALIZACAO_FALHOU", e.to_string()))?;
     let disponivel =
         fs2::available_space(raiz).map_err(|e| falha("ATUALIZACAO_FALHOU", e.to_string()))?;
-    if disponivel < 400 * 1024 * 1024 {
+    if !espaco_suficiente(disponivel) {
         return Err(falha(
             "ESPACO_INSUFICIENTE",
             "são necessários ao menos 400 MiB livres".into(),
@@ -776,6 +1112,12 @@ async fn atualizar_com(
         .tempdir_in(raiz)
         .map_err(|e| falha("ATUALIZACAO_FALHOU", e.to_string()))?;
     let base = format!("{}/{esperada}", fontes.base);
+    if !fontes_url_permitida(fontes.api) || !fontes_url_permitida(&base) {
+        return Err(falha(
+            "ATUALIZACAO_FALHOU",
+            "origem de atualização não autorizada".into(),
+        ));
+    }
     enviar("baixando", None);
     let somas = baixar(&cliente, &format!("{base}/SHA2-256SUMS"), 4 * 1024 * 1024)
         .await
@@ -783,16 +1125,43 @@ async fn atualizar_com(
     let assinatura = baixar(&cliente, &format!("{base}/SHA2-256SUMS.sig"), 1024 * 1024)
         .await
         .map_err(|e| falha("ATUALIZACAO_FALHOU", e.to_string()))?;
-    let zip = baixar(&cliente, &format!("{base}/{asset}"), 512 * 1024 * 1024)
-        .await
-        .map_err(|e| falha("ATUALIZACAO_FALHOU", e.to_string()))?;
-    enviar("verificando_integridade", None);
     crate::integridade::verificar_assinatura(&somas, &assinatura, fontes.chave, fontes.fingerprint)
-        .and_then(|_| crate::integridade::verificar_hash(&zip, &somas, asset))
+        .map_err(|e| falha("ATUALIZACAO_INTEGRIDADE", e.to_string()))?;
+    let mut ultimo_evento = std::time::Instant::now();
+    let zip = baixar_com_progresso(
+        &cliente,
+        &format!("{base}/{asset}"),
+        512 * 1024 * 1024,
+        |atual, total| {
+            if ultimo_evento.elapsed() >= std::time::Duration::from_millis(100)
+                || total == Some(atual)
+            {
+                enviar(
+                    "baixando",
+                    total
+                        .filter(|t| *t > 0)
+                        .map(|t| atual as f64 * 100.0 / t as f64),
+                );
+                ultimo_evento = std::time::Instant::now();
+            }
+        },
+    )
+    .await
+    .map_err(|e| falha("ATUALIZACAO_FALHOU", e.to_string()))?;
+    enviar("verificando_integridade", None);
+    crate::integridade::verificar_hash(&zip, &somas, asset)
         .map_err(|e| falha("ATUALIZACAO_INTEGRIDADE", e.to_string()))?;
     enviar("instalando", None);
-    extrair(&zip, temp.path(), exe_original, esperada, asset)
-        .map_err(|e| falha("ATUALIZACAO_INTEGRIDADE", e.to_string()))?;
+    extrair(
+        &zip,
+        temp.path(),
+        exe_original,
+        esperada,
+        asset,
+        &somas,
+        &assinatura,
+    )
+    .map_err(|e| falha("ATUALIZACAO_INTEGRIDADE", e.to_string()))?;
     let exe = temp.path().join(if cfg!(windows) {
         "yt-dlp.exe"
     } else {

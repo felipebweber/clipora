@@ -460,4 +460,57 @@ describe("encerramento de download recuperado", () => {
     const normal: EstadoApp = { ...recuperado, recuperado: undefined, previa: previaFalsa(1) };
     expect(reduzir(normal, { tipo: "download_recuperado_encerrado", downloadId: "d1" })).toBe(normal);
   });
+
+  it("restaura conclusão persistida e permite identificar o download para abrir a pasta", () => {
+    expect(
+      reduzir(estadoInicial, {
+        tipo: "download_resultado_recuperado",
+        resultado: {
+          downloadId: "d2",
+          tipo: "concluido",
+          caminho: "/Downloads/clip.mp4",
+          nomeArquivo: "clip.mp4",
+          renomeado: false,
+        },
+      }),
+    ).toEqual({
+      tipo: "concluido",
+      previa: null,
+      downloadId: "d2",
+      resultado: { caminho: "/Downloads/clip.mp4", nomeArquivo: "clip.mp4", renomeado: false },
+    });
+  });
+
+  it("restaura erro persistido como erro de download, sem estado de conclusão", () => {
+    expect(
+      reduzir(estadoInicial, {
+        tipo: "download_resultado_recuperado",
+        resultado: {
+          downloadId: "d2",
+          tipo: "erro",
+          erro: { codigo: "DOWNLOAD_FALHOU", mensagem: "failed" },
+        },
+      }),
+    ).toEqual({
+      tipo: "erro",
+      origem: "download",
+      previa: null,
+      erro: { codigo: "DOWNLOAD_FALHOU", mensagem: "failed" },
+    });
+  });
+
+  it("ignora resultado terminal de outra execução em vez de declarar sucesso", () => {
+    expect(
+      reduzir(recuperado, {
+        tipo: "download_resultado_recuperado",
+        resultado: {
+          downloadId: "antigo",
+          tipo: "concluido",
+          caminho: "/Downloads/antigo.mp4",
+          nomeArquivo: "antigo.mp4",
+          renomeado: false,
+        },
+      }),
+    ).toBe(recuperado);
+  });
 });

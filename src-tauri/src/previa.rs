@@ -236,32 +236,47 @@ pub async fn obter(
 mod tests {
     use super::*;
     #[tokio::test]
-    #[ignore = "teste manual de rede com sidecar local"]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+    #[ignore = "teste manual de rede com sidecars empacotados para o alvo atual"]
     async fn reel_com_usuario_real() {
         let url = "https://www.instagram.com/judith_steiner/reel/DVn-vNTCIfX/";
         assert!(crate::links::validar(url).is_ok());
         let bin = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("binaries/clipora-yt-dlp-aarch64-apple-darwin");
+            .join("binaries/yt-dlp")
+            .join(format!("yt-dlp{}", std::env::consts::EXE_SUFFIX));
+        let ffmpeg = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "binaries/clipora-ffmpeg-{}",
+            env!("CLIPORA_TARGET")
+        ));
         let controle = ControlePrevia::default();
         match obter(
             url.to_string(),
             1,
             controle.iniciar(1).unwrap(),
             &bin,
-            std::path::Path::new("/opt/homebrew/bin/ffmpeg"),
+            &ffmpeg,
         )
         .await
         {
             Ok(p) => println!("{url}: OK título={:?}", p.titulo),
-            Err(e) => println!("{url}: {} {:?}", e.codigo, e.detalhe),
+            Err(e) => panic!("{url}: {} {:?}", e.codigo, e.detalhe),
         }
     }
     #[tokio::test]
-    #[ignore = "teste manual de rede com sidecar local"]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+    #[ignore = "teste manual de rede com sidecars empacotados para o alvo atual"]
     async fn verificar_links_publicos() {
         let bin = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("binaries/clipora-yt-dlp-aarch64-apple-darwin");
-        let ffmpeg = std::path::Path::new("/opt/homebrew/bin/ffmpeg");
+            .join("binaries/yt-dlp")
+            .join(format!("yt-dlp{}", std::env::consts::EXE_SUFFIX));
+        let ffmpeg = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "binaries/clipora-ffmpeg-{}",
+            env!("CLIPORA_TARGET")
+        ));
+        let ffprobe = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "binaries/clipora-ffprobe-{}",
+            env!("CLIPORA_TARGET")
+        ));
         let links = [
             "https://www.instagram.com/reel/DUl354timp1/",
             "https://tiktok.com/@scout2015/video/6718335390845095173",
@@ -269,16 +284,21 @@ mod tests {
         for (i, url) in links.iter().enumerate() {
             let controle = ControlePrevia::default();
             let rx = controle.iniciar(i as u64 + 1).unwrap();
-            match obter(url.to_string(), i as u64 + 1, rx, &bin, ffmpeg).await {
+            match obter(url.to_string(), i as u64 + 1, rx, &bin, &ffmpeg).await {
                 Ok(p) => println!(
                     "{url} OK: titulo={:?}, duracao={:?}, capa={}",
                     p.titulo,
                     p.duracao_segundos,
                     p.capa_data_url.is_some()
                 ),
-                Err(e) => println!("{url} FALHOU: {} {:?}", e.codigo, e.detalhe),
+                Err(e) => panic!("{url} FALHOU: {} {:?}", e.codigo, e.detalhe),
             }
         }
+        assert!(
+            ffprobe.is_file(),
+            "ffprobe LGPL ausente para {}",
+            env!("CLIPORA_TARGET")
+        );
     }
     #[cfg(unix)]
     #[tokio::test]

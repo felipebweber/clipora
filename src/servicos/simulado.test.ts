@@ -108,6 +108,15 @@ describe("ServicoCliporaSimulado.iniciar_download", () => {
     if (ultimo.tipo === "concluido") {
       expect(ultimo.caminho).toContain("/tmp/destino/");
     }
+    expect(await servico.obter_estado()).toMatchObject({
+      ultimoResultado: {
+        downloadId: "d1",
+        tipo: "concluido",
+        caminho: "/tmp/destino/Vídeo simulado de instagram.mp4",
+        nomeArquivo: "Vídeo simulado de instagram.mp4",
+        renomeado: false,
+      },
+    });
 
     // percentuais devem ser monotonicamente não-decrescentes
     const percentuais = eventos
@@ -148,6 +157,13 @@ describe("ServicoCliporaSimulado.iniciar_download", () => {
     ).rejects.toMatchObject({ codigo: "DOWNLOAD_FALHOU" });
 
     expect(eventos[eventos.length - 1]).toMatchObject({ tipo: "erro" });
+    expect(await servico.obter_estado()).toMatchObject({
+      ultimoResultado: {
+        downloadId: "d1",
+        tipo: "erro",
+        erro: { codigo: "DOWNLOAD_FALHOU" },
+      },
+    });
   });
 });
 

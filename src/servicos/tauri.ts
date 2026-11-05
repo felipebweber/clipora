@@ -20,19 +20,14 @@ import type { ServicoClipora } from "./tipos";
  * atualização chegam por um `Channel` do Tauri, cujo `onmessage` repassa
  * cada mensagem (na ordem em que o backend as enviou) para o callback
  * `onEvento` da camada de serviço.
+ * `iniciar_download` cria um canal novo por tentativa IPC: o Rust pode
+ * destruí-lo ao rejeitar uma chamada que pede seleção de pasta.
  *
  * Toda rejeição passa por `normalizarErro`: um `ErroClipora` válido chega
  * intacto; qualquer outra coisa (string do runtime, objeto malformado,
  * exceção) vira `ERRO_INTERNO`.
  */
 export class ServicoCliporaTauri implements ServicoClipora {
-  /**
-   * O contrato pede que, após escolher a pasta, o download seja repetido
-   * "com o mesmo ID e canal". Guardamos o canal do último `downloadId` para
-   * reaproveitá-lo nessa nova tentativa.
-   */
-  private canalDownload: { downloadId: string; canal: Channel<EventoDownload> } | null = null;
-
   private async chamar<T>(comando: string, args?: Record<string, unknown>): Promise<T> {
     try {
       return await invoke<T>(comando, args);
@@ -54,13 +49,10 @@ export class ServicoCliporaTauri implements ServicoClipora {
     url: string;
     onEvento: (evento: EventoDownload) => void;
   }): Promise<void> {
-    let canal: Channel<EventoDownload>;
-    if (this.canalDownload?.downloadId === downloadId) {
-      canal = this.canalDownload.canal;
-    } else {
-      canal = new Channel<EventoDownload>();
-      this.canalDownload = { downloadId, canal };
-    }
+    // Cada chamada Rust consome seu Channel. Em particular, uma rejeição por
+    // PASTA_* destrói o canal no Drop; a retentativa mantém o ID e callback
+    // lógico, mas precisa de outra instância JS para receber eventos.
+    const canal = new Channel<EventoDownload>();
     canal.onmessage = onEvento;
     return this.chamar<void>("iniciar_download", { downloadId, url, onEvento: canal });
   }

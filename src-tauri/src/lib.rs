@@ -49,9 +49,32 @@ fn obter_licencas(app: tauri::AppHandle) -> Result<LicencasResposta, previa::Err
 #[tauri::command]
 async fn abrir_link_licenca(
     app: tauri::AppHandle,
+    cache: State<'_, binarios::CacheYtdlp>,
     componente_id: String,
     tipo: String,
 ) -> Result<(), previa::ErroClipora> {
+    if tipo == "codigoFonteAtualizada" {
+        if componente_id != "yt-dlp" {
+            return Err(previa::ErroClipora::novo("LINK_INVALIDO", None));
+        }
+        let (bin, _) = cache
+            .resolver(&app)
+            .await
+            .map_err(|e| previa::ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e)))?;
+        let versao = versao::versao_local(&bin).await?;
+        if !instalacao::versao_valida(&versao) {
+            return Err(previa::ErroClipora::novo(
+                "YTDLP_INDISPONIVEL",
+                Some("versão local inválida".into()),
+            ));
+        }
+        let url =
+            format!("https://github.com/yt-dlp/yt-dlp/releases/download/{versao}/yt-dlp.tar.gz");
+        return app
+            .opener()
+            .open_url(url, None::<&str>)
+            .map_err(|e| previa::ErroClipora::novo("ERRO_INTERNO", Some(e.to_string())));
+    }
     let licencas = ler_licencas(&app)?;
     let campo = match tipo.as_str() {
         "codigoFonte" => "codigoFonte",
@@ -121,12 +144,14 @@ fn obter_estado(
     Ok(download::Estado {
         download: dados.ativo.clone(),
         atualizacao_em_andamento: dados.atualizacao,
+        ultimo_resultado: dados.ultimo_resultado.clone(),
     })
 }
 #[tauri::command]
 async fn iniciar_download(
     app: tauri::AppHandle,
     controle: State<'_, download::Controle>,
+    cache: State<'_, binarios::CacheYtdlp>,
     download_id: String,
     url: String,
     on_evento: tauri::ipc::Channel<download::Evento>,
@@ -160,7 +185,9 @@ async fn iniciar_download(
             .ok_or_else(|| previa::ErroClipora::novo("PASTA_NAO_DEFINIDA", None))?,
     );
     download::limpar_antigos(&destino);
-    let bin = binarios::resolver_ytdlp(&app)
+    let bin = cache
+        .resolver(&app)
+        .await
         .map(|(p, _)| p)
         .map_err(|e| previa::ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e)))?;
     let ffmpeg = binarios::resolver(&app, "clipora-ffmpeg")
@@ -187,6 +214,7 @@ async fn iniciar_download(
             .filter(|p| p.url_normalizada == normalizada.as_str())
             .cloned(),
     });
+    dados.ultimo_resultado = None;
     let shared = controle.0.clone();
     let tarefa = tauri::async_runtime::spawn(download::executar(
         shared,
@@ -237,6 +265,7 @@ async fn atualizar_ytdlp(
     app: tauri::AppHandle,
     controle: State<'_, download::Controle>,
     previa: State<'_, previa::ControlePrevia>,
+    cache: State<'_, binarios::CacheYtdlp>,
     versao_esperada: String,
     on_evento: tauri::ipc::Channel<instalacao::EventoAtualizacao>,
 ) -> Result<instalacao::ResultadoAtualizacao, previa::ErroClipora> {
@@ -249,14 +278,23 @@ async fn atualizar_ytdlp(
         .app_local_data_dir()
         .map_err(|e| previa::ErroClipora::novo("ERRO_INTERNO", Some(e.to_string())))?
         .join("bin/yt-dlp");
-    instalacao::atualizar(&raiz, &versao_esperada, &on_evento).await
+    let resultado = instalacao::atualizar(&raiz, &versao_esperada, &on_evento).await?;
+    // Validação completa fora do runtime assíncrono; registra a cópia recém-instalada.
+    let _ = cache
+        .resolver(&app)
+        .await
+        .map_err(|e| previa::ErroClipora::novo("ATUALIZACAO_FALHOU", Some(e)))?;
+    Ok(resultado)
 }
 
 #[tauri::command]
 async fn verificar_ytdlp(
     app: tauri::AppHandle,
+    cache: State<'_, binarios::CacheYtdlp>,
 ) -> Result<versao::Verificacao, previa::ErroClipora> {
-    let (bin, origem) = binarios::resolver_ytdlp(&app)
+    let (bin, origem) = cache
+        .resolver(&app)
+        .await
         .map_err(|e| previa::ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e)))?;
     let mut resultado = versao::verificar(&bin).await?;
     resultado.origem = origem;
@@ -266,6 +304,7 @@ async fn verificar_ytdlp(
 #[tauri::command]
 async fn obter_previa(
     app: tauri::AppHandle,
+    cache: State<'_, binarios::CacheYtdlp>,
     estado: State<'_, previa::ControlePrevia>,
     controle: State<'_, download::Controle>,
     url: String,
@@ -278,7 +317,9 @@ async fn obter_previa(
         .iniciar(requisicao_id)
         .map_err(|c| previa::ErroClipora::novo(c, None))?;
     links::validar(&url).map_err(|c| previa::ErroClipora::novo(c, None))?;
-    let bin = binarios::resolver_ytdlp(&app)
+    let bin = cache
+        .resolver(&app)
+        .await
         .map(|(p, _)| p)
         .map_err(|e| previa::ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e)))?;
     let ffmpeg = binarios::resolver(&app, "clipora-ffmpeg")
@@ -295,11 +336,23 @@ async fn obter_previa(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             app.manage(previa::ControlePrevia::default());
             app.manage(download::Controle::default());
+            app.manage(binarios::CacheYtdlp::default());
+            let cache = app.state::<binarios::CacheYtdlp>().inner().clone();
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                cache.aquecer(&handle).await;
+            });
             if let Ok(raiz) = app.path().app_local_data_dir() {
                 instalacao::coleta(&raiz.join("bin/yt-dlp"));
             }

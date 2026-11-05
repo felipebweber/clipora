@@ -36,6 +36,10 @@ pub fn verificar_assinatura(
         .context("assinatura das somas inválida")
 }
 pub fn verificar_hash(asset: &[u8], somas: &[u8], nome: &str) -> Result<()> {
+    let real = format!("{:x}", Sha256::digest(asset));
+    verificar_hash_digest(&real, somas, nome)
+}
+pub fn verificar_hash_digest(real: &str, somas: &[u8], nome: &str) -> Result<()> {
     let texto = std::str::from_utf8(somas)?;
     let mut hashes = texto
         .lines()
@@ -46,7 +50,6 @@ pub fn verificar_hash(asset: &[u8], somas: &[u8], nome: &str) -> Result<()> {
     if hashes.next().is_some() || hash.len() != 64 || !hash.bytes().all(|c| c.is_ascii_hexdigit()) {
         bail!("soma inválida ou duplicada");
     }
-    let real = format!("{:x}", Sha256::digest(asset));
     if !real.eq_ignore_ascii_case(hash) {
         bail!("SHA-256 divergente");
     }
@@ -82,5 +85,39 @@ mod tests {
         assert!(verificar_hash(b"abc", somas, "arquivo").is_ok());
         assert!(verificar_hash(b"alterado", somas, "arquivo").is_err());
         assert!(verificar_hash(b"abc", somas, "outro").is_err());
+    }
+    #[test]
+    fn assinatura_valida_de_outra_chave_nao_e_aceita() {
+        use pgp::{
+            composed::{ArmorOptions, DetachedSignature, KeyType, SecretKeyParamsBuilder},
+            crypto::hash::HashAlgorithm,
+            types::{KeyDetails, Password},
+        };
+        let mut params = SecretKeyParamsBuilder::default();
+        params
+            .key_type(KeyType::Rsa(2048))
+            .can_certify(false)
+            .can_sign(true)
+            .primary_user_id("Outra chave <other@example.invalid>".into());
+        let secret = params
+            .build()
+            .unwrap()
+            .generate(rand::thread_rng())
+            .unwrap();
+        let public = secret.to_public_key();
+        let fingerprint = public.fingerprint().to_string().replace(' ', "");
+        let key = public.to_armored_string(ArmorOptions::default()).unwrap();
+        let signature = DetachedSignature::sign_binary_data(
+            rand::thread_rng(),
+            &secret.primary_key,
+            &Password::empty(),
+            HashAlgorithm::Sha256,
+            SOMAS,
+        )
+        .unwrap()
+        .to_armored_bytes(ArmorOptions::default())
+        .unwrap();
+        assert!(verificar_assinatura(SOMAS, &signature, &key, &fingerprint).is_ok());
+        assert!(verificar_assinatura(SOMAS, &signature, CHAVE, FINGERPRINT).is_err());
     }
 }

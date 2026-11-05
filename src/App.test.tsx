@@ -253,7 +253,11 @@ describe("App: recuperação ao abrir (obter_estado)", () => {
     const servico = criarSimulado({ verificacaoYtdlpInicial: COM_ATUALIZACAO });
     let atualizando = true;
     vi.spyOn(servico, "obter_estado").mockImplementation(
-      async (): Promise<EstadoPersistido> => ({ download: null, atualizacaoEmAndamento: atualizando }),
+      async (): Promise<EstadoPersistido> => ({
+        download: null,
+        atualizacaoEmAndamento: atualizando,
+        ultimoResultado: null,
+      }),
     );
     const verificar = vi.spyOn(servico, "verificar_ytdlp");
     render(<App servico={servico} intervaloRecuperacaoMs={20} />);
@@ -273,6 +277,15 @@ describe("App: recuperação ao abrir (obter_estado)", () => {
       async (): Promise<EstadoPersistido> => ({
         download: ativo ? { downloadId: "d1", etapa: "baixando_audio", percentual: 60 } : null,
         atualizacaoEmAndamento: false,
+        ultimoResultado: ativo
+          ? null
+          : {
+              downloadId: "outro-download",
+              tipo: "concluido",
+              caminho: "/Downloads/outro.mp4",
+              nomeArquivo: "outro.mp4",
+              renomeado: false,
+            },
       }),
     );
     render(<App servico={servico} intervaloRecuperacaoMs={20} />);
@@ -285,6 +298,72 @@ describe("App: recuperação ao abrir (obter_estado)", () => {
     expect(await screen.findByText(/foi encerrado/i)).toBeInTheDocument();
     expect(campoLink()).toBeEnabled();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Download concluído/)).not.toBeInTheDocument();
+  });
+
+  it("reconhece conclusão do mesmo download no polling depois de recarregar", async () => {
+    const servico = criarSimulado();
+    let ativo = true;
+    vi.spyOn(servico, "obter_estado").mockImplementation(
+      async (): Promise<EstadoPersistido> => ({
+        download: ativo ? { downloadId: "d-em-andamento", etapa: "unindo", percentual: 90 } : null,
+        atualizacaoEmAndamento: false,
+        ultimoResultado: ativo
+          ? null
+          : {
+              downloadId: "d-em-andamento",
+              tipo: "concluido",
+              caminho: "/Downloads/clip.mp4",
+              nomeArquivo: "clip.mp4",
+              renomeado: true,
+            },
+      }),
+    );
+    render(<App servico={servico} intervaloRecuperacaoMs={20} />);
+
+    expect(await screen.findByText(/continua em andamento/i)).toBeInTheDocument();
+    ativo = false;
+    expect(await screen.findByText("Download concluído: clip.mp4")).toBeInTheDocument();
+    expect(screen.getByText(/salvo com um nome diferente/i)).toBeInTheDocument();
+  });
+
+  it("recupera a conclusão persistida e abre a pasta do mesmo download", async () => {
+    const servico = criarSimulado();
+    const abrirPasta = vi.spyOn(servico, "abrir_pasta_download").mockResolvedValue(undefined);
+    vi.spyOn(servico, "obter_estado").mockResolvedValue({
+      download: null,
+      atualizacaoEmAndamento: false,
+      ultimoResultado: {
+        downloadId: "d-finalizado",
+        tipo: "concluido",
+        caminho: "/Downloads/clip.mp4",
+        nomeArquivo: "clip.mp4",
+        renomeado: false,
+      },
+    });
+
+    render(<App servico={servico} />);
+    expect(await screen.findByText("Download concluído: clip.mp4")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Abrir pasta" }));
+    expect(abrirPasta).toHaveBeenCalledWith({ downloadId: "d-finalizado" });
+  });
+
+  it("recupera erro persistido sem inferir sucesso quando download não está mais ativo", async () => {
+    const servico = criarSimulado();
+    vi.spyOn(servico, "obter_estado").mockResolvedValue({
+      download: null,
+      atualizacaoEmAndamento: false,
+      ultimoResultado: {
+        downloadId: "d-falhou",
+        tipo: "erro",
+        erro: { codigo: "DOWNLOAD_FALHOU", mensagem: "process exited unsuccessfully" },
+      },
+    });
+
+    render(<App servico={servico} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("O download falhou. Tente novamente.");
+    expect(screen.queryByText(/Download concluído/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Abrir pasta" })).not.toBeInTheDocument();
   });
 });
 

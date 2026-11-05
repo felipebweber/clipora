@@ -26,6 +26,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    },
     "resources": {
       "binaries/licencas/": "licencas/",
       "binaries/yt-dlp/": "yt-dlp/"

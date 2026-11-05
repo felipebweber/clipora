@@ -29,7 +29,9 @@ function criarServicoControlavel() {
       });
     }),
     iniciar_download: vi.fn(),
-    obter_estado: vi.fn().mockResolvedValue({ download: null, atualizacaoEmAndamento: false }),
+    obter_estado: vi
+      .fn()
+      .mockResolvedValue({ download: null, atualizacaoEmAndamento: false, ultimoResultado: null }),
     abrir_pasta_download: vi.fn().mockResolvedValue(undefined),
     obter_pasta_destino: vi.fn(),
     selecionar_pasta_destino: vi.fn(),
@@ -427,6 +429,37 @@ describe("useClipora: abrir pasta com falha (M7)", () => {
 });
 
 describe("useClipora: recuperação ao abrir (M4)", () => {
+  it("ignora o resultado terminal da consulta inicial se o usuário já alterou o campo", async () => {
+    const { servico } = criarServicoControlavel();
+    let resolverEstado: (valor: Awaited<ReturnType<ServicoClipora["obter_estado"]>>) => void = () => {};
+    vi.mocked(servico.obter_estado).mockReturnValue(
+      new Promise((resolve) => {
+        resolverEstado = resolve;
+      }),
+    );
+    const { result } = renderHook(() => useClipora(servico));
+
+    act(() => {
+      result.current.aoAlterarLink("https://www.instagram.com/reel/a/");
+      result.current.aoAlterarLink("");
+    });
+    await act(async () => {
+      resolverEstado({
+        download: null,
+        atualizacaoEmAndamento: false,
+        ultimoResultado: {
+          downloadId: "antigo",
+          tipo: "concluido",
+          caminho: "/Downloads/antigo.mp4",
+          nomeArquivo: "antigo.mp4",
+          renomeado: false,
+        },
+      });
+    });
+
+    expect(result.current.estado).toEqual({ tipo: "aguardando_link" });
+  });
+
   it("recupera o download ativo, acompanha por obter_estado() e encerra quando ele some", async () => {
     vi.useFakeTimers();
     const { servico } = criarServicoControlavel();
@@ -434,12 +467,14 @@ describe("useClipora: recuperação ao abrir (M4)", () => {
       .mockResolvedValueOnce({
         download: { downloadId: "d9", etapa: "baixando_video", percentual: 30 },
         atualizacaoEmAndamento: false,
+        ultimoResultado: null,
       })
       .mockResolvedValueOnce({
         download: { downloadId: "d9", etapa: "unindo", percentual: 90 },
         atualizacaoEmAndamento: false,
+        ultimoResultado: null,
       })
-      .mockResolvedValue({ download: null, atualizacaoEmAndamento: false });
+      .mockResolvedValue({ download: null, atualizacaoEmAndamento: false, ultimoResultado: null });
 
     const { result } = renderHook(() => useClipora(servico, { intervaloRecuperacaoMs: 100 }));
     await act(async () => {});
@@ -467,6 +502,7 @@ describe("useClipora: recuperação ao abrir (M4)", () => {
     vi.mocked(servico.obter_estado).mockResolvedValue({
       download: { downloadId: "d1", etapa: "preparando", percentual: null, previa },
       atualizacaoEmAndamento: false,
+      ultimoResultado: null,
     });
     const { result } = renderHook(() => useClipora(servico, { intervaloRecuperacaoMs: 60_000 }));
     await waitFor(() => expect(result.current.estado).toMatchObject({ tipo: "baixando", previa }));

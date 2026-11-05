@@ -1,4 +1,9 @@
-import type { EtapaDownload, ErroClipora, Previa } from "../tipos/contrato";
+import type {
+  EtapaDownload,
+  ErroClipora,
+  Previa,
+  ResultadoTerminal,
+} from "../tipos/contrato";
 
 /**
  * Máquina de estados da tela principal do Clipora.
@@ -84,6 +89,7 @@ export type AcaoApp =
       percentual: number | null;
       previa: Previa | null;
     }
+  | { tipo: "download_resultado_recuperado"; resultado: ResultadoTerminal }
   | { tipo: "download_recuperado_encerrado"; downloadId: string };
 
 export const estadoInicial: EstadoApp = { tipo: "aguardando_link" };
@@ -205,6 +211,34 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
         downloadId: acao.downloadId,
         progresso: { etapa: acao.etapa, percentual: acao.percentual },
         recuperado: true,
+      };
+    }
+
+    case "download_resultado_recuperado": {
+      const recuperacaoInicial = estado.tipo === "aguardando_link";
+      const recuperacaoDoDownloadAtivo =
+        estado.tipo === "baixando" &&
+        estado.recuperado === true &&
+        estado.downloadId === acao.resultado.downloadId;
+      if (!recuperacaoInicial && !recuperacaoDoDownloadAtivo) return estado;
+
+      if (acao.resultado.tipo === "concluido") {
+        return {
+          tipo: "concluido",
+          previa: estado.tipo === "baixando" ? estado.previa : null,
+          downloadId: acao.resultado.downloadId,
+          resultado: {
+            caminho: acao.resultado.caminho,
+            nomeArquivo: acao.resultado.nomeArquivo,
+            renomeado: acao.resultado.renomeado,
+          },
+        };
+      }
+      return {
+        tipo: "erro",
+        erro: acao.resultado.erro,
+        origem: "download",
+        previa: estado.tipo === "baixando" ? estado.previa : null,
       };
     }
 

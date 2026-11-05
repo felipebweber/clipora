@@ -225,7 +225,11 @@ function CartaoYtdlp({
       </p>
       {fonteAtualizada ? (
         <>
-          <Endereco rotulo="Código-fonte desta versão" url={fonteAtualizada} />
+          <Endereco
+            rotulo="Código-fonte desta versão"
+            url={fonteAtualizada}
+            aoAbrir={() => aoAbrirLink(componente.id, "codigoFonteAtualizada", fonteAtualizada)}
+          />
           <Endereco
             rotulo={`Código-fonte da versão incluída no Clipora (${componente.versao})`}
             url={componente.codigoFonte}

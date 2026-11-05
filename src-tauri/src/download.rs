@@ -231,12 +231,37 @@ mod tests {
         assert_eq!(valor["previa"], serde_json::Value::Null);
         assert_eq!(valor["etapa"], "baixando_video");
     }
+    #[test]
+    fn resultado_terminal_tem_discriminante_e_id_para_a_ui_reidratada() {
+        let concluido = ResultadoTerminal::Concluido {
+            download_id: "d-7".into(),
+            caminho: "/tmp/v.mp4".into(),
+            nome_arquivo: "v.mp4".into(),
+            renomeado: false,
+        };
+        let valor = serde_json::to_value(concluido).unwrap();
+        assert_eq!(valor["downloadId"], "d-7");
+        assert_eq!(valor["tipo"], "concluido");
+        assert_eq!(valor["nomeArquivo"], "v.mp4");
+        let erro = ResultadoTerminal::Erro {
+            download_id: "d-8".into(),
+            erro: ErroClipora::novo("DOWNLOAD_FALHOU", None),
+        };
+        let valor = serde_json::to_value(erro).unwrap();
+        assert_eq!(valor["downloadId"], "d-8");
+        assert_eq!(valor["tipo"], "erro");
+        assert_eq!(valor["erro"]["codigo"], "DOWNLOAD_FALHOU");
+    }
     #[tokio::test]
-    #[ignore = "download real, exige rede e yt-dlp local"]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+    #[ignore = "download real, exige rede e sidecars empacotados para o alvo atual"]
     async fn downloads_reais_tem_audio_e_video() {
         let bin = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("binaries/clipora-yt-dlp-aarch64-apple-darwin");
-        let ffmpeg = Path::new("/opt/homebrew/bin/ffmpeg");
+            .join("binaries/yt-dlp")
+            .join(format!("yt-dlp{}", std::env::consts::EXE_SUFFIX));
+        let binarios = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
+        let ffmpeg = binarios.join(format!("clipora-ffmpeg-{}", env!("CLIPORA_TARGET")));
+        let ffprobe = binarios.join(format!("clipora-ffprobe-{}", env!("CLIPORA_TARGET")));
         for url in [
             "https://www.instagram.com/reel/DUl354timp1/",
             "https://tiktok.com/@scout2015/video/6718335390845095173",
@@ -244,9 +269,10 @@ mod tests {
             let pasta = tempfile::tempdir().unwrap();
             let controle = Arc::new(Mutex::new(Dados::default()));
             let canal = Channel::new(|_| Ok(()));
-            match executar_interno(&controle, &canal, url, pasta.path(), &bin, ffmpeg, None).await {
+            match executar_interno(&controle, &canal, url, pasta.path(), &bin, &ffmpeg, None).await
+            {
                 Ok((arquivo, _)) => {
-                    let saida = std::process::Command::new("/opt/homebrew/bin/ffprobe")
+                    let saida = std::process::Command::new(&ffprobe)
                         .args([
                             "-v",
                             "error",
@@ -274,7 +300,7 @@ mod tests {
                         String::from_utf8_lossy(&saida.stderr)
                     );
                 }
-                Err(e) => println!("{url}: ERRO {} {:?}", e.codigo, e.detalhe),
+                Err(e) => panic!("{url}: ERRO {} {:?}", e.codigo, e.detalhe),
             }
         }
     }
@@ -547,10 +573,13 @@ mod tests {
         assert!(!origem.exists());
     }
     #[tokio::test]
-    #[ignore = "download real, exige rede e sidecars macOS arm64"]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[ignore = "download real, exige rede e sidecars LGPL macOS arm64"]
     async fn download_real_sidecars_lgpl() {
         let binarios = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
-        let yt = binarios.join("clipora-yt-dlp-aarch64-apple-darwin");
+        let yt = binarios
+            .join("yt-dlp")
+            .join(format!("yt-dlp{}", std::env::consts::EXE_SUFFIX));
         let ffmpeg = binarios.join("clipora-ffmpeg-aarch64-apple-darwin");
         let ffprobe = binarios.join("clipora-ffprobe-aarch64-apple-darwin");
         let pasta = tempfile::tempdir().unwrap();
@@ -693,11 +722,31 @@ pub struct EstadoDownload {
 pub struct Estado {
     pub download: Option<EstadoDownload>,
     pub atualizacao_em_andamento: bool,
+    pub ultimo_resultado: Option<ResultadoTerminal>,
+}
+#[derive(Clone, Debug, Serialize)]
+#[serde(
+    tag = "tipo",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+pub enum ResultadoTerminal {
+    Concluido {
+        download_id: String,
+        caminho: String,
+        nome_arquivo: String,
+        renomeado: bool,
+    },
+    Erro {
+        download_id: String,
+        erro: ErroClipora,
+    },
 }
 #[derive(Default)]
 pub struct Dados {
     pub ativo: Option<EstadoDownload>,
     pub previa: Option<crate::previa::Previa>,
+    pub ultimo_resultado: Option<ResultadoTerminal>,
     pub atualizacao: bool,
     pub previas_ativas: usize,
     pub arquivos: std::collections::HashMap<String, PathBuf>,
@@ -738,9 +787,11 @@ impl Drop for GuardaPrevia {
 pub struct GuardaAtualizacao(Arc<Mutex<Dados>>);
 impl Drop for GuardaAtualizacao {
     fn drop(&mut self) {
-        if let Ok(mut d) = self.0.lock() {
-            d.atualizacao = false;
-        }
+        let mut d = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        d.atualizacao = false;
     }
 }
 impl Controle {
@@ -885,11 +936,28 @@ pub async fn executar(
         None,
     )
     .await;
+    let terminal = match &resultado {
+        Ok((caminho, renomeado)) => Some(ResultadoTerminal::Concluido {
+            download_id: id.clone(),
+            caminho: caminho.to_string_lossy().into_owned(),
+            nome_arquivo: caminho
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned(),
+            renomeado: *renomeado,
+        }),
+        Err(erro) => Some(ResultadoTerminal::Erro {
+            download_id: id.clone(),
+            erro: erro.clone(),
+        }),
+    };
     if let Ok(mut dados) = controle.lock() {
         if let Ok((ref caminho, _)) = resultado {
             dados.arquivos.insert(id, caminho.clone());
         }
         dados.ativo = None;
+        dados.ultimo_resultado = terminal;
         dados.tarefa = None;
         dados.grupo = None;
         dados.temporario = None;

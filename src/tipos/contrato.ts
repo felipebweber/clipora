@@ -135,10 +135,21 @@ export type EstadoDownloadAtivo = {
   previa?: Previa | null;
 };
 
+export type ResultadoTerminal =
+  | {
+      downloadId: string;
+      tipo: "concluido";
+      caminho: string;
+      nomeArquivo: string;
+      renomeado: boolean;
+    }
+  | { downloadId: string; tipo: "erro"; erro: ErroClipora };
+
 /** Retorno de `obter_estado()` — renomeado de `Estado` (ver nota acima). */
 export type EstadoPersistido = {
   download: EstadoDownloadAtivo | null;
   atualizacaoEmAndamento: boolean;
+  ultimoResultado: ResultadoTerminal | null;
 };
 
 export type EstadoPasta = "nao_definida" | "valida" | "ausente" | "sem_permissao";
@@ -220,6 +231,7 @@ export type Licencas = {
   textoCompleto: string;
 };
 
-/** `abrir_link_licenca` abre no navegador padrão apenas URLs HTTPS do resumo
- * empacotado, identificadas pelo componente — nunca uma URL do frontend. */
-export type TipoLinkLicenca = "codigoFonte" | "projeto";
+/** `abrir_link_licenca` aceita apenas os destinos HTTPS do contrato, sem URL
+ * arbitrária do frontend; `codigoFonteAtualizada` é restrito ao yt-dlp e tem
+ * seu endereço derivado pelo backend a partir da versão instalada. */
+export type TipoLinkLicenca = "codigoFonte" | "projeto" | "codigoFonteAtualizada";

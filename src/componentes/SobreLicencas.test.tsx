@@ -71,7 +71,8 @@ describe("SobreLicencas: conteúdo", () => {
   });
 
   it("yt-dlp atualizado pelo app: mostra a versão em uso e o código-fonte daquela tag", async () => {
-    renderizar(
+    const usuario = userEvent.setup();
+    const { servico } = renderizar(
       {},
       { ...VERIFICACAO_EMPACOTADA, versaoAtual: "2025.10.22", origem: "atualizada" },
     );
@@ -80,17 +81,37 @@ describe("SobreLicencas: conteúdo", () => {
     expect(cartao).toHaveTextContent(
       "https://github.com/yt-dlp/yt-dlp/releases/download/2025.10.22/yt-dlp.tar.gz",
     );
-    // A URL da tag atualizada não está no resumo empacotado: só texto, sem botão.
-    expect(within(cartao).getAllByRole("button").map((b) => b.textContent)).not.toContain(
-      "Código-fonte desta versão",
-    );
+    await usuario.click(within(cartao).getByRole("button", { name: "Código-fonte desta versão" }));
+    expect(servico.linksAbertos).toContainEqual({
+      componenteId: "yt-dlp",
+      tipo: "codigoFonteAtualizada",
+    });
   });
 
-  it("conta e filtra as bibliotecas e cita as que usam LGPL", async () => {
+  it("não oferece abrir a fonte atualizada quando a versão não é uma tag oficial", async () => {
+    renderizar({}, { ...VERIFICACAO_EMPACOTADA, versaoAtual: "2025/10/22", origem: "atualizada" });
+    const cartao = await screen.findByRole("region", { name: "yt-dlp 2025/10/22" });
+    expect(within(cartao).queryByRole("button", { name: "Código-fonte desta versão" })).toBeNull();
+    expect(within(cartao).getByRole("button", { name: "Abrir código-fonte desta versão" })).toBeInTheDocument();
+  });
+
+  it("mostra pgp na lista simulada e não atribui LGPL a uma crate", async () => {
+    renderizar();
+    const lista = await screen.findByRole("list", { name: "Bibliotecas e licenças" });
+    expect(
+      within(lista)
+        .getAllByRole("listitem")
+        .some((item) => /pgp 0\.21\.0 — MIT OR Apache-2\.0/.test(item.textContent ?? "")),
+    ).toBe(true);
+    expect(within(lista).queryByText(/sequoia-openpgp/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sequoia-openpgp usa a licença LGPL/i)).not.toBeInTheDocument();
+  });
+
+  it("conta e filtra as bibliotecas sem exibir aviso LGPL para crates", async () => {
     const usuario = userEvent.setup();
     renderizar();
     expect(await screen.findByText(/3 bibliotecas Rust e 2 pacotes JavaScript/)).toBeInTheDocument();
-    expect(screen.getByText(/sequoia-openpgp usa a licença LGPL/)).toBeInTheDocument();
+    expect(screen.queryByText(/usa a licença LGPL/)).not.toBeInTheDocument();
     const lista = screen.getByRole("list", { name: "Bibliotecas e licenças" });
     expect(within(lista).getAllByRole("listitem")).toHaveLength(5);
 

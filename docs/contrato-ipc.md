@@ -15,7 +15,10 @@ type EventoDownload =
   | { tipo: 'concluido'; caminho: string; nomeArquivo: string; renomeado: boolean }
   | { tipo: 'erro'; erro: ErroClipora };
 type EstadoDownload = { downloadId: string; percentual: number | null; etapa: EtapaDownload; previa: Previa | null };
-type Estado = { download: EstadoDownload | null; atualizacaoEmAndamento: boolean };
+type ResultadoTerminal =
+  | { downloadId: string; tipo: 'concluido'; caminho: string; nomeArquivo: string; renomeado: boolean }
+  | { downloadId: string; tipo: 'erro'; erro: ErroClipora };
+type Estado = { download: EstadoDownload | null; atualizacaoEmAndamento: boolean; ultimoResultado: ResultadoTerminal | null };
 type PastaDestino = { caminho: string | null; estado: 'nao_definida' | 'valida' | 'ausente' | 'sem_permissao' };
 type VerificacaoYtdlp = { versaoAtual: string; versaoDisponivel: string | null; atualizacaoDisponivel: boolean; origem: 'empacotada' | 'atualizada'; erroVerificacao: ErroClipora | null };
 type ResumoLicencas = { formato: number; app: { nome: string; versao: string }; alvo: string; componentes: Array<{ id: string; nome: string; versao: string; licenca: string; papel: string; codigoFonte: string; projeto: string; binario?: string; sha256Fonte?: string }>; crates: Array<{ nome: string; versao: string; licenca: string }>; npm: Array<{ nome: string; versao: string; licenca: string; projeto?: string }>; arquivoCompleto: string };
@@ -32,7 +35,7 @@ type Comandos = {
   verificar_ytdlp: () => Promise<VerificacaoYtdlp>;
   atualizar_ytdlp: (args: { versaoEsperada: string; onEvento: Channel<EventoAtualizacao> }) => Promise<{ versaoInstalada: string }>;
   obter_licencas: () => Promise<Licencas>;
-  abrir_link_licenca: (args: { componenteId: string; tipo: 'codigoFonte' | 'projeto' }) => Promise<void>;
+  abrir_link_licenca: (args: { componenteId: string; tipo: 'codigoFonte' | 'projeto' | 'codigoFonteAtualizada' }) => Promise<void>;
 };
 ```
 
@@ -45,7 +48,7 @@ use serde::Serialize;
 use tauri::ipc::Channel;
 #[derive(Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum CodigoErro { LinkInvalido, PlataformaNaoSuportada, PreviaCancelada, TempoEsgotado, SemConexao, LoginNecessario, ConteudoPrivadoOuRemovido, LimiteDeAcesso, ConteudoNaoSuportado, PreviaIndisponivel, PastaNaoDefinida, PastaAusente, PastaSemPermissao, EspacoInsuficiente, FfmpegIndisponivel, ArquivoIncompleto, DownloadEmAndamento, DownloadFalhou, AtualizacaoEmAndamento, AtualizacaoIntegridade, AtualizacaoNaoSuportada, AtualizacaoFalhou, YtdlpIndisponivel, ErroInterno }
+enum CodigoErro { LinkInvalido, PlataformaNaoSuportada, PreviaCancelada, TempoEsgotado, SemConexao, LoginNecessario, ConteudoPrivadoOuRemovido, LimiteDeAcesso, ConteudoNaoSuportado, PreviaIndisponivel, PastaNaoDefinida, PastaAusente, PastaSemPermissao, EspacoInsuficiente, FfmpegIndisponivel, ArquivoIncompleto, DownloadEmAndamento, DownloadFalhou, AtualizacaoEmAndamento, AtualizacaoIntegridade, AtualizacaoNaoSuportada, AtualizacaoFalhou, YtdlpIndisponivel, LicencasIndisponiveis, ErroInterno }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ErroClipora { codigo: CodigoErro, mensagem: String, #[serde(skip_serializing_if = "Option::is_none")] detalhe: Option<String> }
@@ -69,8 +72,11 @@ enum EventoDownload {
 #[serde(rename_all = "camelCase")]
 struct EstadoDownload { download_id: String, percentual: Option<f64>, etapa: EtapaDownload, previa: Option<Previa> }
 #[derive(Serialize)]
+#[serde(tag = "tipo", rename_all = "snake_case", rename_all_fields = "camelCase")]
+enum ResultadoTerminal { Concluido { download_id: String, caminho: String, nome_arquivo: String, renomeado: bool }, Erro { download_id: String, erro: ErroClipora } }
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Estado { download: Option<EstadoDownload>, atualizacao_em_andamento: bool }
+struct Estado { download: Option<EstadoDownload>, atualizacao_em_andamento: bool, ultimo_resultado: Option<ResultadoTerminal> }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Licencas { resumo: serde_json::Value, texto_completo: String }
@@ -102,10 +108,10 @@ async fn selecionar_pasta_destino() -> Result<Option<String>, ErroClipora>;
 async fn verificar_ytdlp() -> Result<VerificacaoYtdlp, ErroClipora>;
 async fn atualizar_ytdlp(versao_esperada: String, on_evento: Channel<EventoAtualizacao>) -> Result<ResultadoAtualizacao, ErroClipora>;
 fn obter_licencas() -> Result<Licencas, ErroClipora>;
-async fn abrir_link_licenca(componente_id: String, tipo: String) -> Result<(), ErroClipora>;
+async fn abrir_link_licenca(componente_id: String, tipo: String) -> Result<(), ErroClipora>; // codigoFonte | projeto | codigoFonteAtualizada
 ```
 
-`obter_estado` inclui a prévia associada ao download ativo (`null` quando não foi carregada ou pertence a outra URL) e `atualizacaoEmAndamento`. `obter_licencas` lê somente `licencas/licencas.json` e `licencas/THIRD_PARTY_LICENSES.txt` dos recursos do app, retornando `{ resumo, textoCompleto }`; arquivo ausente ou JSON inválido rejeita com `LICENCAS_INDISPONIVEIS` (inclusive em desenvolvimento sem geração dos avisos). `abrir_link_licenca` aceita apenas IDs de componentes presentes no resumo empacotado e os tipos `codigoFonte`/`projeto`, abrindo URL HTTPS no navegador padrão; nunca recebe uma URL arbitrária.
+`obter_estado` inclui a prévia associada ao download ativo (`null` quando não foi carregada ou pertence a outra URL), `atualizacaoEmAndamento` e `ultimoResultado`. O resultado terminal fica disponível após recarga e é mantido até o próximo download aceito. `obter_licencas` lê somente `licencas/licencas.json` e `licencas/THIRD_PARTY_LICENSES.txt` dos recursos do app, retornando `{ resumo, textoCompleto }`; arquivo ausente ou JSON inválido rejeita com `LICENCAS_INDISPONIVEIS` (inclusive em desenvolvimento sem geração dos avisos). `abrir_link_licenca` aceita apenas IDs de componentes presentes no resumo empacotado e os tipos `codigoFonte`/`projeto`, abrindo URL HTTPS no navegador padrão. O tipo `codigoFonteAtualizada` exige `componenteId: "yt-dlp"`, resolve o binário atualmente validado, lê a versão local e deriva `https://github.com/yt-dlp/yt-dlp/releases/download/{versao}/yt-dlp.tar.gz`; nenhum campo recebe URL arbitrária.
 
 ## Prévia e política de URL
 
@@ -113,13 +119,15 @@ O frontend gera `requisicaoId` e ignora `PREVIA_CANCELADA`. A última chamada re
 
 ## Primeiro download
 
-1. Frontend solicita `iniciar_download` com ID próprio e canal. Caso receba `PASTA_NAO_DEFINIDA`, `PASTA_AUSENTE` ou `PASTA_SEM_PERMISSAO`, chama `selecionar_pasta_destino`.
-2. Diálogo nativo aberto pelo Rust valida diretório e escrita real e persiste em `app_config_dir`. Cancelamento retorna `null` e mantém a pasta anterior; nesse caso não repetir o download. Se selecionada, repetir com o mesmo ID e canal.
+1. Frontend solicita `iniciar_download` com ID próprio, canal novo e ouvinte lógico do download. Caso receba `PASTA_NAO_DEFINIDA`, `PASTA_AUSENTE` ou `PASTA_SEM_PERMISSAO`, chama `selecionar_pasta_destino`.
+2. Diálogo nativo aberto pelo Rust valida diretório e escrita real e persiste em `app_config_dir`. Cancelamento retorna `null` e mantém a pasta anterior; nesse caso não repetir o download. Se selecionada, repetir com o mesmo ID e ouvinte lógico, criando um **novo `Channel<EventoDownload>` para cada chamada IPC/tentativa**. O Channel da chamada rejeitada foi descartado pelo Rust e não pode ser reutilizado; o frontend reanexa o ouvinte lógico ao novo canal.
 3. Eventos são ordenados no canal, com percentual global calculado no backend e limitado a aproximadamente 10/s. O evento terminal é `concluido` ou `erro`; conclusão exige saída zero, arquivo final existente e não vazio, sem `.part`. Saída zero sem arquivo válido (inexistente, vazio, `.part`, mensagem `already downloaded` ou caminho fora da pasta) retorna `ARQUIVO_INCOMPLETO`. Após recarga, `obter_estado` recupera o download ativo e estado da atualização.
 4. Backend sanitiza nomes para Windows, remove espaços finais e trata nomes reservados. Usa `Título [id].mp4`, depois `Título [id] (2).mp4` etc.; baixa em pasta temporária no mesmo volume e finaliza com reserva exclusiva sem sobrescrever. `renomeado` indica colisão. `abrir_pasta_download` revela exclusivamente arquivo produzido pelo backend, identificado por ID, sem aceitar caminho do frontend.
 
 ## Atualização
 
 `verificar_ytdlp` é chamado uma vez por abertura; uma falha de consulta pode ser retornada em `erroVerificacao`. `atualizar_ytdlp` é iniciado explicitamente pelo usuário, sem `yt-dlp -U`: baixa release oficial em `app_local_data_dir()/bin`, verifica assinatura GPG do SHA2-256SUMS com chave fixada e SHA-256, executa `--version`, troca atomicamente e preserva/restaura a versão anterior em caso de falha. Prévia e download rejeitam durante atualização com `ATUALIZACAO_EM_ANDAMENTO`; atualizar durante download rejeita com `DOWNLOAD_EM_ANDAMENTO`. O canal informa progresso e o retorno ou rejeição informa resultado terminal.
+
+O artefato `_update_spec` da distribuição do yt-dlp não faz parte da implementação atual: o Clipora não o lê nem executa. Integridade e proveniência são verificadas a partir de `SHA2-256SUMS` e sua assinatura destacada.
 
 Mapear erros específicos antes dos genéricos; quando o extrator falhar, sugerir atualização do yt-dlp. A lista completa de códigos é `CodigoErro` acima.
