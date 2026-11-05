@@ -18,6 +18,9 @@ accepted = [
     "Unicode-3.0",
     "Unicode-DFS-2016",
     "CDLA-Permissive-2.0",
+    # bzip2-1.0.6: permissiva estilo BSD (libbz2-rs-sys, via pgp/bzip2); exige manter o aviso e
+    # marcar versões alteradas. Aceita em 2026-11-05 (licencas.md §4.1).
+    "bzip2-1.0.6",
     # MPL-2.0: copyleft por arquivo; obriga a oferecer o código-fonte dos arquivos MPL usados.
     "MPL-2.0",
 ]
@@ -27,14 +30,7 @@ ignore-build-dependencies = true
 ignore-dev-dependencies = true
 
 # ── Exceções por crate ────────────────────────────────────────────────────────────────────────
-# PROVISÓRIO (2026-11-05), DECISÃO PENDENTE DO USUÁRIO — docs/licencas.md §4.1:
-# sequoia-openpgp e buffered-reader (verificação GPG da atualização do yt-dlp) são
-# LGPL-2.0-or-later e ficam ligadas ESTATICAMENTE ao executável do Clipora. Aceitas aqui só para
-# que o arquivo de avisos reflita o que é distribuído hoje. Manter exige cumprir a LGPL (permitir
-# religar: publicar o código do Clipora ou os objetos); alternativa: trocar pela crate `pgp` (rPGP,
-# MIT/Apache-2.0), a cargo de Ferrugem.
-[sequoia-openpgp]
-accepted = ["LGPL-2.0-or-later"]
-
-[buffered-reader]
-accepted = ["LGPL-2.0-or-later"]
+# Nenhuma. (A exceção provisória para sequoia-openpgp/buffered-reader, LGPL-2.0-or-later, foi
+# removida em 2026-11-05 após a troca pela crate `pgp` (rPGP, MIT/Apache-2.0) — licencas.md §4.1.)
+# Para aceitar uma licença só para uma crate, use uma seção [nome-da-crate] com accepted = [...],
+# depois de registrar a decisão do usuário em docs/licencas.md.

@@ -9,9 +9,8 @@
 #        vars.CLIPORA_ASSINAR_MACOS   = 'true'  + segredos APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD,
 #                                                 APPLE_SIGNING_IDENTITY, APPLE_API_ISSUER, APPLE_API_KEY,
 #                                                 APPLE_API_KEY_P8 (conteúdo da chave .p8)
-#        vars.CLIPORA_ASSINAR_WINDOWS = 'true'  + segredos AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
-#                                                 AZURE_TENANT_ID e variáveis CLIPORA_AZURE_ENDPOINT,
-#                                                 CLIPORA_AZURE_CONTA, CLIPORA_AZURE_PERFIL
+#      Windows: ativação bloqueada até implementar a pré-assinatura completa do onedir
+#      com o provedor escolhido pelo usuário (inclusive .pyd e hashes pós-assinatura no manifesto).
 #      Nenhum segredo é usado enquanto as variáveis não forem 'true'.
 
 name: build
@@ -61,6 +60,21 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Identificar compilador e SDK
+        id: native-toolchain
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            compiler="$(xcodebuild -version | tr '\n' ' ') clang=$(clang --version | head -n 1)"
+            sdk="$(xcrun --show-sdk-version)"
+          else
+            compiler="$(cc --version | head -n 1)"
+            sdk="glibc=$(ldd --version | head -n 1)"
+          fi
+          printf '%s\n%s' "$compiler" "$sdk" | shasum -a 256 | cut -c1-16 | {
+            read -r hash
+            echo "fingerprint=$hash" >> "$GITHUB_OUTPUT"
+          }
+
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -81,7 +95,7 @@ jobs:
             src-tauri/binaries/clipora-ffmpeg-${{ matrix.triple }}*
             src-tauri/binaries/clipora-ffprobe-${{ matrix.triple }}*
             src-tauri/binaries/ffmpeg-build-info-${{ matrix.triple }}.txt
-          key: ffmpeg-${{ matrix.triple }}-${{ matrix.runner }}-${{ hashFiles('scripts/compilar-ffmpeg.mjs', 'scripts/comum.mjs', 'scripts/binarios.lock') }}
+          key: ffmpeg-${{ matrix.triple }}-${{ matrix.runner }}-${{ steps.native-toolchain.outputs.fingerprint }}-${{ hashFiles('scripts/compilar-ffmpeg.mjs', 'scripts/comum.mjs', 'scripts/binarios.lock') }}
 
       - name: Compilar (idempotente; com cache válido não recompila)
         run: node scripts/compilar-ffmpeg.mjs --target "$TRIPLE" --exigir-gpg
@@ -120,6 +134,8 @@ jobs:
     name: App (${{ matrix.triple }})
     needs: ffmpeg
     runs-on: ${{ matrix.runner }}
+    environment:
+      name: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && 'release' || 'build' }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -186,6 +202,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable (2026-10-16)
         with:
+          toolchain: '1.99.1'
           targets: ${{ matrix.rust-targets }}
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -225,6 +242,10 @@ jobs:
           pnpm typecheck
           pnpm test
 
+      - name: Testes do conferidor de pacotes
+        if: matrix.testes
+        run: node --test scripts/test-conferir-pacote.mjs
+
       - name: Testes do Rust
         if: matrix.testes
         run: pnpm test:rust
@@ -237,77 +258,61 @@ jobs:
 
       - name: tauri build (sem assinatura)
         if: >-
-          !((runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true') ||
-            (runner.os == 'Windows' && vars.CLIPORA_ASSINAR_WINDOWS == 'true'))
+          !((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') &&
+            runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true') ||
+            (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') &&
+            runner.os == 'Windows' && vars.CLIPORA_ASSINAR_WINDOWS == 'true'))
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
           NO_STRIP: 'true'
         run: pnpm tauri build --ci --target "$TRIPLE" --bundles "$BUNDLES"
 
       # ── Assinatura macOS: DESATIVADA até vars.CLIPORA_ASSINAR_MACOS == 'true' ──────────────
-      # Antes de ligar: implementar a pré-assinatura do onedir (scripts/assinar-yt-dlp.mjs,
-      # distribuicao.md §4.5 item 4); o Tauri não assina Contents/Helpers/yt-dlp.
+      # Pré-assinatura do yt-dlp onedir: scripts/assinar-yt-dlp.mjs, antes do tauri build.
       - name: Chave da API do App Store Connect
-        if: runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true'
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true'
         env:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           mkdir -p "$RUNNER_TEMP/apple"
           printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/apple/AuthKey.p8"
-          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/apple/AuthKey.p8" >> "$GITHUB_ENV"
+
+      - name: Pré-assinar yt-dlp onedir (macOS)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: node scripts/assinar-yt-dlp.mjs --identidade "$APPLE_SIGNING_IDENTITY" --importar-certificado
 
       - name: tauri build (assinado e notarizado, macOS)
-        if: runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true'
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/apple/AuthKey.p8
         run: pnpm tauri build --ci --target "$TRIPLE" --bundles "$BUNDLES"
 
-      # ── Assinatura Windows: DESATIVADA até vars.CLIPORA_ASSINAR_WINDOWS == 'true' ──────────
-      # Modelo para Azure Artifact Signing (ex-Trusted Signing). Para certificado OV, troque o
-      # signCommand. O comando é passado por --config para não fixar segredos no tauri.conf.json.
-      # Antes de ligar: assinar também yt-dlp/_internal/**/*.pyd (o Tauri só assina .exe/.dll).
-      - name: trusted-signing-cli
-        if: runner.os == 'Windows' && vars.CLIPORA_ASSINAR_WINDOWS == 'true'
-        run: cargo install --locked trusted-signing-cli
+      - name: Remover chave da API do App Store Connect
+        if: always() && runner.os == 'macOS'
+        run: rm -f "$RUNNER_TEMP/apple/AuthKey.p8"
 
-      - name: tauri build (assinado, Windows)
-        if: runner.os == 'Windows' && vars.CLIPORA_ASSINAR_WINDOWS == 'true'
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ENDPOINT: ${{ vars.CLIPORA_AZURE_ENDPOINT }}
-          CONTA: ${{ vars.CLIPORA_AZURE_CONTA }}
-          PERFIL: ${{ vars.CLIPORA_AZURE_PERFIL }}
+      # O Tauri assina .exe/.dll via signCommand, mas ainda não há pré-assinatura dos .pyd
+      # do yt-dlp com atualização do manifesto. Impedir ativação parcial até esse fluxo existir.
+      - name: Bloquear assinatura Windows parcial
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && runner.os == 'Windows' && vars.CLIPORA_ASSINAR_WINDOWS == 'true'
         run: |
-          # Endpoint, conta e perfil são URL/nomes simples (sem aspas); %1 = arquivo a assinar.
-          config=$(printf '{"bundle":{"windows":{"signCommand":"trusted-signing-cli -e %s -a %s -c %s -d Clipora %%1"}}}' "$ENDPOINT" "$CONTA" "$PERFIL")
-          pnpm tauri build --ci --target "$TRIPLE" --bundles "$BUNDLES" --config "$config"
+          echo "::error::Assinatura Windows ainda não cobre yt-dlp/_internal/*.pyd e manifesto pós-assinatura; desative CLIPORA_ASSINAR_WINDOWS até o fluxo integral ser implementado."
+          exit 1
 
       # ── Conferência do pacote ───────────────────────────────────────────────────────────────
       - name: Conferir yt-dlp e FFmpeg dentro do pacote
-        run: |
-          b="src-tauri/target/$TRIPLE/release/bundle"
-          case "$RUNNER_OS" in
-            macOS)
-              app=$(find "$b/macos" -maxdepth 1 -name '*.app' | head -n 1)
-              "$app/Contents/Helpers/yt-dlp/yt-dlp" --ignore-config --no-update --version
-              "$app/Contents/MacOS/clipora-ffmpeg" -hide_banner -version | head -n 1
-              lipo -info "$app/Contents/MacOS/clipora-ffmpeg"
-              ;;
-            Linux)
-              deb=$(find "$b/deb" -name '*.deb' | head -n 1)
-              dpkg-deb -c "$deb" | grep -E 'yt-dlp/yt-dlp$|clipora-ffmpeg$'
-              dpkg-deb -c "$deb" | grep -E 'yt-dlp/yt-dlp$' | grep -q '^-rwxr-xr-x'
-              ;;
-            Windows)
-              find "$b" -name '*.exe' -o -name '*.msi'
-              ;;
-          esac
+        env:
+          CLIPORA_TARGET: ${{ matrix.triple }}
+        run: node scripts/conferir-pacote.mjs --target "$TRIPLE"
 
       - name: SHA256SUMS dos artefatos
         run: |
@@ -327,7 +332,26 @@ jobs:
             src-tauri/target/${{ matrix.triple }}/release/bundle/**/*.rpm
             src-tauri/target/${{ matrix.triple }}/release/bundle/**/*.AppImage
             src-tauri/target/${{ matrix.triple }}/release/bundle/SHA256SUMS
-            src-tauri/binaries/ffmpeg-build-info-${{ matrix.triple }}.txt
-            src-tauri/binaries/licencas/
           if-no-files-found: error
           retention-days: 14
+
+  attest:
+    name: Atestar pacotes da tag
+    needs: build
+    if: github.event_name == 'push' && github.event.repository.visibility == 'public' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: clipora-*
+          path: artefatos
+
+      - name: Gerar proveniência dos instaladores
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: 'artefatos/clipora-*/**'

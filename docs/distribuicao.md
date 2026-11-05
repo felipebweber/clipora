@@ -21,7 +21,7 @@ Legenda de confiabilidade usada abaixo:
 | Pacotes | Windows: instalador NSIS (`-setup.exe`) como principal, MSI opcional. macOS: `.app` dentro de `.dmg`. Linux: AppImage + `.deb` (e `.rpm` opcional). |
 | yt-dlp embutido | **Decidido (2026-11-05): build *onedir* oficial** (`yt-dlp_macos.zip`, `yt-dlp_win.zip`, `yt-dlp_win_arm64.zip`, `yt-dlp_linux.zip`, `yt-dlp_linux_aarch64.zip`; há onedir oficial para os 6 alvos), com versão fixa, verificação de SHA-256 e da assinatura GPG de `SHA2-256SUMS`, extraído em diretório. O *onefile* fica só como opção (`--formato onefile`): custa ~14 s em toda execução no macOS (§4.2). |
 | FFmpeg embutido | Build **próprio, mínimo e LGPL** (apenas remux, sem `--enable-gpl`), compilado a partir do tarball oficial assinado do ffmpeg.org, para os 6 alvos. Inclui `ffmpeg` e `ffprobe`. |
-| Nomes no pacote | FFmpeg como sidecars `clipora-ffmpeg` e `clipora-ffprobe` (o prefixo evita colisão com `/usr/bin/ffmpeg` no `.deb`/`.rpm`). yt-dlp como diretório `yt-dlp/` com executável de nome fixo `yt-dlp[.exe]` (macOS: `Contents/Helpers/yt-dlp/`; Windows/Linux: `resource_dir()/yt-dlp/`). Proposta completa em §4.5. |
+| Nomes no pacote | FFmpeg como sidecars `clipora-ffmpeg` e `clipora-ffprobe` (evitam colisão com `/usr/bin/ffmpeg` no `.deb`/`.rpm`). yt-dlp como diretório `yt-dlp/` com executável fixo `yt-dlp[.exe]` em `Contents/Resources/yt-dlp/` no macOS e `resource_dir()/yt-dlp/` nos demais sistemas. Avisos de licença em `Contents/Resources/licencas/`/`resource_dir()/licencas/`. |
 | yt-dlp atualizável | Diretório versionado `app_local_data_dir()/bin/yt-dlp/<versao>/` com ponteiro `atual` trocado atomicamente (fora do pacote assinado), baixado pelo próprio app via HTTPS com verificação GPG + SHA-256; versão anterior preservada. Não usar `yt-dlp -U`. Ver §6. |
 | Assinatura | macOS: Developer ID + notarização (exige conta paga da Apple). Windows: certificado OV em HSM/nuvem ou Azure Artifact Signing (se elegível). Linux: somente somas SHA-256 publicadas (e GPG opcional). |
 
@@ -32,7 +32,7 @@ Legenda de confiabilidade usada abaixo:
 | Sistema | Arquiteturas | Mínimo proposto | Fatores limitantes |
 |---|---|---|---|
 | Windows | x64 (`x86_64-pc-windows-msvc`), arm64 (`aarch64-pc-windows-msvc`) | Windows 10 22H2 | yt-dlp: “Windows (Win10+)” e o `_update_spec` bloqueia Windows 8/2012 a partir de 2026.10.21 **[verificado]**. BtbN: “minimum supported version is Windows 10 22H2” **[fonte]**. WebView2 já vem no Windows 10 1803+ e no 11 **[fonte]**. |
-| macOS | arm64 + x64, distribuídos como binário universal (`universal-apple-darwin`) | macOS 11 Big Sur (proposta) | Tauri usa 10.13 por padrão (`bundle > macOS > minimumSystemVersion`) **[fonte]**; `yt-dlp_macos` exige 10.15+ **[verificado]**. Proponho 11.0 por ser a primeira versão com Apple Silicon e porque dificilmente haverá máquina 10.15 para testar. Decisão do usuário (seção 9). |
+| macOS | arm64 + x64, distribuídos como binário universal (`universal-apple-darwin`) | macOS 11 Big Sur | `tauri.conf.json` define `minimumSystemVersion: 11.0` (C1 corrigido pelo núcleo); o candidato macOS reportado pelo núcleo passou. O validador também compara o mínimo do bundle com os sidecars. |
 | Linux | x64 (`x86_64-unknown-linux-gnu`), arm64 (`aarch64-unknown-linux-gnu`) | Distribuições com WebKitGTK 4.1 e glibc ≥ da base de build (Ubuntu 22.04 → glibc 2.35; Debian 12; Fedora recente) | Tauri v2 exige WebKitGTK 4.1 e recomenda compilar na base mais antiga suportada (Ubuntu 22.04 / Debian 12) **[fonte]**. yt-dlp_linux exige glibc 2.17+ **[verificado]**; ffmpeg BtbN exige glibc 2.28 **[fonte]** (irrelevante se usarmos build próprio na mesma base). |
 
 Fora do escopo da v1 (registrar como limitação): Windows x86 32 bits (BtbN não faz autobuilds de win32 **[fonte]**), Linux armv7 (yt-dlp só oferece `.zip` sem atualização e exige glibc 2.31 **[verificado]**), distribuições musl (Alpine), Windows 7/8.
@@ -70,7 +70,7 @@ Versões de referência na consulta: `tauri` 2.12.5, `tauri-cli` 2.12.4, `tauri-
 - Fontes: <https://v2.tauri.app/distribute/appimage/>, <https://v2.tauri.app/distribute/debian/>, <https://v2.tauri.app/distribute/rpm/>, <https://v2.tauri.app/distribute/pipelines/github/>
 
 ### CI: `.github/workflows/build.yml` (implementado em 2026-11-05)
-Validado com `actionlint` 1.7.12 + `shellcheck` 0.11.0: **sem avisos** **[verificado]**. Ainda **não executado** no GitHub, porque não há repositório remoto. Todas as actions estão fixadas por SHA de commit (tag no comentário) e têm pelo menos ~2 semanas de publicação; `permissions: contents: read`; `persist-credentials: false`.
+O workflow anterior foi conferido com `actionlint` 1.7.12 e `shellcheck` 0.11.0; as mudanças desta retomada precisam passar novamente por essas ferramentas. O GitHub CI ainda **não executou** porque não há remoto. Actions são fixadas por SHA; `persist-credentials: false`. Os jobs de build usam Rust 1.99.1 fixo. O job de FFmpeg também inclui fingerprint de compilador/Xcode/SDK na chave do cache. Para tags `v*`, o job usa o ambiente `release`; o usuário precisa configurar revisores obrigatórios e proteção das tags antes de habilitar assinatura.
 
 **Estágio 1, `ffmpeg`** (um job por alvo, com `actions/cache`; chave = hash de `compilar-ffmpeg.mjs`, `comum.mjs` e `binarios.lock`):
 
@@ -99,25 +99,29 @@ Passos do estágio 2:
 2. No universal, copia o binário *fat* também com os nomes `-aarch64-`/`-x86_64-apple-darwin`, porque o `tauri-build` de cada fatia procura o sidecar com o próprio triple **[validar no primeiro run]**.
 3. `pnpm install --frozen-lockfile`.
 4. `pnpm binarios --target <triple> --exigir-gpg`.
-5. `pnpm typecheck`, `pnpm test` e `pnpm test:rust`.
+5. Usa Rust **1.99.1**, fixado em `rust-toolchain.toml`; o workflow instala apenas o target indicado pela matriz. Localmente, o arquivo não força a instalação de todos os targets.
 6. Gera os avisos de licença com `cargo-about` 0.9.2 e `gerar-licencas.mjs`.
 7. `pnpm tauri build --ci --target <triple> --bundles …` **sem assinatura**.
-8. Confere o pacote: no macOS, `Helpers/yt-dlp/yt-dlp --version`, `clipora-ffmpeg -version` e `lipo -info`; no Linux, `yt-dlp/yt-dlp` executável dentro do `.deb`.
-9. Gera `SHA256SUMS` e envia o artefato `clipora-<triple>` (pacotes, `SHA256SUMS`, `ffmpeg-build-info`, `licencas/`).
+8. `node scripts/conferir-pacote.mjs --target "$TRIPLE"` extrai e verifica todos os formatos gerados: estrutura e lista permitida, manifesto e hashes do yt-dlp, recursos de licença e FFmpeg; confere arquitetura do app, yt-dlp, FFmpeg e FFprobe para cada alvo, e executa os binários quando o runner consegue executar o alvo. No universal exige arm64+x86_64. Também confere o registro de build FFmpeg contra a versão, origem, hash e flags LGPL de `binarios.lock`.
+9. Gera `SHA256SUMS` e envia somente instaladores e somas em artefatos `clipora-<triple>`. O job de atestação baixa apenas esses artefatos, mantém diretório por alvo (sem mesclar nomes coincidentes) e atesta instaladores e arquivos de somas.
 
-**Teste local do caminho macOS arm64 [verificado em 2026-11-05]**: `pnpm tauri build --ci --target aarch64-apple-darwin --bundles app` (com `CARGO_TARGET_DIR` separado) gerou `Clipora.app` (140 MiB). A conferência do passo 8 passou: `Contents/Helpers/yt-dlp/yt-dlp --version` → `2026.10.26` (0,9 s); `Contents/MacOS/clipora-ffmpeg` → `8.1.3-clipora`, arm64; `Contents/Resources` só com `icon.icns`, sem duplicar o yt-dlp. Assinatura: ad-hoc (`TeamIdentifier=not set`), como esperado sem certificado.
+**Evidência histórica (layout anterior) [verificada em 2026-11-05]**: um build local anterior gerou o yt-dlp em `Contents/Helpers`. Ferrugem moveu o recurso para `Contents/Resources/yt-dlp/` e reuniu os recursos na configuração base desde então. Esse build anterior não verifica o layout atual; a conferência do pacote atual depende do comando acima em macOS arm64.
 
-**Assinatura no CI: desativada.** Os passos existem, mas só rodam com variáveis do repositório:
-- `vars.CLIPORA_ASSINAR_MACOS == 'true'` usa os segredos `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_API_ISSUER`, `APPLE_API_KEY` e `APPLE_API_KEY_P8` (conteúdo da chave `.p8`, gravada em arquivo temporário para `APPLE_API_KEY_PATH`).
-- `vars.CLIPORA_ASSINAR_WINDOWS == 'true'` usa o modelo Azure Artifact Signing: `trusted-signing-cli` via `bundle.windows.signCommand` passado por `--config`, sem tocar no `tauri.conf.json`. Precisa dos segredos `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` e `AZURE_TENANT_ID` e das variáveis `CLIPORA_AZURE_ENDPOINT`, `CLIPORA_AZURE_CONTA` e `CLIPORA_AZURE_PERFIL`. Para um certificado OV, troque o `signCommand`.
-- Enquanto as variáveis não forem `'true'`, **nenhum segredo é lido**. Antes de ligar, falta a pré-assinatura do onedir (`scripts/assinar-yt-dlp.mjs`, §4.5 item 4); o Tauri não assina `Contents/Helpers` nem os `.pyd`.
+**Assinatura no CI: desativada por padrão.** As etapas só rodam em pushes de tags `v*` com variáveis do repositório:
+- As etapas de assinatura só rodam em `push` de tag `v*`, nunca em `pull_request`, e continuam desligadas até as variáveis de repositório serem `'true'`. Proteja a criação de tags de release e configure revisores/regras de proteção no GitHub antes de ativar secrets. O workflow não recebeu certificados nem contas.
+- macOS: segredos `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_API_ISSUER`, `APPLE_API_KEY` e `APPLE_API_KEY_P8`. O `.p8` é criado em `RUNNER_TEMP`, passado apenas ao passo de build assinado e removido imediatamente depois, inclusive em falha.
+- Windows: a variável `CLIPORA_ASSINAR_WINDOWS=true` causa bloqueio explícito antes do empacotamento assinado; ainda falta pré-assinar `.exe`, `.dll` e `.pyd` do onedir e atualizar o manifesto pós-assinatura. Nenhuma conta ou certificado está configurado. Quando o fluxo integral for implementado, os dados previstos para Azure Artifact Signing são `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`, `CLIPORA_AZURE_ENDPOINT`, `CLIPORA_AZURE_CONTA` e `CLIPORA_AZURE_PERFIL`; não se declara assinatura até lá.
+- A pré-assinatura do onedir está implementada em `scripts/assinar-yt-dlp.mjs` e teve teste ad-hoc; a validação de assinatura real/notarização continua pendente de identidade Apple e teste no pacote final. O caminho é agora `Contents/Resources/yt-dlp`.
 
 **[validar no primeiro run]**:
-- Runners arm64 (`ubuntu-22.04-arm`, `windows-11-arm`): grátis em repositórios **públicos**; em repositórios privados podem exigir plano pago ou *larger runners*.
-- Presença de Rust/rustup no `windows-11-arm`: a action `dtolnay/rust-toolchain` não instala rustup no Windows.
+- Cotas, cobrança e disponibilidade dos runners arm64 dependem do plano e limites do GitHub. A documentação atual lista runners arm64 padrão em repositórios públicos e privados; validar no primeiro run.
+- Presença da toolchain Rust 1.99.1 e dos targets em cada imagem, em particular `windows-11-arm`.
+- O job de proveniência roda somente para tags em repositório público. O GitHub requer plano Enterprise Cloud para atestações em repositórios privados; confirmar plano/visibilidade ao configurar o remoto.
 - Sintaxe de `--bundles` separada por vírgula.
 - AppImage no arm64 (`APPIMAGE_EXTRACT_AND_RUN=1` e `NO_STRIP=true` já definidos).
 - Tempo total; o cache do FFmpeg evita ~1 min por alvo.
+
+Fontes primárias consultadas em 2026-11-05: [runners hospedados pelo GitHub](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), [atestação de artefatos](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations), [recurso `bundle.resources` e estrutura macOS no Tauri](https://v2.tauri.app/distribute/macos-application-bundle/), [Artifact Signing CLI](https://github.com/Levminer/artifact-signing-cli) e [toolchain Rust via arquivo de override](https://doc.rust-lang.org/rustup/overrides.html#the-toolchain-file).
 
 ---
 
@@ -134,13 +138,14 @@ Passos do estágio 2:
 ```jsonc
 // src-tauri/tauri.conf.json
 "bundle": { "externalBin": ["binaries/clipora-ffmpeg", "binaries/clipora-ffprobe"] }
-// src-tauri/tauri.macos.conf.json
-"bundle": { "macOS": { "files": { "Helpers/yt-dlp": "binaries/yt-dlp" } } }
-// src-tauri/tauri.windows.conf.json e src-tauri/tauri.linux.conf.json
-"bundle": { "resources": { "binaries/yt-dlp/": "yt-dlp/" } }
+// src-tauri/tauri.conf.json (configuração base, todos os sistemas)
+"bundle": { "resources": {
+  "binaries/yt-dlp/": "yt-dlp/",
+  "binaries/licencas/": "licencas/"
+} }
 ```
 
-O `resources` fica fora do `tauri.conf.json` base porque, no macOS, duplicaria o diretório em `Contents/Resources`.
+O yt-dlp e os avisos são recursos do app. No macOS ficam em `Contents/Resources/yt-dlp/` e `Contents/Resources/licencas/`; no Windows/Linux ficam sob `resource_dir()`. O FFmpeg/FFprobe seguem como `externalBin` em `Contents/MacOS` ou nos destinos próprios de cada pacote.
 
 | Target triple | yt-dlp onedir (asset oficial → `src-tauri/binaries/yt-dlp/`) | FFmpeg/ffprobe (`externalBin`) |
 |---|---|---|
@@ -257,7 +262,7 @@ Opções avaliadas:
 ### 4.4 Scripts de obtenção (implementados em 2026-11-05)
 - `scripts/binarios.lock`: versões, URLs, SHA-256 e impressões digitais das chaves GPG. As chaves públicas fixadas ficam em `scripts/chaves/`.
 - `scripts/obter-binarios.mjs` (`pnpm binarios`): yt-dlp para o triple do host (`rustc -vV`, ou `--target`). Verifica o SHA-256 do `SHA2-256SUMS` contra o lock, a assinatura GPG (chaveiro temporário isolado, sem tocar no `~/.gnupg`; sem gpg → aviso claro; `--exigir-gpg` faz falhar) e o SHA-256 do asset contra o lock e contra o `SHA2-256SUMS`. É idempotente. O topo do arquivo documenta o que o núcleo deve configurar.
-  - **Formato detectado sem flags** pela configuração do Tauri (`tauri.conf.json` + `tauri.<macos|windows|linux>.conf.json` do alvo): `"binaries/clipora-yt-dlp"` em `externalBin` → onefile; `"binaries/yt-dlp"` → onedir; as duas → ambos; nenhuma → onefile. `--formato onefile|onedir|ambos` força o formato. Com a configuração atual o resultado é **onedir** **[verificado: “formato(s) do yt-dlp: onedir (detectado na configuração do Tauri)”]**.
+  - **Formato detectado sem flags** na configuração base `tauri.conf.json`: `"binaries/clipora-yt-dlp"` em `externalBin` → onefile; `"binaries/yt-dlp/"` em `bundle.resources` → onedir; as duas → ambos; nenhuma → onefile. `--formato onefile|onedir|ambos` força o formato. Com a configuração atual o resultado é **onedir**.
   - onefile → arquivo `src-tauri/binaries/clipora-yt-dlp-<triple>[.exe]` (legado).
   - onedir → diretório estável `src-tauri/binaries/yt-dlp/` com `yt-dlp[.exe]` (o executável oficial com nome fixo), `_internal/` e o manifesto `clipora-yt-dlp.json` (versão, asset, SHA-256 do zip e de **cada** arquivo). A idempotência confere todos os hashes do manifesto (~0,3 s); um arquivo adulterado provoca nova extração **[verificado]**. A troca é feita por renomeação (`.novo` → destino, anterior em `.antigo`).
   - Os dois formatos coexistem. O layout antigo `binaries/onedir/clipora-yt-dlp-<triple>/` e o `tauri.binarios.json` são removidos automaticamente.
@@ -281,7 +286,8 @@ Especificação original (mantida como referência):
 2. Baixa o asset do yt-dlp, `SHA2-256SUMS` e `.sig`; verifica a assinatura GPG contra a chave fixada; confere o SHA-256 contra o arquivo de somas **e** contra o lock.
 3. Baixa e verifica o tarball do FFmpeg (`.asc`), compila com a configuração da seção 4.3 e combina com `lipo` no macOS.
 4. Grava `src-tauri/binaries/clipora-*-<triple>[.exe]` com permissão 755. Esse diretório deve ir para o `.gitignore`; pedir a Ferrugem.
-5. No Windows, assina os sidecars com o certificado do projeto antes do `tauri build`. **Não confirmei no código do bundler que o Tauri assine `externalBin` no Windows**; no macOS ele assina, de dentro para fora, junto com o `.app` **[verificado em `macos/app.rs`]**.
+5. No macOS, antes do `tauri build` assinado, `scripts/assinar-yt-dlp.mjs` importa o mesmo certificado Developer ID numa keychain temporária, assina o onedir com a identidade de `APPLE_SIGNING_IDENTITY` e remove keychain e arquivos temporários em `finally`. O build Tauri usa os mesmos segredos e identidade para selar/notarizar o `.app`. A etapa só roda em push de tag `v*` com `CLIPORA_ASSINAR_MACOS=true`.
+6. No Windows, a ativação de `CLIPORA_ASSINAR_WINDOWS=true` está bloqueada deliberadamente: o `signCommand` do Tauri cobre `.exe`/`.dll`, mas ainda não há pré-assinatura dos `.exe`, `.dll` e `.pyd` do onedir com atualização do manifesto. Não se declara o yt-dlp assinado nessa configuração. O fluxo de Azure Artifact Signing e suas credenciais continuam pendentes; não foram testados com certificado real.
 
 ### 4.5 Empacotamento do yt-dlp onedir (proposta aceita; integrada por Ferrugem na etapa 6)
 
@@ -289,27 +295,23 @@ Especificação original (mantida como referência):
 
 **1. Por que não `externalBin`**: o `externalBin` espera um **arquivo** `<nome>-<triple>` e o copia com `copy_file` para `Contents/MacOS/`, a pasta de instalação ou `/usr/bin` (§4.1). Não serve para um diretório com `_internal/`. Ao migrar, **remover `binaries/clipora-yt-dlp` do `externalBin`**.
 
-**2. Configuração por sistema**, em `tauri.macos.conf.json`, `tauri.windows.conf.json` e `tauri.linux.conf.json`, que o Tauri v2 mescla automaticamente (§4.1). Sem `--config`.
+**2. Configuração comum** em `tauri.conf.json` (alteração de Ferrugem; não há overrides por sistema para este layout).
 
 | Sistema | Configuração | Destino no pacote | Observações |
 |---|---|---|---|
-| macOS (`tauri.macos.conf.json`) | `bundle.macOS.files: {"Helpers/yt-dlp": "binaries/yt-dlp"}` | `Clipora.app/Contents/Helpers/yt-dlp/yt-dlp` | O bundler copia diretórios em `macOS.files` (`copy_custom_files_to_bundle` → `copy_dir`) **[verificado no código]**. `Helpers/` é o lugar convencional para ferramentas auxiliares; `Contents/Resources` não deve conter código. O Tauri **não** assina esses arquivos (só `externalBin` e frameworks entram na lista de assinatura) **[verificado em `macos/app.rs`]**, então é preciso pré-assinar (item 4). |
-| Windows (`tauri.windows.conf.json`) | `bundle.resources: {"binaries/yt-dlp/": "yt-dlp/"}` | `<pasta de instalação>\yt-dlp\yt-dlp.exe` (`resource_dir()` = pasta do executável) | O NSIS assina recursos só com extensão `.exe`/`.dll` e ainda não assinados (`should_sign`) **[verificado]**. Os `.pyd` ficariam sem assinatura, então é preciso pré-assinar. |
-| Linux (`tauri.linux.conf.json`) | o mesmo `bundle.resources` | `.deb`/`.rpm`: `/usr/lib/<productName>/yt-dlp/yt-dlp`; AppImage: `$APPDIR/usr/lib/<productName>/yt-dlp/yt-dlp` | Caminhos conforme a documentação de `resource_dir` no `tauri-utils` **[fonte: código]**. **[validar]** que o bit de execução se preserva no `.deb`/`.rpm`/AppImage. |
+| macOS | `bundle.resources: {"binaries/yt-dlp/": "yt-dlp/"}` | `Clipora.app/Contents/Resources/yt-dlp/yt-dlp` | Diretório fica no resource bundle junto de `licencas/`. O onedir precisa de pré-assinatura antes do empacotamento; validar o selo no pacote notarizado. |
+| Windows | o mesmo `bundle.resources` | `<pasta de instalação>\yt-dlp\yt-dlp.exe` (`resource_dir()` = pasta do executável) | Assinatura Windows integral pendente; a ativação parcial está bloqueada porque falta cobrir `.pyd` e atualizar o manifesto pós-assinatura. |
+| Linux | o mesmo `bundle.resources` | `.deb`/`.rpm`: `/usr/lib/<productName>/yt-dlp/yt-dlp`; AppImage: `$APPDIR/usr/lib/<productName>/yt-dlp/yt-dlp` | `scripts/conferir-pacote.mjs` verifica a árvore instalada, o manifesto e a permissão de execução. |
 
 **3. Resolução do executável no Rust**, nesta ordem:
 1. **Cópia atualizada** (§6): ler `app_local_data_dir()/bin/yt-dlp/atual` e validar (§6.3); usar `…/yt-dlp/<versao>/yt-dlp[.exe]`.
 2. **Cópia embutida**:
-   - macOS: `std::env::current_exe()?.parent()` (= `Contents/MacOS`) → `../Helpers/yt-dlp/yt-dlp`;
-   - Windows/Linux: `app.path().resource_dir()?.join("yt-dlp").join(EXE)`.
+   - todos os sistemas: `app.path().resource_dir()?.join("yt-dlp").join(EXE)`. No macOS o diretório é `Contents/Resources/yt-dlp/`.
 3. **Desenvolvimento** (`cfg!(debug_assertions)`, `tauri dev` não monta o `.app`): `env!("CARGO_MANIFEST_DIR")/binaries/yt-dlp/yt-dlp[.exe]`, independente do triple.
 4. Esboço:
    ```rust
    const EXE: &str = if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" };
    fn ytdlp_embutido(app: &tauri::AppHandle) -> Option<PathBuf> {
-       #[cfg(target_os = "macos")]
-       let dir = std::env::current_exe().ok()?.parent()?.join("../Helpers/yt-dlp");
-       #[cfg(not(target_os = "macos"))]
        let dir = app.path().resource_dir().ok()?.join("yt-dlp");
        let exe = dir.join(EXE);
        if exe.is_file() { return Some(exe); }
@@ -323,14 +325,14 @@ Especificação original (mantida como referência):
    Executar com `std::process::Command`/`tokio::process::Command` (ou `tauri_plugin_shell` `Command::new(caminho)`), não com `sidecar()`. Argumentos em vetor, sem shell. Manter `--ffmpeg-location`, `--ignore-config` e `--no-update`.
 5. **Aquecimento**: a primeira execução de um onedir recém-instalado ou extraído com assinatura ad-hoc leva ~14 s no macOS (§4.2). Sugestão: ao iniciar o app, disparar `yt-dlp --version` em segundo plano. A primeira prévia não espera esse custo se o aquecimento já tiver acabado, e o resultado ainda informa a versão em uso para o aviso de atualização.
 
-**4. Pré-assinatura (antes do `tauri build`)**, a implementar por Estaleiro como `scripts/assinar-yt-dlp.mjs` quando houver certificados:
+**4. Pré-assinatura (antes do `tauri build`)**:
 - **macOS**: localizar todos os Mach-O do diretório pelos *magic bytes* (`feedfacf`, `cffaedfe`, `cafebabe`, `bebafeca`) e assinar **de dentro para fora**: primeiro tudo em `_internal/`, por último o `yt-dlp`:
   `codesign --force --timestamp --options runtime --sign "$APPLE_SIGNING_IDENTITY" <arquivo>`.
-  Com **todas** as bibliotecas assinadas pelo mesmo Team ID, a validação de bibliotecas do Hardened Runtime passa **sem** `disable-library-validation`. Só acrescentar entitlements (por exemplo, `allow-unsigned-executable-memory`) se o teste mostrar necessidade **[validar]**. Depois, o `tauri build` assina o `.app`, e o selo cobre `Contents/Helpers`; verificar com `codesign --verify --deep --strict`, `spctl -a -vv` e o log do `notarytool`. **[validar]** se o `_internal/Python.framework` (cópias de arquivos, sem links simbólicos) é aceito pelo `codesign` como arquivos soltos.
-- **Windows**: `signtool sign /fd sha256 /tr <timestamp> /td sha256` em `yt-dlp.exe` e em todos os `_internal/**/*.dll` e `*.pyd`. O Tauri pula o que já estiver assinado.
+  O script atualiza o manifesto com os hashes finais. No CI, o comando roda antes do build de tag assinado, usando o mesmo `APPLE_SIGNING_IDENTITY` e keychain efêmera que é removida ao final. Depois, `tauri build` assina o `.app`, cujo selo cobre `Contents/Resources`. O teste ad-hoc local foi feito; ainda validar com Developer ID e notarização usando `codesign --verify --deep --strict`, `spctl -a -vv` e `xcrun stapler validate`.
+- **Windows**: ainda sem pré-assinatura integral nem manifesto pós-assinatura. O job falha explicitamente se `CLIPORA_ASSINAR_WINDOWS=true`, até existir um passo que cubra `.exe`, `.dll` e `.pyd` do onedir antes do empacotamento. A tabela de artefatos não promete assinatura do yt-dlp.
 - **Linux**: não há assinatura de código. A integridade vem do pacote e das `SHA256SUMS` publicadas.
-- A re-assinatura altera os bytes, então o script de assinatura deve **regenerar o manifesto**. No Rust, a cópia embutida é protegida pela assinatura do pacote; os hashes por arquivo são exigidos só das cópias do app data (§6).
-- Sem conta Apple: assinatura ad-hoc (`-`) dos mesmos arquivos. Funciona, mas o primeiro uso paga o scan de ~14 s (por isso o aquecimento).
+- A re-assinatura altera os bytes; o script atualiza o manifesto para coincidir com os arquivos assinados. No Rust, a cópia embutida é protegida pela assinatura do pacote; os hashes por arquivo são exigidos só das cópias do app data (§6).
+- Sem conta Apple, o build ad-hoc pode exigir liberação manual pelo Gatekeeper e não é apropriado para distribuição ampla.
 
 ---
 
@@ -340,12 +342,12 @@ Especificação original (mantida como referência):
 - **Requisitos [fonte]**: Apple Developer Program pago (US$ 99/ano); certificado **Developer ID Application**, que só o *Account Holder* pode criar; um Mac para assinar; **notarização** obrigatória com Developer ID; *Hardened Runtime* obrigatório para notarizar.
 - Credenciais para o Tauri: `APPLE_CERTIFICATE` (.p12 em base64), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` e, para notarizar, **ou** `APPLE_API_ISSUER` + `APPLE_API_KEY` + `APPLE_API_KEY_PATH` (chave da API do App Store Connect, preferível no CI) **ou** `APPLE_ID` + `APPLE_PASSWORD` (senha de app) + `APPLE_TEAM_ID`.
 - O Tauri assina sidecars e frameworks antes do `.app`, aplicando a **mesma** configuração de entitlements e Hardened Runtime a todos os executáveis **[verificado em `macos/app.rs` e `macos/sign.rs`]**.
-- **Risco principal: tratado com a decisão pelo onedir.** O `yt-dlp_macos` *onefile* extrai a cada execução bibliotecas Python com assinatura ad-hoc para um diretório temporário novo. Se o reassinássemos com Hardened Runtime, a validação de bibliotecas recusaria essas cópias, e só `com.apple.security.cs.disable-library-validation` resolveria. Ele também paga ~14 s de scan do XProtect em **toda** execução (§4.2). Com o **onedir**, as bibliotecas ficam em arquivos fixos dentro do `.app` (`Contents/Helpers/yt-dlp/_internal/`), e o script assina cada uma com o nosso Developer ID, de dentro para fora (§4.5 item 4). Com o mesmo Team ID no executável e nas bibliotecas, a validação de bibliotecas passa **sem** entitlements extras. Ainda **[validar]** com certificado real:
-  1. se a notarização aceita o `_internal/Python.framework` copiado como arquivos soltos (sem links simbólicos);
-  2. se algum módulo precisa de `com.apple.security.cs.allow-unsigned-executable-memory` (não esperado: o CPython não tem JIT habilitado no build do PyInstaller);
+- **Risco do yt-dlp onedir**: a pré-assinatura do onedir foi exercitada localmente com identidade ad-hoc; confirmar com Developer ID e notarização:
+  1. validação de assinatura no app e nos Mach-O sob `Contents/Resources/yt-dlp/_internal/`;
+  2. execução do yt-dlp e FFmpeg no pacote notarizado;
   3. o tempo da primeira execução depois da instalação por `.dmg` com quarentena.
 - **Entitlements dos sidecars**: o Tauri aplica a configuração de Hardened Runtime a todos os `externalBin`, que passam a ser só `clipora-ffmpeg` e `clipora-ffprobe`. São binários estáticos que só ligam frameworks do sistema, então não precisam de entitlements.
-- **Sem conta paga**: assinatura ad-hoc (`signingIdentity: "-"`) permite rodar em Apple Silicon, mas o usuário precisa liberar o app em Ajustes do Sistema › Privacidade e Segurança **[fonte]**. Nas versões recentes do macOS, o atalho Control-clique › Abrir deixou de contornar o Gatekeeper **[validar a versão exata]**. Para usuários leigos, essa experiência é ruim.
+- **Sem conta paga**: o build ad-hoc pode exigir liberação manual no Gatekeeper e não é apropriado para distribuição ampla.
 - Fontes: <https://v2.tauri.app/distribute/sign/macos/>, <https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution>, <https://developer.apple.com/documentation/security/hardened_runtime>, <https://developer.apple.com/developer-id/>
 
 ### 5.2 Windows
@@ -418,7 +420,7 @@ Se o `identifier` mudar antes da primeira release, os caminhos mudam junto. Por 
 **C. Atualizar** (só por ação do usuário, nunca durante um download; um *mutex* global serializa atualização e downloads):
 1. Escolher o asset onedir por SO/arquitetura **em tempo de execução**, com o mesmo mapeamento do `binarios.lock` (por exemplo, `yt-dlp_win_arm64.zip`, executável `yt-dlp_arm64.exe`).
 2. Baixar por HTTPS (`reqwest`) o zip, o `SHA2-256SUMS` e o `SHA2-256SUMS.sig` para `bin/yt-dlp/.tmp-<versao>-<rand>/` (mesmo sistema de arquivos do destino).
-3. **Verificar a assinatura GPG** do `SHA2-256SUMS` com a chave pública do yt-dlp **embutida no app**, com a impressão digital fixada (`AC0CBBE6848D6A873464AF4E57CF65933B5A7581`); crates candidatas: `pgp` (rPGP) ou `sequoia-openpgp`. Depois, conferir o SHA-256 do zip contra a linha do asset. Abortar em qualquer divergência.
+3. **Verificar a assinatura GPG** do `SHA2-256SUMS` com a chave pública do yt-dlp **embutida no app**, com impressão digital fixada (`AC0CBBE6848D6A873464AF4E57CF65933B5A7581`), usando `pgp` (rPGP 0.21.0). Depois, conferir o SHA-256 do zip contra a linha do asset. Abortar em qualquer divergência.
 4. Extrair o zip com as mesmas defesas do `scripts/zip.mjs`:
    - rejeitar nomes absolutos, com letra de unidade, com `..` ou `\`;
    - rejeitar links simbólicos, ZIP64 e criptografia;
@@ -441,58 +443,45 @@ Se o `identifier` mudar antes da primeira release, os caminhos mudam junto. Por 
 - **Windows: SmartScreen e Smart App Control.** O onedir oficial traz `yt-dlp.exe`, `.dll` e `.pyd` sem Authenticode. O SmartScreen de reputação de arquivo age sobre arquivos com *Mark-of-the-Web* (`Zone.Identifier`), que navegadores e anexos adicionam; um download via `reqwest` não adiciona MOTW **[validar]**. O **Smart App Control**, quando ligado, pode bloquear o `yt-dlp.exe` atualizado por não ter assinatura **[fonte + verificado sem Authenticode]**. Nesse caso a atualização deve falhar de forma limpa, manter o sidecar embutido (assinado por nós) e explicar a situação ao usuário. Políticas corporativas (AppLocker/WDAC) costumam bloquear executáveis em `%LOCALAPPDATA%`: registrar como limitação conhecida. O antivírus pode colocar o PyInstaller em quarentena **[validar]**.
 - **Linux: AppImage imutável.** A atualização só funciona fora da imagem; o app data em `~/.local/share` resolve. Se `$HOME` estiver montado com `noexec` (raro), o binário atualizado não executa e o app deve cair no embutido. Para o `.deb`/`.rpm` vale o mesmo caminho.
 
+### 6.5 Modelo de ameaça
+O manifesto local e seus SHA-256 detectam corrupção acidental, extração incompleta e alterações em relação ao conteúdo que o app ativou. A assinatura GPG do `SHA2-256SUMS` autentica o pacote oficial antes da instalação ou atualização. Este mecanismo **não** protege contra atacante local com os mesmos privilégios do usuário: esse atacante pode editar a cópia do yt-dlp e seu manifesto no diretório de dados, ou substituir executáveis no perfil gravável. Esse cenário está fora do modelo de ameaça desta versão. A assinatura do pacote protege os arquivos distribuídos enquanto o pacote assinado não é alterado; ela não transforma o diretório de dados do usuário em armazenamento confiável.
+
 ---
 
 ## 7. Checklist de testes de pacote (etapa 7, último item)
 Para cada artefato (Win x64, Win arm64, macOS arm64, macOS x64, Linux x64, Linux arm64):
 - [ ] Instalar a partir de download pelo navegador (para exercitar SmartScreen/Gatekeeper com MOTW/quarentena reais).
-- [ ] O `yt-dlp` embutido (macOS: `Clipora.app/Contents/Helpers/yt-dlp/yt-dlp`; Windows/Linux: `resource_dir()/yt-dlp/yt-dlp[.exe]`) responde a `--version`; medir a 1ª e a 2ª execução. `clipora-ffmpeg -version` e `clipora-ffprobe -version` executam a partir do pacote instalado.
+- [ ] O `yt-dlp` embutido (macOS: `Clipora.app/Contents/Resources/yt-dlp/yt-dlp`; Windows/Linux: `resource_dir()/yt-dlp/yt-dlp[.exe]`) responde a `--version`; medir a 1ª e a 2ª execução. `clipora-ffmpeg -version` e `clipora-ffprobe -version` executam a partir do pacote instalado.
 - [ ] Merge sem transcodificar nas combinações VP9/AV1/HEVC/H.264 × AAC/Opus, com saída aceita pelo `clipora-ffprobe` e por um ffprobe independente (matriz da §4.3).
 - [ ] Prévia, escolha de pasta, download com merge de vídeo e áudio, abertura da pasta.
 - [ ] Atualização manual do yt-dlp (§6.3): sucesso (`atual` aponta para a nova versão, `anterior` para a antiga); sem rede; `SHA2-256SUMS.sig` inválido e zip adulterado (os dois devem abortar sem mexer em `atual`); app encerrado no meio da extração (`atual` continua na versão antiga e o `.tmp-*` é limpo no próximo início).
 - [ ] Adulteração depois de instalada: alterar um arquivo em `bin/yt-dlp/<versao>/_internal/` → o app usa a cópia embutida e avisa. `atual` com conteúdo inválido (`../x`, vazio, versão inexistente) → é ignorado.
 - [ ] Rollback para a versão anterior e para a embutida; a coleta de lixo mantém só `atual` e `anterior`; no Windows, atualizar com um `yt-dlp.exe` antigo ainda em execução.
-- [ ] macOS: `codesign --verify --deep --strict`, `spctl -a -vv Clipora.app`, `xcrun stapler validate`; `codesign -dv` em uma dylib de `Contents/Helpers/yt-dlp/_internal/` mostra o nosso Team ID.
+- [ ] macOS: `codesign --verify --deep --strict`, `spctl -a -vv Clipora.app`, `xcrun stapler validate`; `codesign -dv` em uma dylib de `Contents/Resources/yt-dlp/_internal/` mostra o Team ID do projeto.
 - [ ] Windows: `Get-AuthenticodeSignature` no instalador, no executável, nos sidecars e em `yt-dlp\yt-dlp.exe` e `yt-dlp\_internal\**\*.dll|*.pyd`; teste com Smart App Control ligado, se possível.
 - [ ] Linux: instalar o `.deb` numa máquina que já tenha os pacotes `yt-dlp` e `ffmpeg` da distro (verifica que não há conflito de arquivos).
 
 ---
 
-## 8. Próximos passos do Estaleiro (após decisões)
-1. ~~Lock, obtenção do yt-dlp e FFmpeg mínimo~~ (§4.4): feito, inclusive onedir, VP9 e FFmpeg Windows por llvm-mingw. Falta: executar o build Linux (só no CI, porque aqui não há Docker rodando) e a fatia x86_64 do universal (Mac Intel ou Rosetta).
-2. ~~`.github/workflows/build.yml`~~ (§3): feito e validado com actionlint. Falta o primeiro run num repositório remoto.
-3. ~~Layout onedir no `tauri.conf.json` e `tauri.<os>.conf.json`~~: feito por Ferrugem. Falta pedir `bundle.resources` para `binaries/licencas/` → `licencas/` (avisos no pacote; licencas.md §5) e `minimumSystemVersion`.
-4. Quando houver certificados: `scripts/assinar-yt-dlp.mjs` (pré-assinatura do onedir, §4.5 item 4), ligar as variáveis de assinatura do CI e testar a notarização.
-5. Opcional: levar a matriz de remux da §4.3 para `scripts/` como teste de regressão do FFmpeg no CI.
-6. Workflow de release (tag `v*` → GitHub Release com pacotes, `SHA256SUMS`, código-fonte do FFmpeg e do yt-dlp), depois da decisão 8.
+## 8. Entregue nesta retomada e trabalho restante
+Scripts para pré-assinar yt-dlp no macOS, conferir a árvore e arquitetura dos pacotes Windows/macOS/Linux e rejeitar extras em onedir; workflow com assinatura macOS ligada ao build da tag e assinatura Windows parcial bloqueada, Rust fixo, cache fingerprintado por compilador/SDK e atestação sem colisões por alvo. Nesta retomada passaram `actionlint`, `node --check`, quatro testes locais do validador e a conferência do candidato macOS arm64 já existente.
+
+Continuam pendentes: primeiro run do CI no remoto, execução dos pacotes Windows/Linux e macOS Intel, validação de assinatura/notarização com certificados reais, fluxo integral de assinatura Windows, workflow de publicação de releases e decisões da seção 9. `tauri.conf.json` já fixa macOS mínimo em 11.0 (C1) e o candidato passou pela verificação reportada pelo núcleo; nesta retomada não foi executado `tauri build` completo.
 
 ---
 
 ## 9. Decisões pendentes do usuário
 
-### 9.0 O que só o usuário pode providenciar (lista consolidada, 2026-11-05)
-O CI e os scripts estão prontos para funcionar **sem** nada disto. Cada item libera uma parte:
+Lista consolidada para liberar o lançamento; nenhuma escolha abaixo foi presumida. A preparação local e a revisão de código não substituem o primeiro CI remoto, a instalação nos outros sistemas ou a assinatura com credenciais reais.
 
-| # | Providenciar | Libera | Onde configurar |
-|---|---|---|---|
-| A | **Repositório remoto** no GitHub (público ou privado) | primeiro run do CI; runners arm64 grátis se for público | — |
-| B | **Conta Apple Developer** (US$ 99/ano), certificado **Developer ID Application** (.p12 + senha) e **chave da API do App Store Connect** (Issuer ID, Key ID, .p8) | assinatura + notarização no macOS | segredos `APPLE_*` + `vars.CLIPORA_ASSINAR_MACOS='true'` |
-| C | **Assinatura Windows**: Azure Artifact Signing (conta + perfil + app registrado no Entra ID) **ou** certificado OV em token/HSM **ou** SignPath (open source) | assinatura do instalador, do executável e do yt-dlp | segredos `AZURE_*` + variáveis `CLIPORA_AZURE_*` + `vars.CLIPORA_ASSINAR_WINDOWS='true'` |
-| D | **Licença do próprio Clipora** (e se o código será público) | decidir sobre `sequoia-openpgp` (LGPL, ligada estaticamente; licencas.md §4.1) e o campo `license` do `Cargo.toml`/`package.json` | — |
-| E | **Identifier definitivo** (domínio reverso próprio) | caminhos de dados e identidade na Apple | `tauri.conf.json` (Ferrugem) |
-| F | **Onde publicar** instaladores e código-fonte (FFmpeg/yt-dlp) | oferta de código-fonte exigida pela GPL/LGPL; workflow de release | — |
-| G | **Mac Intel ou Rosetta** para testar a fatia x86_64; máquinas **Windows** (x64/arm64) e **Linux** para o checklist da §7 | validação real dos pacotes | — |
+| Decisão | O que falta definir ou disponibilizar |
+|---|---|
+| Licença e termos | Licença do próprio Clipora; EULA/termos e texto final de Sobre/Licenças e da página de download. |
+| Identidade | Confirmar ou substituir o identificador provisório `app.clipora.desktop` antes de distribuir. |
+| Sistemas, arquiteturas e formatos | Confirmar mínimos finais, Windows/Linux arm64, macOS universal ou pacotes separados e inclusão de RPM. A matriz atual é pretendida; somente macOS arm64 foi exercitado nesta máquina. |
+| Repositório e publicação | Escolher remoto, plano/visibilidade e hospedagem dos instaladores e fontes correspondentes de yt-dlp/FFmpeg, incluindo a política de espelhamento. Isso libera executar o CI e preparar a publicação. |
+| Apple | Disponibilizar conta Apple Developer, Developer ID e credenciais de notarização quando desejar distribuição assinada. O pacote local não foi notarizado. |
+| Windows | Escolher Azure Artifact Signing, certificado OV/SignPath ou distribuição sem assinatura. O provedor escolhido precisa da implementação e validação da assinatura de todo o onedir, incluindo `.pyd` e manifesto pós-assinatura; a variável de assinatura está bloqueada explicitamente enquanto isso faltar. |
+| Validação em outros sistemas | Disponibilizar Windows, Linux e Mac Intel para instalar e exercitar cada pacote. Rosetta pode auxiliar testes de compatibilidade, mas não constitui teste em hardware Intel. |
 
-### 9.1 Decisões
-
-1. **Conta Apple Developer** (US$ 99/ano, pessoa física ou jurídica). Sem ela não há notarização, e no macOS o usuário precisa liberar o app manualmente. Se houver conta: Team ID, certificado Developer ID Application exportado em .p12 e chave da API do App Store Connect para o CI.
-2. **Assinatura no Windows**: (a) certificado OV de uma AC, com token ou HSM em nuvem (renovação ~anual, validade máx. 460 dias); (b) Azure Artifact Signing, se a pessoa ou empresa for elegível; (c) SignPath Foundation, se o projeto for open source; ou (d) distribuir sem assinatura e aceitar os avisos do SmartScreen e o bloqueio pelo Smart App Control.
-3. **Identifier do app**: hoje é `app.clipora.desktop`. Deve ser um domínio reverso que você controle e é definitivo após a primeira release, porque muda os caminhos de dados (seção 6.2) e a identidade na Apple. Confirmar ou trocar.
-4. **Versões mínimas**: Windows 10 22H2 (proposto); macOS **11** (proposto) ou 10.15 (limite do yt-dlp); Linux com base Ubuntu 22.04 / Debian 12. Confirmar.
-5. **Arquiteturas**: confirmar Windows arm64 e Linux arm64 na v1. Exigem runners arm64 e máquinas arm64 para o teste real.
-6. **macOS universal** (um `.dmg`) ou dois `.dmg` separados (arm64 e x64).
-7. **FFmpeg**: build próprio mínimo LGPL (recomendado) ou BtbN `lgpl` (maior, sem macOS).
-8. **Onde publicar** os instaladores e o código-fonte correspondente do FFmpeg/yt-dlp (por exemplo, GitHub Releases de um repositório do projeto). Isso define a URL da oferta de código-fonte exigida pelas licenças. Público ou privado?
-9. **Mac App Store / Microsoft Store**: fora da v1 (incompatível com o modelo de yt-dlp atualizável no macOS). Confirmar.
-10. **Linux**: só AppImage + `.deb`, ou também `.rpm`.
-11. ~~**yt-dlp onefile × onedir**~~: **decidido em 2026-11-05: onedir.** A proposta de empacotamento, resolução, assinatura e atualização está em §4.5 e §6. Integrado por Ferrugem com o diretório estável `binaries/yt-dlp/` e `tauri.<os>.conf.json` (§4.1); `pnpm binarios` detecta o formato sozinho.
+O formato **onedir** do yt-dlp e o FFmpeg próprio mínimo LGPL já foram adotados. Mac App Store e Microsoft Store permanecem fora do escopo da primeira versão. Não há publicação remota executada.

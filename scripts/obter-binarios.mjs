@@ -3,8 +3,8 @@
 // src-tauri/binaries/. Uso: `pnpm binarios` (ou `node scripts/obter-binarios.mjs`).
 //
 // Opções:
-//   --formato onefile|onedir|ambos  padrão: DETECTADO na configuração do Tauri (tauri.conf.json +
-//       tauri.<macos|windows|linux>.conf.json do alvo): externalBin com "binaries/clipora-yt-dlp" →
+//   --formato onefile|onedir|ambos  padrão: DETECTADO na configuração base do Tauri (tauri.conf.json):
+//       externalBin com "binaries/clipora-yt-dlp" →
 //       onefile; referência a "binaries/yt-dlp" → onedir; as duas → ambos. Sem nenhuma → onefile.
 //       Também CLIPORA_YTDLP_FORMATO.
 //       onefile → src-tauri/binaries/clipora-yt-dlp-<triple>[.exe] (ARQUIVO único): o sidecar que o
@@ -30,12 +30,11 @@
 // 1. FFmpeg continua como sidecar (bundle.externalBin): "binaries/clipora-ffmpeg",
 //    "binaries/clipora-ffprobe" → arquivos clipora-ffmpeg-<triple>[.exe], clipora-ffprobe-<triple>[.exe].
 //    O prefixo "clipora-" evita conflito com /usr/bin/ffmpeg nos pacotes .deb/.rpm.
-// 2. yt-dlp ONEDIR (decisão do projeto) NÃO vai em externalBin (é um diretório):
-//      tauri.macos.conf.json:          bundle.macOS.files {"Helpers/yt-dlp": "binaries/yt-dlp"}
-//                     → Clipora.app/Contents/Helpers/yt-dlp/yt-dlp (pré-assinar cada Mach-O!)
-//      tauri.windows/linux.conf.json:  bundle.resources {"binaries/yt-dlp/": "yt-dlp/"}
-//                     → resource_dir()/yt-dlp/yt-dlp[.exe]
-//    (não pôr resources no tauri.conf.json base: no macOS duplicaria em Contents/Resources)
+// 2. yt-dlp ONEDIR (decisão do projeto) e avisos vão em bundle.resources no tauri.conf.json base:
+//      bundle.resources {"binaries/yt-dlp/": "yt-dlp/", "binaries/licencas/": "licencas/"}
+//                     → Contents/Resources/yt-dlp/yt-dlp no macOS;
+//                       resource_dir()/yt-dlp/yt-dlp[.exe] nos demais sistemas.
+//    No macOS cada Mach-O do onedir deve ser pré-assinado antes de tauri build.
 //    Em `tauri dev`, resolver por CARGO_MANIFEST_DIR/binaries/yt-dlp/yt-dlp[.exe].
 // 3. Ordem de resolução no Rust: cópia atualizada válida em app_local_data_dir()/bin/yt-dlp/<versao>/
 //    (ponteiro 'atual') → cópia embutida → (debug) src-tauri/binaries. O executável dentro do
@@ -50,10 +49,10 @@
 // 6. src-tauri/binaries/ está no .gitignore: os binários não são versionados.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import {
   DIR_BINARIOS,
   DIR_SCRIPTS,
@@ -171,11 +170,35 @@ async function onedirIntegro(dir, yt, alvo, triple) {
   }
   if (m.versao !== yt.versao || m.asset !== alvo.asset || m.sha256Zip !== alvo.sha256) return false;
   if (m.executavel !== nomeExecutavel(triple) || m.triple !== triple) return false;
-  for (const [rel, h] of Object.entries(m.arquivos ?? {})) {
-    const p = join(dir, ...rel.split('/'));
-    if (!existsSync(p) || (await sha256Arquivo(p)) !== h) return false;
+  // A árvore no disco precisa ser EXATAMENTE a esperada: nada faltando, nada alterado e nenhum
+  // arquivo extra (um .dylib/.py a mais seria carregado pelo yt-dlp). Depois de
+  // scripts/assinar-yt-dlp.mjs, a referência é o estado assinado (manifesto.assinatura.arquivos:
+  // Mach-O reassinados, _CodeSignature/ novos, duplicatas do framework removidas).
+  const esperado = m.assinatura?.arquivos ?? m.arquivos ?? {};
+  if (!Object.keys(esperado).length) return false;
+  const atuais = new Map();
+  const percorrer = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, e.name);
+      if (e.isDirectory()) {
+        if (!percorrer(p)) return false;
+      } else if (e.isFile()) atuais.set(relative(dir, p).split(sep).join('/'), p);
+      else return false; // links simbólicos e outros tipos não fazem parte do onedir
+    }
+    return true;
+  };
+  if (!percorrer(dir)) return false;
+  atuais.delete(MANIFESTO);
+  if (atuais.size !== Object.keys(esperado).length) {
+    const extras = [...atuais.keys()].filter((k) => !(k in esperado));
+    if (extras.length) aviso(`arquivos extras em ${relative(RAIZ, dir)}/: ${extras.slice(0, 5).join(', ')}${extras.length > 5 ? '…' : ''}`);
+    return false;
   }
-  return Object.keys(m.arquivos ?? {}).length > 0;
+  for (const [rel, h] of Object.entries(esperado)) {
+    const p = atuais.get(rel);
+    if (!p || (await sha256Arquivo(p)) !== h) return false;
+  }
+  return true;
 }
 
 async function onedir(yt, triple) {
@@ -230,14 +253,10 @@ async function onedir(yt, triple) {
   }
 }
 
-/** Lê tauri.conf.json + tauri.<plataforma>.conf.json e deduz quais formatos a configuração usa. */
-async function formatosDaConfig(triple) {
-  const plataforma = triple.includes('apple-darwin') ? 'macos' : triple.includes('windows') ? 'windows' : 'linux';
-  let texto = '';
-  for (const nome of ['tauri.conf.json', `tauri.${plataforma}.conf.json`]) {
-    const arq = join(RAIZ, 'src-tauri', nome);
-    if (existsSync(arq)) texto += await readFile(arq, 'utf8');
-  }
+/** Lê a configuração base do Tauri e deduz quais formatos a configuração usa. */
+async function formatosDaConfig() {
+  const arq = join(RAIZ, 'src-tauri', 'tauri.conf.json');
+  const texto = existsSync(arq) ? await readFile(arq, 'utf8') : '';
   const formatos = [];
   if (/"binaries\/clipora-yt-dlp"/.test(texto)) formatos.push('onefile');
   if (/"binaries\/yt-dlp\/?"/.test(texto)) formatos.push('onedir');
@@ -270,7 +289,7 @@ principal(async () => {
       `Target "${triple}" não está em scripts/binarios.lock. Suportados: ${Object.keys(yt.alvos).join(', ')}`,
     );
   }
-  const formatos = pedido === 'ambos' ? ['onefile', 'onedir'] : pedido ? [pedido] : await formatosDaConfig(triple);
+  const formatos = pedido === 'ambos' ? ['onefile', 'onedir'] : pedido ? [pedido] : await formatosDaConfig();
   log(`target triple: ${triple}; formato(s) do yt-dlp: ${formatos.join(' + ')}${pedido ? '' : ' (detectado na configuração do Tauri)'}`);
   await mkdir(DIR_BINARIOS, { recursive: true });
   if (formatos.includes('onefile')) await onefile(yt, triple);

@@ -15,7 +15,7 @@
 //   - npm (produção, empacotado pelo Vite): `pnpm licenses list --prod --json` + arquivo LICENSE
 //     de cada pacote.
 // Os textos de licença vendorizados vêm de fontes verificadas (ver scripts/licencas/LEIAME.md).
-// Proposta de inclusão no pacote (Ferrugem): bundle.resources {"binaries/licencas/": "licencas/"}.
+// O tauri.conf.json inclui este diretório via bundle.resources; conferir sua presença no pacote.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';

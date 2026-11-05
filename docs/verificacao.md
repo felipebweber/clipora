@@ -34,7 +34,9 @@ Responsável: Lince (qualidade). Cobre as etapas 2 a 8 do [plano](../plano-clipo
 
 ### Matriz de sistemas
 
-Conforme [distribuicao.md](distribuicao.md): Windows 10 22H2+/11 x64 e arm64; macOS 11+ arm64 e x64 (pacote universal); Linux x64 e arm64 com WebKitGTK 4.1 (Ubuntu 22.04 / Debian 12 como base). Casos **[M-SO]** devem ter uma linha de resultado por combinação. Combinações sem máquina disponível são registradas como **não verificado**, nunca como aprovado.
+A matriz abaixo é pretendida. As arquiteturas, os mínimos e os formatos finais dependem do usuário e estão na lista consolidada de decisões reservadas em [distribuicao.md §9](distribuicao.md#9-decisões-pendentes-do-usuário). Nenhuma dessas decisões foi tomada nesta atualização.
+
+Pretendido: Windows 10 22H2+/11 x64 e arm64; macOS 11+ arm64 e x64 (pacote universal); Linux x64 e arm64 com WebKitGTK 4.1 (Ubuntu 22.04 / Debian 12 como base). Casos **[M-SO]** devem ter uma linha de resultado por combinação. Combinações sem máquina disponível são registradas como **não verificado**. Aprovar macOS arm64 não conclui a matriz.
 
 ### Fixtures de teste
 
@@ -259,10 +261,36 @@ Executar em cada combinação da matriz, **em máquina ou VM limpa**, sem Rust/N
 
 ---
 
+## Estado em 2026-11-05
+
+A versão inteira não está concluída. As linhas desta data acrescentam evidência parcial. O que ainda depende do usuário está na lista única de [distribuicao.md §9](distribuicao.md#9-decisões-pendentes-do-usuário): licença e termos, identificador, sistemas e formatos, repositório e publicação, credenciais Apple, provedor de assinatura Windows e máquinas dos outros sistemas. O formato onedir do yt-dlp e o FFmpeg próprio mínimo LGPL já constam como escolhas adotadas; lojas ficam fora da v1. Nenhuma decisão nova foi tomada pelo usuário.
+
+Dois artefatos macOS arm64, com alcances diferentes:
+
+- **Candidato debug.** Worktree `/private/tmp/clipora-wt-f8696a8`, base `f8696a8` mais o snapshot de `src/` e `src-tauri/`. Não é o pacote do commit `7ba19bf`. O ajuste posterior de `cfg(test)` no redirect não entrou nesse snapshot e não muda o comportamento produtivo dele. Neste app a janela percorreu fluxos completos: Instagram com pasta ausente, seletor nativo, novo destino, conclusão, Abrir pasta e ffprobe; nome `(2)` sem sobrescrever o arquivo já existente; TikTok com prévia, download, ffprobe e restauração de Downloads.
+- **Build otimizado do commit `7ba19bf`.** Worktree isolado, perfil release, log `/private/tmp/clipora-build-release-7ba19bf.log`, pacote de 108,77 MiB. Smoke: o app abriu, a pasta Downloads permaneceu e Sobre carregou 367 crates e 4 pacotes npm. A conferência desse app passou em arquitetura, FFmpeg, hashes, licenças e mínimo 11.0. Esse smoke não repete os downloads do candidato debug.
+
+Pendências que permanecem **não verificado**: Windows, Linux, macOS Intel, notarização com Developer ID, leitor de tela nativo, primeiro CI remoto, assinatura Windows integral e o conjunto de falhas de filesystem do roteiro. Rosetta não substitui hardware Intel.
+
 ## Registro de resultados
 
-Acrescente linhas, sem apagar as anteriores. Resultado: **aprovado**, **reprovado**, **não verificado** ou **limitação**.
+Acrescente linhas, sem apagar as anteriores. Resultado: **aprovado**, **reprovado**, **não verificado** ou **limitação**. Uma linha aprovada cobre só o caso e o artefato citados.
 
 | Data | Commit | Caso | Sistema/arquitetura | Resultado | Evidência / observação |
 | --- | --- | --- | --- | --- | --- |
 | 2026-11-05 | 7b8f08e | Base (etapa 1) | macOS arm64 (dev) | aprovado | `pnpm typecheck` exit 0. `pnpm test` 1/1. `pnpm test:rust` 1 passed. `pnpm build` exit 0. Janela via `pnpm tauri dev` não verificada por Lince. |
+| 2026-11-05 | f8696a8 | V8-01 — testes UI | macOS arm64 (checkout de desenvolvimento) | aprovado | Execução própria de Lince: `pnpm test` — 11 arquivos, 247 testes passaram. |
+| 2026-11-05 | f8696a8 | V8-01 — build e typecheck | macOS arm64 (checkout de desenvolvimento) | aprovado | Execução própria de Lince: `pnpm build` — typecheck (`tsc --noEmit` e `tsc -p tsconfig.node.json --noEmit`) e build Vite passaram. |
+| 2026-11-05 | f8696a8 | V8-01 — testes Rust | macOS arm64 (checkout de desenvolvimento) | aprovado | Execução própria de Lince: `source ~/.cargo/env && pnpm test:rust` — 36 passaram, 0 falharam, 6 ignorados. |
+| 2026-11-05 | f8696a8 | V8-01 — clippy e fmt | macOS arm64 (checkout de desenvolvimento) | aprovado | Execução própria de Lince: `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings` e `cargo fmt --manifest-path src-tauri/Cargo.toml --check` passaram. |
+| 2026-11-05 | f8696a8 | V8 — Sobre/Licenças: tema e teclado no navegador simulado | navegador simulado, 800×600 | aprovado (somente simulação) | Evidência relatada pelo Timoneiro: temas claro/escuro, modal, Shift+Tab, Esc e retorno do foco. Screenshots: `/private/tmp/clipora-qa-sobre-800-light.png` e `/private/tmp/clipora-qa-sobre-800-dark.png`. Não valida a webview nativa. |
+| 2026-11-05 | f8696a8 | V8-04 — acessibilidade na webview nativa | macOS arm64 | não verificado | A checagem foi no navegador simulado; a janela nativa e leitor de tela não foram verificados nesta rodada. |
+| 2026-11-05 | f8696a8 | V8-02 — matriz em outros sistemas | Windows e Linux | não verificado | Não testados nesta rodada. |
+| 2026-11-05 | f8696a8 + snapshot em `/private/tmp/clipora-wt-f8696a8` | Candidato debug — build e conferência | macOS arm64 | aprovado (candidato; não é o commit `7ba19bf`) | `tauri build --bundles app` exit 0. Log `/private/tmp/clipora-build-candidato-2.log`. `scripts/conferir-pacote.mjs` exit 0: yt-dlp 2026.10.26, 131 arquivos após assinatura ad-hoc, FFmpeg 8.1.3, avisos presentes, mínimo 11.0. Sem selo de certificado e sem notarização. Evidência: `.maestri/aceitacao-candidato-2.md`. |
+| 2026-11-05 | f8696a8 + snapshot em `/private/tmp/clipora-wt-f8696a8` | V4-06, V5-04, V5-07, V5-10, V5-27 — fluxos completos na janela | macOS arm64 | aprovado (candidato debug) | Instagram `https://www.instagram.com/reel/DfS6bDVMRQ8/`: prévia “Video by yogue.prem”; pasta persistida ausente; seletor nativo; destino `/private/tmp/clipora-qa-canal-b.tdYOWi`; conclusão na UI; Abrir pasta revelou o mp4 de 21,7 MB; ffprobe empacotado com vídeo e áudio, exit 0. Execução anterior do mesmo Reel concluiu como nome `(2)` e preservou o arquivo já existente. Downloads restaurado pela UI. TikTok `https://www.tiktok.com/@scout2015/video/6718335390845095173`: prévia com duração 0:10, download concluído, 2004627 bytes, ffprobe empacotado com vídeo e áudio, exit 0; Downloads restaurado de novo. Evidência: `.maestri/aceitacao-candidato-2.md`. |
+| 2026-11-05 | 7ba19bf | V8-01 — testes UI | macOS arm64 | aprovado | Root: typecheck, 257 testes em 11 arquivos e build do frontend, exit 0. Log `.maestri/verificacao-timoneiro-frontend-2.txt`. Não reexecutado nesta atualização do roteiro. |
+| 2026-11-05 | 7ba19bf | V8-01 e V6-17 — Rust, clippy, fmt e atualização GitHub | macOS arm64 | aprovado | Root: 42 testes passaram, 6 ignorados; os ignorados não foram executados. `clippy --all-targets -D warnings` e `cargo fmt --check` passaram. Depois da correção da allowlist em `cfg(test)`, `instalacao::tests::atualizacao_real_github_temporaria` passou em 47,68 s: release 2026.10.26 instalada em diretório temporário e executada pelo resolver. A política de teste mantém a allowlist oficial e acrescenta loopback. |
+| 2026-11-05 | 7ba19bf + diff de distribuição ainda não commitado | V7-02, V7-03, V7-11, V7-12, V7-13 e V8-01 — conferidor, actionlint e sintaxe | macOS arm64 (scripts no checkout) | aprovado (ferramentas; não é o CI remoto) | Root: `actionlint`, `node --check` e `node --test scripts/test-conferir-pacote.mjs` com 4 testes (registro FFmpeg válido e inválido, PE x64/arm64/inválido, selo ausente contra erro desconhecido). Não reexecutado nesta atualização. |
+| 2026-11-05 | 7ba19bf | Build otimizado isolado — smoke de abertura, Sobre e conferência | macOS arm64 | aprovado (smoke; fluxos de download ficam no candidato debug) | Worktree isolado. Log `/private/tmp/clipora-build-release-7ba19bf.log`: perfil release, `Clipora.app` de 108,77 MiB. O app abriu, Downloads permaneceu e Sobre carregou 367 crates e 4 pacotes npm. Conferência desse app: arquitetura, FFmpeg, hashes, licenças e mínimo 11.0 passaram. Sem notarização. |
+| 2026-11-05 | 7ba19bf | V8-04 — leitor de tela nativo | macOS arm64 | não verificado | A simulação de teclado no navegador permanece na linha anterior. VoiceOver, Narrador, NVDA e Orca não foram executados. |
+| 2026-11-05 | 7ba19bf | V7 e V8-02 — demais sistemas, assinatura e CI | Windows, Linux, macOS Intel; notarização Apple; assinatura Windows | não verificado | A matriz é pretendida. Decisões e máquinas estão em `docs/distribuicao.md` §9. O primeiro run remoto, a extração Windows/Linux, o hardware Intel e a notarização com Developer ID seguem sem execução. `CLIPORA_ASSINAR_WINDOWS=true` permanece bloqueado até a pré-assinatura integral do onedir. A versão inteira não está concluída. |
