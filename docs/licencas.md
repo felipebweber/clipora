@@ -79,7 +79,30 @@ Fonte: <https://ffmpeg.org/legal.html> (“License Compliance Checklist”). Esc
 | macOS arm64/x64 | Build próprio mínimo **LGPL** (combinado com `lipo` em universal) | nenhuma pronta e confiável | evermeet.cx (GPL, só Intel) |
 | Linux x64/arm64 | Build próprio mínimo **LGPL** na base Ubuntu 22.04 | BtbN `lgpl` | `gpl`/`nonfree` |
 
-**Patentes**: o ffmpeg.org lembra que H.264, AAC e outros padrões podem estar sujeitos a patentes em algumas jurisdições. Um build só de *remux*, sem codificadores (e idealmente sem decodificadores), reduz essa exposição, mas **não** a elimina. É tema para revisão jurídica se houver uso comercial. <https://ffmpeg.org/legal.html>
+### 3.4 Build efetivo do Clipora (registro exigido pela LGPL)
+Gerado por `scripts/compilar-ffmpeg.mjs` (flags em `FLAGS_COMUNS` e `flagsAlvo`; manter este trecho sincronizado). Cada build também grava `src-tauri/binaries/ffmpeg-build-info-<triple>.txt`, que deve ser publicado junto do código-fonte.
+
+- **Código-fonte**: <https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz>, SHA-256 `7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd3178a3`, assinatura `.asc` verificada com a chave de release do FFmpeg `FCF986EA15E6E293A5644F10B4322F04D67658D8`. **Sem modificações** (`changes.diff` vazio).
+- **Flags comuns a todos os alvos**:
+  ```
+  --disable-gpl --disable-nonfree --disable-version3 --disable-autodetect --disable-everything
+  --disable-network --disable-doc --disable-ffplay --disable-debug --enable-ffmpeg --enable-ffprobe
+  --enable-static --disable-shared --extra-version=clipora
+  --enable-protocol=file,pipe
+  --enable-demuxer=mov,matroska,mp3,aac,mpegts,hls,concat
+  --enable-muxer=mp4,mov,ipod,matroska,webm,mpegts,adts,mp3
+  --enable-parser=h264,hevc,aac,av1,vp8,vp9,opus,mpegaudio
+  --enable-bsf=aac_adtstoasc,h264_mp4toannexb,hevc_mp4toannexb,extract_extradata,vp9_superframe,setts,null
+  --enable-decoder=aac,mp3
+  ```
+- **Flags por alvo**:
+  - macOS (`aarch64`/`x86_64`): `--cc=clang --arch=<aarch64|x86_64> --target-os=darwin --enable-cross-compile --extra-cflags='-arch <arm64|x86_64> -mmacosx-version-min=11.0' --extra-ldflags='-arch <arm64|x86_64> -mmacosx-version-min=11.0'`, mais `--disable-x86asm` em x86_64. O universal é o `lipo -create` das duas arquiteturas.
+  - Linux x86_64: `--disable-x86asm`. Linux aarch64: nenhuma.
+  - Windows: pendente.
+- **Componentes resultantes [verificado em 2026-11-05, aarch64-apple-darwin]**: `-encoders` vazio (nenhum codificador); `-decoders` = só `aac` e `mp3`; `ffmpeg -L` declara “GNU Lesser General Public License … version 2.1 or later”. Liga apenas bibliotecas do sistema (`libSystem`, `CoreFoundation`, `CoreVideo`, `CoreMedia`), que se enquadram na exceção de bibliotecas do sistema da LGPL.
+- **Por que há decodificadores de áudio**: sem eles, o *fixup* de HLS do yt-dlp (MPEG-TS → MP4 com `aac_adtstoasc`) falhou com “sample rate not set”. Eles só servem para obter parâmetros; o app não transcodifica.
+
+**Patentes**: o ffmpeg.org lembra que H.264, AAC e outros padrões podem estar sujeitos a patentes em algumas jurisdições. Um build só de *remux*, sem codificadores e com o mínimo de decodificadores (hoje só AAC e MP3, §3.4), reduz essa exposição, mas **não** a elimina. É tema para revisão jurídica se houver uso comercial. <https://ffmpeg.org/legal.html>
 
 ---
 

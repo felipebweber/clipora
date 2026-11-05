@@ -1,0 +1,69 @@
+{
+  "_comentario": "Versões fixadas dos binários embutidos no Clipora. Mantido por Estaleiro (distribuição). Atualize versão, URLs e SHA-256 juntos e somente após verificar a assinatura GPG (ver docs/distribuicao.md §4). Consultado em 2026-11-05.",
+  "formato": 1,
+  "ytDlp": {
+    "versao": "2026.10.26",
+    "licencaBinario": "GPL-3.0-or-later (obra combinada PyInstaller; código-fonte Unlicense)",
+    "somas": {
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/SHA2-256SUMS",
+      "sha256": "0d7ec4303a02bcbe66154d478852cdf2e07688d39dc4597316e4424ac4e74356",
+      "assinaturaUrl": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/SHA2-256SUMS.sig"
+    },
+    "chaveGpg": {
+      "arquivo": "chaves/yt-dlp.asc",
+      "origem": "https://github.com/yt-dlp/yt-dlp/raw/master/public.key",
+      "fingerprint": "AC0CBBE6848D6A873464AF4E57CF65933B5A7581"
+    },
+    "alvos": {
+      "aarch64-apple-darwin": {
+        "asset": "yt-dlp_macos",
+        "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp_macos",
+        "sha256": "0f922c15ccc0b83eefa1c8bc9104e434318c4bf16e408e1ee93b7745a6efe0aa"
+      },
+      "x86_64-apple-darwin": {
+        "asset": "yt-dlp_macos",
+        "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp_macos",
+        "sha256": "0f922c15ccc0b83eefa1c8bc9104e434318c4bf16e408e1ee93b7745a6efe0aa"
+      },
+      "universal-apple-darwin": {
+        "asset": "yt-dlp_macos",
+        "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp_macos",
+        "sha256": "0f922c15ccc0b83eefa1c8bc9104e434318c4bf16e408e1ee93b7745a6efe0aa"
+      },
+      "x86_64-pc-windows-msvc": {
+        "asset": "yt-dlp.exe",
+        "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp.exe",
+        "sha256": "f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d"
+      },
+      "aarch64-pc-windows-msvc": {
+        "asset": "yt-dlp_arm64.exe",
+        "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp_arm64.exe",
+        "sha256": "0066dbac3c124028e2dcae2a197fccee33cd91f456313d24f7af89fd54590e98"
+      },
+      "x86_64-unknown-linux-gnu": {
+        "asset": "yt-dlp_linux",
+        "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp_linux",
+        "sha256": "767ba9dce7052aa196f8b12652f433d76de128ba168966fa84b6394d5e6c6795"
+      },
+      "aarch64-unknown-linux-gnu": {
+        "asset": "yt-dlp_linux_aarch64",
+        "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp_linux_aarch64",
+        "sha256": "e87e9533e89fe5889abaa21f5114dfe7756d6aa6219b83551add04d48b18e483"
+      }
+    }
+  },
+  "ffmpeg": {
+    "versao": "8.1.3",
+    "licenca": "LGPL-2.1-or-later (build sem --enable-gpl e sem --enable-nonfree)",
+    "tarball": {
+      "url": "https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz",
+      "sha256": "7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd3178a3",
+      "assinaturaUrl": "https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz.asc"
+    },
+    "chaveGpg": {
+      "arquivo": "chaves/ffmpeg-devel.asc",
+      "origem": "https://ffmpeg.org/ffmpeg-devel.asc",
+      "fingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8"
+    }
+  }
+}

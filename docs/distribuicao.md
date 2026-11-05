@@ -117,7 +117,7 @@ Versões de referência na consulta: `tauri` 2.12.5, `tauri-cli` 2.12.4, `tauri-
 **Notas para o núcleo (registrar, a repassar a Ferrugem pelo coordenador):**
 - Passar ao yt-dlp `--ffmpeg-location <caminho absoluto de clipora-ffmpeg>`. O yt-dlp deriva o ffprobe trocando “ffmpeg” por “ffprobe” no nome do arquivo (`clipora-ffmpeg` → `clipora-ffprobe`, inclusive com `.exe`) **[verificado no código: `yt_dlp/postprocessor/ffmpeg.py::_determine_executables`]**. Assim não depende do `PATH`.
 - Considerar `--ignore-config` (ou `--no-config-locations`) e `--no-update`, para que uma configuração do yt-dlp do usuário não altere o comportamento do app.
-- Os binários PyInstaller *onefile* se extraem num diretório temporário a cada execução: a partida é mais lenta (ordem de 1 s) e exige um `TMPDIR` gravável **[validar tempos]**.
+- Os binários PyInstaller *onefile* se extraem num diretório temporário a cada execução e exigem um `TMPDIR` gravável. No macOS isso custou cerca de 14 s por execução (medição na seção 4.2). Ver a recomendação de onedir.
 
 ### 4.2 yt-dlp: origem e integridade
 - **Origem oficial**: releases do GitHub `yt-dlp/yt-dlp`. Última estável na consulta: **2026.10.26** (publicada em 2026-10-26) **[verificado via API do GitHub]**. <https://github.com/yt-dlp/yt-dlp/releases>
@@ -128,7 +128,7 @@ Versões de referência na consulta: `tauri` 2.12.5, `tauri-cli` 2.12.4, `tauri-
   sha256sum -c --ignore-missing SHA2-256SUMS
   ```
   A API do GitHub também expõe `digest: sha256:...` por asset **[verificado]**, que serve de verificação cruzada mas não substitui a assinatura.
-- Teste local (macOS, 2026-11-05): `yt-dlp_macos` e `yt-dlp.exe` da 2026.10.26 baixados com `curl`; `shasum -a 256 -c` → **OK** para os dois **[verificado]**. A verificação GPG **não** foi executada porque não há `gpg` instalado nesta máquina; o script de obtenção deve fazê-la no CI.
+- Teste local (macOS, 2026-11-05): `yt-dlp_macos` e `yt-dlp.exe` da 2026.10.26 baixados com `curl`; `shasum -a 256 -c` → **OK** para os dois **[verificado]**. Assinatura GPG do `SHA2-256SUMS` → `VALIDSIG … AC0CBBE6848D6A873464AF4E57CF65933B5A7581` (chave “Simon Sawicki (yt-dlp signing key)”) **[verificado]** com GnuPG 2.5.24, também pelo `pnpm binarios`.
 - SHA-256 de referência (release 2026.10.26), copiados do `SHA2-256SUMS`:
 
   | Asset | SHA-256 |
@@ -142,7 +142,15 @@ Versões de referência na consulta: `tauri` 2.12.5, `tauri-cli` 2.12.4, `tauri-
 - **Estado de assinatura de código dos binários oficiais [verificado]**:
   - `yt-dlp_macos`: `codesign -dvv` → `Signature=adhoc`, `TeamIdentifier=not set`; `spctl -a -t exec` → **rejected**. Funciona sem quarentena, mas o Gatekeeper bloquearia se o arquivo tivesse `com.apple.quarantine`.
   - `yt-dlp.exe`: cabeçalho PE sem diretório de segurança (tamanho 0), ou seja, **sem assinatura Authenticode**.
-- **Execução local não testada**: rodar `yt-dlp_macos --version` foi bloqueado pela política de permissões desta sessão. Fica pendente para o teste de pacote (etapa 7, último item).
+- **Execução local [verificado em 2026-11-05, macOS arm64]**: `src-tauri/binaries/clipora-yt-dlp-aarch64-apple-darwin --version` → `2026.10.26`. Com `-v --ignore-config --no-update --ffmpeg-location …/clipora-ffmpeg-aarch64-apple-darwin`, o yt-dlp reporta `exe versions: ffmpeg 8.1.3-clipora (setts), ffprobe 8.1.3-clipora`, ou seja, acha o ffprobe pela troca de nome.
+- **Tempo de partida: onefile × onedir [verificado, medido com `/usr/bin/time -p … --version`]**:
+
+  | Build | 1ª execução | Execuções seguintes |
+  |---|---|---|
+  | `yt-dlp_macos` (onefile, o atual sidecar) | 13,9 s | **13,5–14,5 s todas as vezes** (CPU ~0,5 s) |
+  | `yt-dlp_macos.zip` (onedir, extraído) | 14,1 s | **0,20 s** |
+
+  O tempo é espera, não CPU. Hipótese: o onefile extrai as bibliotecas Python para um diretório temporário novo a cada execução, e o macOS volta a avaliá-las (XProtect/política de execução); no onedir isso só acontece na primeira vez. **Impacto**: cerca de 14 s extras em **cada** prévia e **cada** download. **Recomendação**: usar o build **onedir** (`yt-dlp_macos.zip`; `yt-dlp_win.zip`, `yt-dlp_win_arm64.zip`, `yt-dlp_linux.zip` e `yt-dlp_linux_aarch64.zip` nos outros sistemas, que também constam no `SHA2-256SUMS` assinado). Isso muda o empacotamento: diretório em `bundle.resources` em vez de `externalBin`, assinatura de cada Mach-O/DLL antes do bundle e atualização por diretório versionado. Decisão pendente (seção 9). Windows e Linux **[validar]**.
 - Executáveis PyInstaller costumam gerar falsos positivos em antivírus no Windows **[validar]**. Prever orientação na documentação de suporte.
 
 ### 4.3 FFmpeg: origem, integridade e build recomendado
@@ -160,25 +168,26 @@ Opções avaliadas:
 **Recomendação**: compilar um **FFmpeg mínimo LGPL** a partir do tarball oficial assinado, igual para os 6 alvos, só com o necessário para *remux* (`-c copy`), que é o que o yt-dlp faz ao unir vídeo e áudio:
 - Menor (estimativa de poucos MB por binário em vez de 100+ MB **[validar]**), licença uniforme LGPL e nenhum codec GPL. Sem codificadores, a exposição a questões de patentes de codecs também diminui. Isto não é parecer jurídico; ver licencas.md.
 - Mesmo procedimento em todos os sistemas e código-fonte correspondente fácil de publicar junto com os binários (obrigação LGPL).
-- Ponto de partida do `configure` (**[validar]** com links reais do Instagram/TikTok e com os *fixups* do yt-dlp):
-  ```sh
-  ./configure --disable-gpl --disable-nonfree --disable-autodetect \
-    --disable-doc --disable-ffplay --disable-network --disable-everything \
-    --enable-ffmpeg --enable-ffprobe --enable-static --disable-shared \
-    --enable-protocol=file,pipe \
-    --enable-demuxer=mov,matroska,mp3,aac,mpegts,hls,concat \
-    --enable-muxer=mp4,mov,ipod,matroska,webm,mpegts,adts,mp3 \
-    --enable-parser=h264,hevc,aac,av1,vp9,opus,mpegaudio \
-    --enable-bsf=aac_adtstoasc,h264_mp4toannexb,hevc_mp4toannexb,extract_extradata,vp9_superframe \
-    --enable-decoder=aac,mp3,opus,h264,hevc,vp9,av1 # só p/ ffprobe/metadados; remover se dispensável
-  ```
-  A lista de componentes deve ser ajustada pelos testes da etapa 5 (merge, `FFmpegFixupM3u8PP`, `FFmpegFixupDuplicateMoovPP`, `FFmpegFixupTimestampPP`). Se faltar algo, ampliar a lista em vez de mudar para GPL.
+- **Implementado** em `scripts/compilar-ffmpeg.mjs` com FFmpeg **8.1.3** (as flags exatas estão em [licencas.md §3.4](licencas.md)). Resultados em 2026-11-05 no macOS arm64 **[verificado]**:
+  - build em ~29 s (14 núcleos); `clipora-ffmpeg` 3,3 MB e `clipora-ffprobe` 3,1 MB; `minos 11.0`; liga só frameworks do sistema; `ffmpeg -L` declara LGPL 2.1+; 0 codificadores, decodificadores só `aac` e `mp3`;
+  - remux H.264 (mp4) + AAC (m4a) → mp4 com `-c copy -movflags +faststart`: OK;
+  - VP9 + Opus (webm) → webm e mkv: OK;
+  - *fixup* HLS (MPEG-TS → mp4 com `-bsf:a aac_adtstoasc`, como no `FFmpegFixupM3u8PP`): **falhou** sem decodificador AAC (“sample rate not set”); **OK** depois de `--enable-decoder=aac,mp3`;
+  - os três arquivos gerados decodificam sem erros no ffmpeg do Homebrew (conferência independente);
+  - o universal (`--target universal-apple-darwin`) compila em ~63 s e `lipo -info` mostra x86_64 + arm64. A fatia x86_64 **não foi executada**, pois esta máquina não tem Rosetta **[validar em Mac Intel ou com Rosetta]**.
+- Ainda **[validar]** com links reais (etapa 5): `FFmpegFixupDuplicateMoovPP`, `FFmpegFixupTimestampPP` e eventuais HEVC/AV1 do TikTok. Se faltar algo, ampliar a lista de componentes em vez de mudar para GPL.
 - **Alternativa mais rápida**: BtbN `lgpl` com tag mensal fixa (nunca `latest`) para Windows e Linux, mais build próprio só no macOS. Desvantagens: pacotes muito maiores e duas origens diferentes.
 - Em qualquer opção: guardar no repositório, no script de obtenção, a URL exata, o SHA-256 esperado e a impressão digital da chave PGP, e falhar o build se algo divergir.
 - Fontes: <https://ffmpeg.org/download.html>, <https://ffmpeg.org/legal.html>, <https://github.com/BtbN/FFmpeg-Builds>, <https://github.com/yt-dlp/FFmpeg-Builds>, <https://www.gyan.dev/ffmpeg/builds/>, <https://evermeet.cx/ffmpeg/>
 
-### 4.4 Script de obtenção (a criar em `scripts/`)
-Ainda não criado, pois esta tarefa era só documentação. Especificação:
+### 4.4 Scripts de obtenção (implementados em 2026-11-05)
+- `scripts/binarios.lock`: versões, URLs, SHA-256 e impressões digitais das chaves GPG. As chaves públicas fixadas ficam em `scripts/chaves/`.
+- `scripts/obter-binarios.mjs` (`pnpm binarios`): yt-dlp para o triple do host (`rustc -vV`, ou `--target`). Verifica o SHA-256 do `SHA2-256SUMS` contra o lock, a assinatura GPG (chaveiro temporário isolado, sem tocar no `~/.gnupg`; sem gpg → aviso claro; `--exigir-gpg` faz falhar) e o SHA-256 do asset contra o lock e contra o `SHA2-256SUMS`. É idempotente. O topo do arquivo documenta o que o núcleo deve configurar.
+- `scripts/comum.mjs`: utilitários (download com novas tentativas, hash, GPG).
+- `scripts/compilar-ffmpeg.mjs`: build mínimo LGPL (macOS arm64/x64/universal; Linux nativo; Windows pendente). É idempotente por carimbo gravado em `ffmpeg-build-info-<triple>.txt`.
+- `src-tauri/binaries/` está no `.gitignore`.
+
+Especificação original (mantida como referência):
 1. Recebe o target triple; lê `scripts/binarios.lock` (versão do yt-dlp, URL, SHA-256 por asset, impressão digital da chave GPG; versão do FFmpeg, SHA-256 do tarball, impressão digital da chave).
 2. Baixa o asset do yt-dlp, `SHA2-256SUMS` e `.sig`; verifica a assinatura GPG contra a chave fixada; confere o SHA-256 contra o arquivo de somas **e** contra o lock.
 3. Baixa e verifica o tarball do FFmpeg (`.asc`), compila com a configuração da seção 4.3 e combina com `lipo` no macOS.
@@ -264,7 +273,7 @@ Para cada artefato (Win x64, Win arm64, macOS arm64, macOS x64, Linux x64, Linux
 ---
 
 ## 8. Próximos passos do Estaleiro (após decisões)
-1. Criar `scripts/binarios.lock` e `scripts/obter-binarios.*` (seção 4.4) e o build do FFmpeg mínimo.
+1. ~~Criar `scripts/binarios.lock`, a obtenção do yt-dlp e o build do FFmpeg mínimo~~ (feito em 2026-11-05, seção 4.4). Falta o FFmpeg para Windows (MSYS2/clang no CI) e decidir entre onefile e onedir.
 2. Criar `.github/workflows/` com a matriz da seção 3 (depende da existência de um repositório remoto e de segredos).
 3. Pedir a Ferrugem as mudanças em `tauri.conf.json` (`externalBin`, `minimumSystemVersion`, assinatura, entitlements) e no `.gitignore`.
 
@@ -282,3 +291,4 @@ Para cada artefato (Win x64, Win arm64, macOS arm64, macOS x64, Linux x64, Linux
 8. **Onde publicar** os instaladores e o código-fonte correspondente do FFmpeg/yt-dlp (por exemplo, GitHub Releases de um repositório do projeto). Isso define a URL da oferta de código-fonte exigida pelas licenças. Público ou privado?
 9. **Mac App Store / Microsoft Store**: fora da v1 (incompatível com o modelo de yt-dlp atualizável no macOS). Confirmar.
 10. **Linux**: só AppImage + `.deb`, ou também `.rpm`.
+11. **yt-dlp onefile × onedir**: o onefile atual custa cerca de 14 s por execução no macOS (§4.2). Recomendo onedir, o que muda o empacotamento (`resources` em vez de `externalBin`) e o fluxo de atualização. Decisão conjunta com Ferrugem.
