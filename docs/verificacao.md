@@ -9,7 +9,8 @@ Responsável: Lince (qualidade). Cobre as etapas 2 a 8 do [plano](../plano-clipo
 > - Post `/p/` com um único vídeo é aceito. Carrossel com vários itens, ou foto, retorna `CONTEUDO_NAO_SUPORTADO` na v1 (V3-17).
 > - Saída 0 sem arquivo final válido retorna `ARQUIVO_INCOMPLETO` (V5-13 a V5-16). Isso inclui arquivo inexistente, 0 bytes, só `.part`, "has already been downloaded" ou caminho fora da pasta.
 >
-> **Pendente no contrato:** o v2 não tem código para yt-dlp ausente ou não executável (antes `YTDLP_INDISPONIVEL`). Ver V3-15.
+> - yt-dlp ausente ou não executável retorna o novo código `YTDLP_INDISPONIVEL`, a ser acrescentado ao contrato pelo Ferrugem (V3-15).
+> - Falha de rede, resolução ou conexão durante o download retorna `SEM_CONEXAO`. `DOWNLOAD_FALHOU` fica só como genérico (V5-22).
 >
 > **Fixtures:** os executáveis falsos e os cenários estão em [`tests/fixtures/`](../tests/fixtures/README.md).
 
@@ -114,7 +115,7 @@ Executar a cada etapa a partir da 3 e obrigatoriamente na 8.
 | V3-12 | Digitação rápida | Alterar o link 20 vezes em 2 s. | No máximo um processo de prévia vivo por vez. Ao fim, não há processos órfãos (`ps`/Gerenciador de Tarefas). | [I] |
 | V3-13 | Tempo esgotado | yt-dlp falso nunca responde. | Depois do limite do contrato: `TEMPO_ESGOTADO`, processo encerrado, interface liberada para novo link. | [I] |
 | V3-14 | Falhas mapeadas | yt-dlp falso devolve no `stderr`: login exigido, "Private video"/conteúdo privado, removido, HTTP 429, erro de rede/DNS, post só com foto, extrator quebrado, saída não JSON, exit ≠ 0 sem mensagem. Cenários de fixture: `login`, `privado`, `removido`, `limite`, `sem-conexao`, `foto`, `extrator-quebrado`, `json-invalido`, `falha-muda`. | Respectivamente: `LOGIN_NECESSARIO`, `CONTEUDO_PRIVADO_OU_REMOVIDO`, `CONTEUDO_PRIVADO_OU_REMOVIDO`, `LIMITE_DE_ACESSO`, `SEM_CONEXAO`, `CONTEUDO_NAO_SUPORTADO`, `PREVIA_INDISPONIVEL` (com sugestão de atualizar o yt-dlp), `PREVIA_INDISPONIVEL`, `PREVIA_INDISPONIVEL`. A mensagem 429 contém "unavailable" e **não** pode virar `CONTEUDO_PRIVADO_OU_REMOVIDO`. Nada da prévia anterior permanece na tela. | [I] |
-| V3-15 | yt-dlp ausente ou não executável | Remover o sidecar ou tirar a permissão de execução. | Código **a definir no contrato v2**: hoje não há `YTDLP_INDISPONIVEL`. Até lá, aceitar `PREVIA_INDISPONIVEL` com `detalhe` indicando o executável. A mensagem sugere reinstalar. Sem panic. | [I] |
+| V3-15 | yt-dlp ausente ou não executável | `preparar-bin.mjs --sem-ytdlp` / `--ytdlp-nao-executavel` (ou remover o sidecar). Testar na prévia e no download. | `YTDLP_INDISPONIVEL` nos dois fluxos, com mensagem que sugere reinstalar. Sem panic. | [I] |
 | V3-16 | Capa | Metadados com miniatura válida, miniatura 404, miniatura > limite de tamanho, Content-Type `text/html`. | Válida: aparece como data URL. Nos demais casos: prévia sem capa (`capaDataUrl: null`) com o título mantido, sem erro global. | [I] |
 | V3-17 | Post `/p/`, carrossel e foto | Fixtures `post-video-unico`, `carrossel` e `foto`, e links reais equivalentes. | `/p/` com um único vídeo: prévia normal. Carrossel com vários itens (`_type: "playlist"`) ou foto: `CONTEUDO_NAO_SUPORTADO`. Nunca vários downloads, nem o primeiro item em silêncio. | [I] + [REAL] |
 | V3-18 | Links reais | Prévia de 3 Reels públicos e 3 TikToks públicos (incluindo um link curto `vm.tiktok.com`). | Título e capa corretos, ou erro claro coerente com o que o yt-dlp informa. Registrar quais links foram usados e a data. | [REAL] [M-SO] |

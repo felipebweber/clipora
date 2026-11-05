@@ -154,7 +154,7 @@ A coluna "Esperado no backend" é o que o Clipora deve fazer segundo o [contrato
 1. **`--print` silencia o progresso.** Sem `--progress`, não há nenhuma linha de progresso, e com ela as linhas vão para o stderr.
 2. **Arquivo existente = exit 0 com o caminho antigo.** O backend precisa escolher um nome livre antes e conferir o resultado. Exit 0 sozinho não prova nada.
 3. **FFmpeg ausente não falha.** Sem `-f`, o yt-dlp troca para um formato único e sai com 0. O backend deve conferir o FFmpeg antes de iniciar.
-4. **`--ffmpeg-location <pasta>` procura `ffmpeg`, não `clipora-ffmpeg`.** Passe o caminho do arquivo. Risco a validar com o yt-dlp real: com um arquivo de nome prefixado, o yt-dlp pode procurar o ffprobe como `<pasta>/ffprobe`, e não `clipora-ffprobe`. Se for o caso, os nomes com prefixo de `docs/distribuicao.md` precisam de ajuste, por exemplo uma pasta privada com `ffmpeg`/`ffprobe`.
+4. **`--ffmpeg-location <pasta>` procura `ffmpeg`, não `clipora-ffmpeg`.** Passe o caminho do **arquivo**. Validado pelo Estaleiro com o yt-dlp real (2026-11-05): com `--ffmpeg-location` apontando para o arquivo `clipora-ffmpeg`, o yt-dlp acha o `clipora-ffprobe` irmão pelo nome. O falso não consulta o ffprobe durante o download, então não diverge desse comportamento.
 5. **Opções proibidas** (`--exec`, `--cookies*`, `--username`/`--password`, `--netrc*`, `-U`/`--update*`, `--no-check-certificates`, `--batch-file`, `--load-info-json`, `--config-locations`) → exit 2 com "opção proibida pelo contrato do Clipora". Opções desconhecidas → exit 2.
 
 ## Registro

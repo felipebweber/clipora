@@ -98,6 +98,9 @@ descrever('yt-dlp falso: prévia e metadados', () => {
   it('post-video-unico e carrossel', async () => {
     const unico = JSON.parse((await previa('https://www.instagram.com/p/POST1/', { CLIPORA_FALSO_CENARIO: 'post-video-unico' })).stdout);
     expect(unico._type).toBe('video');
+    // previa.rs (video_unico) exige vcodec != "none" no topo ou em formats, como no -J real.
+    expect(unico.vcodec).toBe('h264');
+    expect(unico.formats.some((f) => f.vcodec !== 'none')).toBe(true);
     const carrossel = JSON.parse((await previa('https://www.instagram.com/p/POST2/', { CLIPORA_FALSO_CENARIO: 'carrossel' })).stdout);
     expect(carrossel._type).toBe('playlist');
     expect(carrossel.entries).toHaveLength(2);

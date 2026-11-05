@@ -174,6 +174,13 @@ function metadadosPadrao(alvo, url, extra = {}) {
     extractor_key: alvo.extrator,
     ext: 'mp4',
     format_id: 'v1080+a128',
+    // Como no -J real: codecs do formato escolhido no topo e a lista de formatos.
+    vcodec: 'h264',
+    acodec: 'aac',
+    formats: [
+      { format_id: 'a128', ext: 'm4a', vcodec: 'none', acodec: 'aac', filesize: 65536 },
+      { format_id: 'v1080', ext: 'mp4', vcodec: 'h264', acodec: 'none', filesize: 262144 },
+    ],
     requested_formats: [
       { format_id: 'v1080', ext: 'mp4', vcodec: 'h264', acodec: 'none', filesize: 262144 },
       { format_id: 'a128', ext: 'm4a', vcodec: 'none', acodec: 'aac', filesize: 65536 },
