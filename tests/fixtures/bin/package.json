@@ -1,0 +1,4 @@
+{
+  "//": "Os wrappers desta pasta são CommonJS (arquivos sem extensão); a lógica fica em ../lib/*.mjs.",
+  "type": "commonjs"
+}

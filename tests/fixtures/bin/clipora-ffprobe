@@ -1,0 +1,7 @@
+#!/usr/bin/env node
+// ffprobe falso do Clipora (fixture de teste). Ver tests/fixtures/README.md.
+const { join } = require('node:path');
+const { pathToFileURL } = require('node:url');
+import(pathToFileURL(join(__dirname, '..', 'lib', 'ffmpeg-falso.mjs')).href)
+  .then((m) => m.principal('ffprobe', process.argv.slice(2)))
+  .catch((e) => { process.stderr.write(`ffprobe falso: ${e && e.stack ? e.stack : e}\n`); process.exitCode = 70; });
