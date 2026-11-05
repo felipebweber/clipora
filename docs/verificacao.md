@@ -213,6 +213,13 @@ Todos os casos [I] usam o servidor HTTP local e a chave GPG de teste.
 | V6-18 | `_update_spec` | Servidor publica `_update_spec` bloqueando a versão do sistema atual. | A atualização não é oferecida além da versão permitida e há mensagem clara (`ATUALIZACAO_NAO_SUPORTADA`). | [I] |
 | V6-19 | Rollback após reinício | Simular uma cópia atualizada corrompida em disco e reabrir. | O app detecta a falha (`--version`), volta para a anterior ou a empacotada e informa. | [I] |
 | V6-20 | Particularidades por sistema | macOS: binário atualizado executa sem bloqueio do Gatekeeper/quarentena, com o app assinado e notarizado. Windows: SmartScreen/Defender não bloqueia, ou o bloqueio é documentado. Linux: AppImage (pacote somente leitura) e `.deb` atualizam em `app_local_data_dir`. | O mecanismo funciona em cada pacote, ou a limitação está documentada e resolvida antes de declarar a funcionalidade pronta naquele sistema (plano, etapa 6). | [M-SO] |
+| V6-21 | App atualizado traz yt-dlp mais novo | Cópia em `app_local_data_dir()/bin/yt-dlp` na versão X. Instalar uma versão do Clipora que embute X+1. | A prévia e o download usam X+1, a mais nova entre a atualizada e a embutida. `verificar_ytdlp` informa X+1 e a origem correta. | [I] |
+| V6-22 | Reinstalar versão corrompida | A versão Y em `bin/yt-dlp/Y/` está corrompida (arquivo alterado ou removido por antivírus) e `atual` aponta para Y. Clicar Atualizar para Y. | A atualização substitui a cópia corrompida e conclui. Não falha para sempre com "versão existente difere". | [I] |
+| V6-23 | Conexão lenta | Limitar a banda para ~1 Mbit/s e atualizar (zip de dezenas de MB). | Conclui. Não aborta por tempo total fixo enquanto houver progresso. Há percentual, ou indeterminado com etapa. | [I] + [M-SO] |
+| V6-24 | Arquivo estranho na pasta da versão | Criar `.DS_Store`/`Thumbs.db` ou `__pycache__` em `bin/yt-dlp/<versao>/` e reabrir. | Comportamento definido e documentado: ignorado, ou cópia rejeitada com aviso. Nunca uma volta silenciosa para a embutida sem registro. | [I] |
+| V6-25 | Validação pós-ativação | Após `atualizar_ytdlp` retornar sucesso. | `resolver_atual` resolve para a versão instalada. O sucesso só é retornado se o caminho de execução real aceitar a cópia. | [I] |
+| V6-26 | Custo da validação | Com a cópia atualizada ativa (~120 MB, ~135 arquivos), medir o tempo de `obter_previa` em release, Windows com Defender. | A validação de hash não roda a cada chamada (cache por versão/mtime), nem bloqueia a thread do runtime assíncrono. | [I] |
+| V6-27 | Duas instâncias | Abrir duas janelas/instâncias do app. Atualizar numa e baixar ou prever na outra. | Instância única, ou a exclusão vale entre processos. A coleta de uma não apaga a versão em uso pela outra. | [M-SO] |
 
 ---
 
@@ -232,6 +239,10 @@ Executar em cada combinação da matriz, **em máquina ou VM limpa**, sem Rust/N
 | V7-08 | Licenças e avisos | Abrir o pacote instalado e a tela "Sobre" ou "Licenças". | Textos de licença do yt-dlp (GPLv3+, com oferta ou link do código-fonte) e do FFmpeg (LGPL, com instruções de substituição), conforme [licencas.md](licencas.md). | [M-SO] |
 | V7-09 | Desinstalar | Desinstalar. | O app sai do sistema. Os vídeos baixados ficam intactos. Documentar o que fica em `app_local_data_dir`. | [M-SO] |
 | V7-10 | CSP e capabilities no pacote | VT-01 a VT-05 no build de release. | Iguais ao desenvolvimento. O devtools fica desabilitado no release. | [M-SO] |
+| V7-11 | Avisos de licença dentro do pacote | Listar o conteúdo de cada pacote (`.app`, NSIS/MSI via `7z l`, `.deb`/`.rpm`/AppImage). | `THIRD_PARTY_LICENSES.txt` e `licencas.json` estão presentes no pacote, e não só como artefato do CI. | [M-SO] (scriptável) |
+| V7-12 | Somente o necessário | Comparar a lista de arquivos do pacote com uma lista permitida. | Sem `ffmpeg-build-info` solto fora de licenças, sem `clipora-yt-dlp-<triple>` onefile, sem `.antigo`/`.novo`, sem arquivos fora do manifesto em `yt-dlp/`. | [M-SO] (scriptável) |
+| V7-13 | Versão mínima do sistema | `otool -l clipora-ffmpeg \| grep -A3 LC_BUILD_VERSION` e `Info.plist` `LSMinimumSystemVersion`. | A versão mínima declarada pelo app é ≥ a dos sidecars (FFmpeg compilado com 11.0). | [M-SO] (macOS) |
+| V7-14 | CI executado de fato | Rodar o workflow no repositório remoto (PR de fork e push de tag). | Todas as 12 tarefas passam, incluindo `windows-11-arm`/`ubuntu-22.04-arm`. Num PR de fork, nenhuma etapa de assinatura roda. | [M] |
 
 ---
 
