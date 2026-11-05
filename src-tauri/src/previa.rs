@@ -20,7 +20,7 @@ impl ControlePrevia {
         Ok(rx)
     }
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ErroClipora {
     pub codigo: String,

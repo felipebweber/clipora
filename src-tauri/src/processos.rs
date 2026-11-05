@@ -30,7 +30,7 @@ pub struct Resultado {
 
 // O grupo é encerrado também ao abandonar a future ou sair do aplicativo.
 #[cfg(unix)]
-struct Grupo(u32);
+pub(crate) struct Grupo(pub(crate) u32);
 #[cfg(unix)]
 impl Drop for Grupo {
     fn drop(&mut self) {
@@ -41,10 +41,10 @@ impl Drop for Grupo {
 }
 
 #[cfg(windows)]
-struct GrupoWindows(isize);
+pub(crate) struct GrupoWindows(isize);
 #[cfg(windows)]
 impl GrupoWindows {
-    fn novo(child: &tokio::process::Child) -> Result<Self, &'static str> {
+    pub(crate) fn novo(child: &tokio::process::Child) -> Result<Self, &'static str> {
         use windows_sys::Win32::{
             Foundation::CloseHandle,
             System::JobObjects::{
