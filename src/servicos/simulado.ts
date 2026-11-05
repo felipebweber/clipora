@@ -1,4 +1,5 @@
 import type {
+  CodigoErro,
   EstadoPersistido,
   EtapaDownload,
   EventoAtualizacao,
@@ -31,6 +32,11 @@ import type { ServicoClipora } from "./tipos";
  * Para o download, iniciar_download aceita a mesma URL e reconhece:
  *   - contém "falha-download"    -> termina com erro DOWNLOAD_FALHOU
  *   - contém "indeterminado"     -> progresso sem percentual (barra indeterminada) antes de ficar determinado
+ *
+ * Atualização do yt-dlp: `verificacaoYtdlpInicial` controla se há versão
+ * nova; `falhaAtualizacao` faz `atualizar_ytdlp` rejeitar com o código dado.
+ * Como no backend real, download/prévia e atualização se excluem
+ * (ATUALIZACAO_EM_ANDAMENTO / DOWNLOAD_EM_ANDAMENTO).
  */
 export class ServicoCliporaSimulado implements ServicoClipora {
   private readonly atrasoPreviaMs: number;
@@ -53,6 +59,9 @@ export class ServicoCliporaSimulado implements ServicoClipora {
     { caminho: string; nomeArquivo: string }
   >();
 
+  private atualizando = false;
+  private readonly falhaAtualizacao: CodigoErro | null;
+
   private verificacaoYtdlp: VerificacaoYtdlp = {
     versaoAtual: "2024.08.06",
     versaoDisponivel: null,
@@ -68,6 +77,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
       atrasoPassoDownloadMs?: number;
       pastaInicial?: PastaDestino;
       verificacaoYtdlpInicial?: VerificacaoYtdlp;
+      falhaAtualizacao?: CodigoErro;
     } = {},
   ) {
     this.atrasoPreviaMs = opcoes.atrasoPreviaMs ?? 400;
@@ -75,6 +85,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
     this.atrasoPassoDownloadMs = opcoes.atrasoPassoDownloadMs ?? 250;
     if (opcoes.pastaInicial) this.pastaAtual = opcoes.pastaInicial;
     if (opcoes.verificacaoYtdlpInicial) this.verificacaoYtdlp = opcoes.verificacaoYtdlpInicial;
+    this.falhaAtualizacao = opcoes.falhaAtualizacao ?? null;
   }
 
   async obter_previa({
@@ -84,6 +95,12 @@ export class ServicoCliporaSimulado implements ServicoClipora {
     url: string;
     requisicaoId: number;
   }): Promise<Previa> {
+    if (this.atualizando) {
+      throw {
+        codigo: "ATUALIZACAO_EM_ANDAMENTO",
+        mensagem: "an update is running",
+      } satisfies ErroClipora;
+    }
     // Nova prévia cancela a anterior, que rejeita com PREVIA_CANCELADA.
     if (this.previaEmAndamento) {
       this.previaEmAndamento.cancelar({
@@ -157,8 +174,8 @@ export class ServicoCliporaSimulado implements ServicoClipora {
       duracaoSegundos: 17.5,
       capaDataUrl: semCapa
         ? null
-        : "data:image/svg+xml;base64," +
-          btoa('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'),
+        : // PNG 1×1 (o backend só devolve data URLs de imagem raster).
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
     };
   }
 
@@ -171,6 +188,12 @@ export class ServicoCliporaSimulado implements ServicoClipora {
     url: string;
     onEvento: (evento: EventoDownload) => void;
   }): Promise<void> {
+    if (this.atualizando) {
+      throw {
+        codigo: "ATUALIZACAO_EM_ANDAMENTO",
+        mensagem: "an update is running",
+      } satisfies ErroClipora;
+    }
     if (this.pastaAtual.estado !== "valida") {
       const codigo =
         this.pastaAtual.estado === "nao_definida"
@@ -239,7 +262,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
   async obter_estado(): Promise<EstadoPersistido> {
     return {
       download: this.downloadAtivo,
-      atualizacaoEmAndamento: false,
+      atualizacaoEmAndamento: this.atualizando,
     };
   }
 
@@ -276,13 +299,39 @@ export class ServicoCliporaSimulado implements ServicoClipora {
     versaoEsperada: string;
     onEvento: (evento: EventoAtualizacao) => void;
   }): Promise<ResultadoAtualizacao> {
-    for (const [etapa, percentual] of [
-      ["baixando", 30],
-      ["verificando", 70],
-      ["instalando", 100],
-    ] as const) {
-      await this.esperar(this.atrasoPassoDownloadMs);
-      onEvento({ tipo: "progresso", etapa, percentual });
+    if (this.downloadAtivo) {
+      throw {
+        codigo: "DOWNLOAD_EM_ANDAMENTO",
+        mensagem: "a download is running",
+      } satisfies ErroClipora;
+    }
+    if (this.atualizando) {
+      throw {
+        codigo: "ATUALIZACAO_EM_ANDAMENTO",
+        mensagem: "an update is already running",
+      } satisfies ErroClipora;
+    }
+    this.atualizando = true;
+    try {
+      // Mesmas etapas que o backend real envia (src-tauri/src/instalacao.rs).
+      for (const [etapa, percentual] of [
+        ["verificando", null],
+        ["baixando", null],
+        ["verificando_integridade", null],
+        ["instalando", null],
+      ] as const) {
+        await this.esperar(this.atrasoPassoDownloadMs);
+        if (this.falhaAtualizacao && etapa === "verificando_integridade") {
+          throw {
+            codigo: this.falhaAtualizacao,
+            mensagem: "simulated update failure",
+          } satisfies ErroClipora;
+        }
+        onEvento({ tipo: "progresso", etapa, percentual });
+      }
+      onEvento({ tipo: "progresso", etapa: "concluido", percentual: 100 });
+    } finally {
+      this.atualizando = false;
     }
     this.verificacaoYtdlp = {
       ...this.verificacaoYtdlp,

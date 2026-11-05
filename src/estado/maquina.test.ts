@@ -237,6 +237,95 @@ describe("cancelamento do diálogo de pasta", () => {
   });
 });
 
+describe("recuperação de estado via obter_estado() ao abrir o app", () => {
+  it("estado_recuperado com prévia leva direto a 'baixando' e aceita eventos normalmente", () => {
+    const previa = previaFalsa(1);
+    let estado: EstadoApp = reduzir(estadoInicial, {
+      tipo: "estado_recuperado",
+      downloadId: "d1",
+      etapa: "baixando_video",
+      percentual: 40,
+      previa,
+    });
+    expect(estado).toEqual({
+      tipo: "baixando",
+      previa,
+      downloadId: "d1",
+      progresso: { etapa: "baixando_video", percentual: 40 },
+      recuperado: true,
+    });
+
+    estado = reduzir(estado, {
+      tipo: "download_concluido",
+      downloadId: "d1",
+      caminho: "/tmp/v.mp4",
+      nomeArquivo: "v.mp4",
+      renomeado: false,
+    });
+    expect(estado).toMatchObject({ tipo: "concluido", previa });
+  });
+
+  it("estado_recuperado sem prévia (contrato ainda não a envia) não quebra: fica em 'baixando' com previa null", () => {
+    const estado = reduzir(estadoInicial, {
+      tipo: "estado_recuperado",
+      downloadId: "d1",
+      etapa: "unindo",
+      percentual: 80,
+      previa: null,
+    });
+    expect(estado).toEqual({
+      tipo: "baixando",
+      previa: null,
+      downloadId: "d1",
+      progresso: { etapa: "unindo", percentual: 80 },
+      recuperado: true,
+    });
+
+    // Eventos de progresso/conclusão continuam funcionando normalmente.
+    const concluido = reduzir(estado, {
+      tipo: "download_concluido",
+      downloadId: "d1",
+      caminho: "/tmp/v.mp4",
+      nomeArquivo: "v.mp4",
+      renomeado: false,
+    });
+    expect(concluido).toEqual({
+      tipo: "concluido",
+      previa: null,
+      downloadId: "d1",
+      resultado: { caminho: "/tmp/v.mp4", nomeArquivo: "v.mp4", renomeado: false },
+    });
+  });
+
+  it("estado_recuperado é ignorado se o usuário já começou a interagir", () => {
+    const carregando = reduzir(estadoInicial, {
+      tipo: "previa_solicitada",
+      requisicaoId: 1,
+      url: "https://x",
+    });
+    const depois = reduzir(carregando, {
+      tipo: "estado_recuperado",
+      downloadId: "d1",
+      etapa: "preparando",
+      percentual: null,
+      previa: null,
+    });
+    expect(depois).toEqual(carregando);
+  });
+
+  it("download_cancelado a partir de um download recuperado sem prévia volta para aguardando_link (defensivo)", () => {
+    const recuperado: EstadoApp = {
+      tipo: "baixando",
+      previa: null,
+      downloadId: "d1",
+      progresso: { etapa: "preparando", percentual: null },
+    };
+    expect(reduzir(recuperado, { tipo: "download_cancelado", downloadId: "d1" })).toEqual({
+      tipo: "aguardando_link",
+    });
+  });
+});
+
 describe("erros e recuperação", () => {
   it("falha de prévia com requisicaoId atual vai para erro sem prévia associada", () => {
     const carregando = reduzir(estadoInicial, {
@@ -292,5 +381,83 @@ describe("erros e recuperação", () => {
       previa: null,
     };
     expect(reduzir(erro, { tipo: "link_limpo" })).toEqual({ tipo: "aguardando_link" });
+  });
+});
+
+describe("edição do link invalida a prévia imediatamente (corrida debounce + Baixar)", () => {
+  it("link_editado a partir de 'pronto' descarta a prévia e bloqueia o download", () => {
+    const pronto: EstadoApp = { tipo: "pronto", previa: previaFalsa(1) };
+    const depois = reduzir(pronto, { tipo: "link_editado" });
+    expect(depois).toEqual({ tipo: "aguardando_link" });
+    expect(podeSolicitarDownload(depois)).toBe(false);
+  });
+
+  it("link_editado durante carregando_previa faz a resposta antiga ser descartada", () => {
+    let estado = reduzir(estadoInicial, { tipo: "previa_solicitada", requisicaoId: 1, url: "https://a" });
+    estado = reduzir(estado, { tipo: "link_editado" });
+    estado = reduzir(estado, { tipo: "previa_recebida", requisicaoId: 1, previa: previaFalsa(1) });
+    expect(estado).toEqual({ tipo: "aguardando_link" });
+  });
+
+  it("link_editado é ignorado durante um download", () => {
+    const baixando: EstadoApp = {
+      tipo: "baixando",
+      previa: previaFalsa(1),
+      downloadId: "d1",
+      progresso: { etapa: "preparando", percentual: null },
+    };
+    expect(reduzir(baixando, { tipo: "link_editado" })).toBe(baixando);
+  });
+});
+
+describe("tentar novamente após erro de download", () => {
+  it("download_iniciado a partir do erro de download com prévia volta a baixar a mesma prévia", () => {
+    const previa = previaFalsa(1);
+    const erro: EstadoApp = {
+      tipo: "erro",
+      erro: { codigo: "DOWNLOAD_FALHOU", mensagem: "x" },
+      origem: "download",
+      previa,
+    };
+    expect(reduzir(erro, { tipo: "download_iniciado", downloadId: "d2" })).toEqual({
+      tipo: "baixando",
+      previa,
+      downloadId: "d2",
+      progresso: { etapa: "preparando", percentual: null },
+    });
+  });
+
+  it("download_iniciado a partir de um erro de prévia é ignorado", () => {
+    const erro: EstadoApp = {
+      tipo: "erro",
+      erro: { codigo: "SEM_CONEXAO", mensagem: "x" },
+      origem: "previa",
+      previa: null,
+    };
+    expect(reduzir(erro, { tipo: "download_iniciado", downloadId: "d2" })).toBe(erro);
+  });
+});
+
+describe("encerramento de download recuperado", () => {
+  const recuperado: EstadoApp = {
+    tipo: "baixando",
+    previa: null,
+    downloadId: "d1",
+    progresso: { etapa: "unindo", percentual: 80 },
+    recuperado: true,
+  };
+
+  it("volta para aguardando_link quando o download recuperado some de obter_estado()", () => {
+    expect(reduzir(recuperado, { tipo: "download_recuperado_encerrado", downloadId: "d1" })).toEqual({
+      tipo: "aguardando_link",
+    });
+  });
+
+  it("é ignorado para outro downloadId ou para um download normal (não recuperado)", () => {
+    expect(reduzir(recuperado, { tipo: "download_recuperado_encerrado", downloadId: "d2" })).toBe(
+      recuperado,
+    );
+    const normal: EstadoApp = { ...recuperado, recuperado: undefined, previa: previaFalsa(1) };
+    expect(reduzir(normal, { tipo: "download_recuperado_encerrado", downloadId: "d1" })).toBe(normal);
   });
 });

@@ -1,5 +1,6 @@
 /**
- * Tipos espelhados de docs/contrato-ipc.md (v2, commit 119b563).
+ * Tipos espelhados de docs/contrato-ipc.md (v2, revisão pós-commit 6be9e6b:
+ * +YTDLP_INDISPONIVEL, regra "a última chamada vence" para requisicaoId).
  *
  * Fonte de verdade: o contrato pertence ao Ferrugem (backend). Este arquivo
  * NUNCA deve ser editado para "corrigir" o contrato — qualquer divergência
@@ -34,7 +35,49 @@ export type CodigoErro =
   | "ATUALIZACAO_INTEGRIDADE"
   | "ATUALIZACAO_NAO_SUPORTADA"
   | "ATUALIZACAO_FALHOU"
+  | "YTDLP_INDISPONIVEL"
   | "ERRO_INTERNO";
+
+/** Lista em runtime dos códigos válidos, usada para validar erros vindos do
+ * Rust via `invoke()` (podem chegar malformados em casos extremos).
+ * `satisfies` garante que só há códigos válidos; a checagem
+ * `_CodigosFaltando` abaixo garante que nenhum código da união ficou de fora. */
+export const CODIGOS_ERRO = [
+  "LINK_INVALIDO",
+  "PLATAFORMA_NAO_SUPORTADA",
+  "PREVIA_CANCELADA",
+  "TEMPO_ESGOTADO",
+  "SEM_CONEXAO",
+  "LOGIN_NECESSARIO",
+  "CONTEUDO_PRIVADO_OU_REMOVIDO",
+  "LIMITE_DE_ACESSO",
+  "CONTEUDO_NAO_SUPORTADO",
+  "PREVIA_INDISPONIVEL",
+  "PASTA_NAO_DEFINIDA",
+  "PASTA_AUSENTE",
+  "PASTA_SEM_PERMISSAO",
+  "ESPACO_INSUFICIENTE",
+  "FFMPEG_INDISPONIVEL",
+  "ARQUIVO_INCOMPLETO",
+  "DOWNLOAD_EM_ANDAMENTO",
+  "DOWNLOAD_FALHOU",
+  "ATUALIZACAO_EM_ANDAMENTO",
+  "ATUALIZACAO_INTEGRIDADE",
+  "ATUALIZACAO_NAO_SUPORTADA",
+  "ATUALIZACAO_FALHOU",
+  "YTDLP_INDISPONIVEL",
+  "ERRO_INTERNO",
+] as const satisfies readonly CodigoErro[];
+
+/** Falha a compilação se algum membro de `CodigoErro` não estiver em
+ * `CODIGOS_ERRO` (ex.: o contrato ganhou um código novo). */
+type _CodigosFaltando = Exclude<CodigoErro, (typeof CODIGOS_ERRO)[number]>;
+const _completude: [_CodigosFaltando] extends [never] ? true : _CodigosFaltando = true;
+void _completude;
+
+export function ehCodigoErro(valor: unknown): valor is CodigoErro {
+  return typeof valor === "string" && (CODIGOS_ERRO as readonly string[]).includes(valor);
+}
 
 /**
  * `mensagem` é o fallback em inglês/técnico enviado pelo Rust; o frontend é
@@ -77,10 +120,18 @@ export type EventoDownload =
   | { tipo: "concluido"; caminho: string; nomeArquivo: string; renomeado: boolean }
   | { tipo: "erro"; erro: ErroClipora };
 
+/**
+ * `previa` ainda não existe na versão atual do contrato (o Ferrugem vai
+ * estendê-lo para `previa: Previa | null`, permitindo reconstruir a tela
+ * "baixando" após recarregar o webview). Até lá, é tratada como opcional —
+ * o frontend cai num estado de recuperação sem prévia (ver
+ * src/estado/maquina.ts, ação `estado_recuperado`).
+ */
 export type EstadoDownloadAtivo = {
   downloadId: string;
   percentual: number | null;
   etapa: EtapaDownload;
+  previa?: Previa | null;
 };
 
 /** Retorno de `obter_estado()` — renomeado de `Estado` (ver nota acima). */

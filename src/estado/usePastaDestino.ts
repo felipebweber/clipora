@@ -1,47 +1,57 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { normalizarErro } from "../erros/normalizar";
 import { servico as servicoPadrao } from "../servicos";
 import type { ServicoClipora } from "../servicos/tipos";
 import type { ErroClipora, PastaDestino } from "../tipos/contrato";
 
 /**
- * Hook independente para o painel de configurações: carrega a pasta de
- * destino atual e permite alterá-la. É deliberadamente separado da máquina
- * de estados principal (src/estado/maquina.ts) — a troca de pasta pelas
- * configurações não interfere no fluxo de link/prévia/download, e o fluxo
- * de download trata PASTA_NAO_DEFINIDA/PASTA_AUSENTE/PASTA_SEM_PERMISSAO
- * chamando `selecionar_pasta_destino` por conta própria (ver useClipora).
+ * Fonte única da pasta de destino exibida na interface. É usada pelo
+ * painel de configurações e recarregada pelo fluxo de download (via
+ * `recarregar`) sempre que ele faz o usuário escolher uma nova pasta — o
+ * valor exibido sempre vem de `obter_pasta_destino()`, nunca é presumido.
  */
 export function usePastaDestino(servicoClipora: ServicoClipora = servicoPadrao) {
   const [pasta, setPasta] = useState<PastaDestino | null>(null);
   const [erro, setErro] = useState<ErroClipora | null>(null);
-  const montado = useRef(true);
+  const [selecionando, setSelecionando] = useState(false);
+  const montado = useRef(false);
 
   useEffect(() => {
     montado.current = true;
-    servicoClipora.obter_pasta_destino().then(
-      (p) => {
-        if (montado.current) setPasta(p);
-      },
-      (e: ErroClipora) => {
-        if (montado.current) setErro(e);
-      },
-    );
     return () => {
       montado.current = false;
     };
-  }, [servicoClipora]);
+  }, []);
 
-  const alterar = useCallback(async () => {
+  const recarregar = useCallback(async () => {
     try {
-      const caminho = await servicoClipora.selecionar_pasta_destino();
-      if (caminho !== null && montado.current) {
-        setPasta({ caminho, estado: "valida" });
-        setErro(null);
-      }
+      const p = await servicoClipora.obter_pasta_destino();
+      if (montado.current) setPasta(p);
     } catch (e) {
-      if (montado.current) setErro(e as ErroClipora);
+      if (montado.current) setErro(normalizarErro(e));
     }
   }, [servicoClipora]);
 
-  return { pasta, erro, alterar };
+  useEffect(() => {
+    void recarregar();
+  }, [recarregar]);
+
+  const alterar = useCallback(async () => {
+    setSelecionando(true);
+    try {
+      const caminho = await servicoClipora.selecionar_pasta_destino();
+      if (caminho !== null && montado.current) {
+        setErro(null);
+        await recarregar();
+      }
+    } catch (e) {
+      if (montado.current) setErro(normalizarErro(e));
+    } finally {
+      if (montado.current) setSelecionando(false);
+    }
+  }, [servicoClipora, recarregar]);
+
+  return { pasta, erro, selecionando, alterar, recarregar };
 }
+
+export type UsePastaDestinoRetorno = ReturnType<typeof usePastaDestino>;

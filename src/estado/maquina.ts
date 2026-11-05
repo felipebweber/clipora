@@ -3,8 +3,9 @@ import type { EtapaDownload, ErroClipora, Previa } from "../tipos/contrato";
 /**
  * Máquina de estados da tela principal do Clipora.
  *
- * Estados impossíveis são evitados pelo tipo: por exemplo, não existe um
- * estado "baixando" sem uma `previa` associada. Toda transição passa pela
+ * Estados impossíveis são evitados pelo tipo sempre que possível (a única
+ * exceção é um download recuperado após recarregar a janela, que pode não
+ * ter prévia — ver `estado_recuperado`). Toda transição passa pela
  * função pura `reduzir`, que ignora ações incompatíveis com o estado atual
  * em vez de lançar erro — isso é o que garante, por exemplo, que uma
  * resposta atrasada de prévia (`requisicaoId` antigo) nunca sobrescreva o
@@ -32,13 +33,20 @@ export type EstadoApp =
   | { tipo: "pronto"; previa: Previa }
   | {
       tipo: "baixando";
-      previa: Previa;
+      // `null` apenas no caso de download recuperado via `obter_estado()`
+      // após recarregar o webview, antes do contrato passar a ecoar a
+      // prévia nesse retorno (ver ação `estado_recuperado`).
+      previa: Previa | null;
       downloadId: string;
       progresso: ProgressoDownload;
+      /** Download iniciado antes de recarregar a janela: o canal de eventos
+       * original se perdeu, então o progresso vem de consultas periódicas a
+       * `obter_estado()` (ver useClipora). */
+      recuperado?: true;
     }
   | {
       tipo: "concluido";
-      previa: Previa;
+      previa: Previa | null;
       downloadId: string;
       resultado: ResultadoDownload;
     }
@@ -46,6 +54,7 @@ export type EstadoApp =
 
 export type AcaoApp =
   | { tipo: "link_limpo" }
+  | { tipo: "link_editado" }
   | { tipo: "previa_solicitada"; requisicaoId: number; url: string }
   | { tipo: "previa_recebida"; requisicaoId: number; previa: Previa }
   | { tipo: "previa_falhou"; requisicaoId: number; erro: ErroClipora }
@@ -67,15 +76,27 @@ export type AcaoApp =
     }
   | { tipo: "download_erro"; downloadId: string; erro: ErroClipora }
   | { tipo: "download_cancelado"; downloadId: string }
-  | { tipo: "erro_reconhecido" };
+  | { tipo: "erro_reconhecido" }
+  | {
+      tipo: "estado_recuperado";
+      downloadId: string;
+      etapa: EtapaDownload;
+      percentual: number | null;
+      previa: Previa | null;
+    }
+  | { tipo: "download_recuperado_encerrado"; downloadId: string };
 
 export const estadoInicial: EstadoApp = { tipo: "aguardando_link" };
 
 export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
   switch (acao.tipo) {
-    case "link_limpo": {
+    case "link_limpo":
+    case "link_editado": {
       // Não se pode trocar/limpar o link durante um download em curso.
       if (estado.tipo === "baixando") return estado;
+      // Qualquer edição invalida imediatamente a prévia exibida (e descarta
+      // uma prévia em carregamento): durante o debounce o botão Baixar não
+      // pode continuar apontando para o vídeo do link anterior.
       return { tipo: "aguardando_link" };
     }
 
@@ -108,11 +129,17 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
     }
 
     case "download_iniciado": {
-      // Só é possível iniciar download a partir de uma prévia pronta.
-      if (estado.tipo !== "pronto") return estado;
+      // Só é possível iniciar download a partir de uma prévia pronta — ou
+      // do erro de um download anterior dessa mesma prévia ("Tentar
+      // novamente").
+      let previa: Previa;
+      if (estado.tipo === "pronto") previa = estado.previa;
+      else if (estado.tipo === "erro" && estado.origem === "download" && estado.previa)
+        previa = estado.previa;
+      else return estado;
       return {
         tipo: "baixando",
-        previa: estado.previa,
+        previa,
         downloadId: acao.downloadId,
         progresso: { etapa: "preparando", percentual: null },
       };
@@ -160,7 +187,33 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
       // iniciar o download, mantendo a prévia.
       if (estado.tipo !== "baixando") return estado;
       if (estado.downloadId !== acao.downloadId) return estado;
+      // Defensivo: na prática só se chega aqui a partir de um download
+      // iniciado pelo usuário (sempre com prévia); se algum dia um download
+      // recuperado sem prévia (ver `estado_recuperado`) passar pelo fluxo de
+      // pasta, não há prévia para voltar a "pronto" — melhor reiniciar.
+      if (!estado.previa) return { tipo: "aguardando_link" };
       return { tipo: "pronto", previa: estado.previa };
+    }
+
+    case "estado_recuperado": {
+      // Só faz sentido logo na abertura do app, antes de qualquer interação
+      // do usuário com o campo de link.
+      if (estado.tipo !== "aguardando_link") return estado;
+      return {
+        tipo: "baixando",
+        previa: acao.previa,
+        downloadId: acao.downloadId,
+        progresso: { etapa: acao.etapa, percentual: acao.percentual },
+        recuperado: true,
+      };
+    }
+
+    case "download_recuperado_encerrado": {
+      // O download recuperado sumiu de `obter_estado()`: terminou (com
+      // sucesso ou erro) sem que pudéssemos receber o evento terminal.
+      if (estado.tipo !== "baixando" || !estado.recuperado) return estado;
+      if (estado.downloadId !== acao.downloadId) return estado;
+      return { tipo: "aguardando_link" };
     }
 
     case "erro_reconhecido": {

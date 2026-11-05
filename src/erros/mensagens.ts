@@ -30,15 +30,31 @@ export const MENSAGENS_ERRO: Record<CodigoErro, string> = {
   ATUALIZACAO_INTEGRIDADE: "A atualização não pôde ser verificada com segurança e foi cancelada.",
   ATUALIZACAO_NAO_SUPORTADA: "A atualização não é suportada neste sistema.",
   ATUALIZACAO_FALHOU: "A atualização falhou. A versão anterior continua em uso.",
+  YTDLP_INDISPONIVEL:
+    "O componente necessário para obter o vídeo está indisponível. Reinstale o Clipora ou atualize o yt-dlp quando o aviso de nova versão aparecer.",
   ERRO_INTERNO: "Ocorreu um erro interno inesperado.",
 };
 
 /** Sugestões complementares exibidas junto de alguns erros (ex.: extrator
  * falhou -> sugerir atualizar o yt-dlp, conforme o contrato). */
 const SUGESTAO_ADICIONAL: Partial<Record<CodigoErro, string>> = {
-  PREVIA_INDISPONIVEL: "Se o problema continuar, verifique se há uma atualização do yt-dlp disponível nas configurações.",
-  DOWNLOAD_FALHOU: "Se o problema continuar, verifique se há uma atualização do yt-dlp disponível nas configurações.",
+  PREVIA_INDISPONIVEL: "Se o problema continuar, atualize o yt-dlp quando o aviso de nova versão aparecer.",
+  DOWNLOAD_FALHOU: "Se o problema continuar, atualize o yt-dlp quando o aviso de nova versão aparecer.",
 };
+
+/** Erros de prévia em que repetir a mesma requisição não adianta (o link ou
+ * o conteúdo é o problema). Os demais oferecem "Tentar novamente". */
+const PREVIA_SEM_NOVA_TENTATIVA: ReadonlySet<CodigoErro> = new Set<CodigoErro>([
+  "LINK_INVALIDO",
+  "PLATAFORMA_NAO_SUPORTADA",
+  "LOGIN_NECESSARIO",
+  "CONTEUDO_PRIVADO_OU_REMOVIDO",
+  "CONTEUDO_NAO_SUPORTADO",
+]);
+
+export function permiteNovaTentativa(erro: ErroClipora, origem: "previa" | "download"): boolean {
+  return origem === "download" || !PREVIA_SEM_NOVA_TENTATIVA.has(erro.codigo);
+}
 
 export function mensagemDoErro(erro: ErroClipora): string {
   return MENSAGENS_ERRO[erro.codigo] ?? erro.mensagem;

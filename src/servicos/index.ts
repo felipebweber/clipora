@@ -1,15 +1,19 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { ServicoCliporaSimulado } from "./simulado";
+import { ServicoCliporaTauri } from "./tauri";
 import type { ServicoClipora } from "./tipos";
 
 export type { ServicoClipora } from "./tipos";
 export { ServicoCliporaSimulado } from "./simulado";
+export { ServicoCliporaTauri } from "./tauri";
 
 /**
- * PONTO DE TROCA único entre a implementação simulada (etapa 2) e a real
- * via @tauri-apps/api (etapas 3–5). Quando a implementação real existir
- * (ex. `./tauri.ts`, chamando `invoke()` e criando um `Channel` real por
- * trás do callback `onEvento`), troque a linha abaixo — nenhum outro
- * arquivo (reducer, hooks, componentes) precisa mudar, pois todos
- * dependem apenas do tipo `ServicoClipora`.
+ * PONTO DE TROCA único entre a implementação real (dentro da janela do
+ * Tauri) e a simulada (navegador comum via `pnpm dev` e testes em jsdom).
+ * Reducer, hooks e componentes dependem apenas do tipo `ServicoClipora`.
  */
-export const servico: ServicoClipora = new ServicoCliporaSimulado();
+export function criarServico(): ServicoClipora {
+  return isTauri() ? new ServicoCliporaTauri() : new ServicoCliporaSimulado();
+}
+
+export const servico: ServicoClipora = criarServico();

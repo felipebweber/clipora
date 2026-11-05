@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ServicoCliporaSimulado } from "../servicos/simulado";
 import type { ServicoClipora } from "../servicos/tipos";
 import type { EventoDownload, Previa } from "../tipos/contrato";
-import { useClipora } from "./useClipora";
+import { AVISO_DOWNLOAD_RECUPERADO_ENCERRADO, useClipora } from "./useClipora";
 
 function previaFalsa(requisicaoId: number, overrides: Partial<Previa> = {}): Previa {
   return {
@@ -29,7 +29,7 @@ function criarServicoControlavel() {
       });
     }),
     iniciar_download: vi.fn(),
-    obter_estado: vi.fn(),
+    obter_estado: vi.fn().mockResolvedValue({ download: null, atualizacaoEmAndamento: false }),
     abrir_pasta_download: vi.fn().mockResolvedValue(undefined),
     obter_pasta_destino: vi.fn(),
     selecionar_pasta_destino: vi.fn(),
@@ -230,5 +230,251 @@ describe("useClipora: abrir pasta", () => {
     const { result } = renderHook(() => useClipora(servico));
     act(() => result.current.abrirPasta());
     expect(servico.abrir_pasta_download).not.toHaveBeenCalled();
+  });
+});
+
+/** Leva o hook até "pronto" com a prévia dada (serviço controlável). */
+async function chegarEmPronto(
+  servico: ServicoClipora,
+  url = "https://www.instagram.com/reel/abc/",
+) {
+  vi.mocked(servico.obter_previa).mockResolvedValue(previaFalsa(1, { urlOriginal: url, urlNormalizada: url }));
+  const aoAlterarPasta = vi.fn();
+  const hook = renderHook(() => useClipora(servico, { aoAlterarPasta }));
+  await act(async () => {
+    hook.result.current.aoAlterarLink(url);
+  });
+  await waitFor(() => expect(hook.result.current.estado.tipo).toBe("pronto"), { timeout: 2000 });
+  return { ...hook, aoAlterarPasta };
+}
+
+describe("useClipora: falhas no fluxo de pasta (H2)", () => {
+  it("selecionar_pasta_destino rejeitando vira erro de download (sem ficar preso em 'baixando')", async () => {
+    const { servico } = criarServicoControlavel();
+    vi.mocked(servico.iniciar_download).mockRejectedValue({ codigo: "PASTA_NAO_DEFINIDA", mensagem: "x" });
+    vi.mocked(servico.selecionar_pasta_destino).mockRejectedValue("dialog plugin crashed");
+    const { result } = await chegarEmPronto(servico);
+
+    await act(async () => {
+      result.current.baixar();
+    });
+
+    await waitFor(() => expect(result.current.estado.tipo).toBe("erro"));
+    expect(result.current.estado).toMatchObject({
+      tipo: "erro",
+      origem: "download",
+      erro: { codigo: "ERRO_INTERNO", mensagem: "dialog plugin crashed" },
+    });
+  });
+
+  it("repete o download no máximo uma vez após escolher a pasta e avisa a fonte da pasta", async () => {
+    const { servico } = criarServicoControlavel();
+    vi.mocked(servico.iniciar_download).mockRejectedValue({ codigo: "PASTA_SEM_PERMISSAO", mensagem: "x" });
+    vi.mocked(servico.selecionar_pasta_destino).mockResolvedValue("/outra");
+    const { result, aoAlterarPasta } = await chegarEmPronto(servico);
+
+    await act(async () => {
+      result.current.baixar();
+    });
+
+    await waitFor(() => expect(result.current.estado.tipo).toBe("erro"));
+    expect(servico.iniciar_download).toHaveBeenCalledTimes(2);
+    expect(servico.selecionar_pasta_destino).toHaveBeenCalledTimes(1);
+    expect(aoAlterarPasta).toHaveBeenCalledTimes(1);
+    // Mesmo ID nas duas tentativas, como pede o contrato.
+    const [primeira, segunda] = vi.mocked(servico.iniciar_download).mock.calls;
+    expect(segunda[0].downloadId).toBe(primeira[0].downloadId);
+    expect(segunda[0].onEvento).toBe(primeira[0].onEvento);
+    expect(result.current.estado).toMatchObject({ erro: { codigo: "PASTA_SEM_PERMISSAO" } });
+  });
+});
+
+describe("useClipora: normalização de erros (M1)", () => {
+  it("prévia rejeitada com algo que não é ErroClipora vira ERRO_INTERNO com mensagem não vazia", async () => {
+    const { servico } = criarServicoControlavel();
+    vi.mocked(servico.obter_previa).mockRejectedValue(new Error("falhou feio"));
+    const { result } = renderHook(() => useClipora(servico));
+
+    await act(async () => {
+      result.current.aoAlterarLink("https://www.instagram.com/reel/abc/");
+    });
+    await waitFor(() => expect(result.current.estado.tipo).toBe("erro"), { timeout: 2000 });
+    expect(result.current.estado).toMatchObject({
+      erro: { codigo: "ERRO_INTERNO", mensagem: "falhou feio" },
+    });
+  });
+
+  it("evento de erro malformado no canal vira ERRO_INTERNO", async () => {
+    const { servico } = criarServicoControlavel();
+    vi.mocked(servico.iniciar_download).mockImplementation(async ({ onEvento }) => {
+      onEvento({ tipo: "erro", erro: { codigo: "NAO_EXISTE" } } as unknown as EventoDownload);
+    });
+    const { result } = await chegarEmPronto(servico);
+
+    await act(async () => {
+      result.current.baixar();
+    });
+    expect(result.current.estado).toMatchObject({ tipo: "erro", erro: { codigo: "ERRO_INTERNO" } });
+  });
+});
+
+describe("useClipora: corrida entre debounce e Baixar (H3)", () => {
+  it("editar o link invalida a prévia na hora: Baixar não baixa o vídeo anterior", async () => {
+    const { servico } = criarServicoControlavel();
+    const { result } = await chegarEmPronto(servico, "https://www.instagram.com/reel/aaa/");
+    expect(result.current.podeSolicitarDownload).toBe(true);
+
+    act(() => result.current.aoAlterarLink("https://www.instagram.com/reel/bbb/"));
+    // Ainda dentro do debounce de 400 ms:
+    expect(result.current.estado).toEqual({ tipo: "aguardando_link" });
+    expect(result.current.podeSolicitarDownload).toBe(false);
+
+    act(() => result.current.baixar());
+    expect(servico.iniciar_download).not.toHaveBeenCalled();
+  });
+
+  it("A → B → A: a resposta atrasada do primeiro A não é aplicada enquanto o último A carrega", async () => {
+    vi.useFakeTimers();
+    const { servico, resolucoesPrevia } = criarServicoControlavel();
+    const { result } = renderHook(() => useClipora(servico));
+    const A = "https://www.instagram.com/reel/aaa/";
+    const B = "https://www.instagram.com/reel/bbb/";
+
+    for (const url of [A, B, A]) {
+      act(() => result.current.aoAlterarLink(url));
+      await act(async () => vi.advanceTimersByTime(400));
+    }
+    expect(result.current.estado).toEqual({ tipo: "carregando_previa", requisicaoId: 3, url: A });
+
+    // Resposta atrasada do PRIMEIRO A (requisicaoId 1) — mesma URL, mas antiga.
+    await act(async () => {
+      resolucoesPrevia.get(1)!.resolve(previaFalsa(1, { urlOriginal: A, titulo: "antiga" }));
+    });
+    expect(result.current.estado).toEqual({ tipo: "carregando_previa", requisicaoId: 3, url: A });
+
+    // B chega atrasado também e é ignorado.
+    await act(async () => {
+      resolucoesPrevia.get(2)!.resolve(previaFalsa(2, { urlOriginal: B }));
+    });
+    expect(result.current.estado.tipo).toBe("carregando_previa");
+
+    const atual = previaFalsa(3, { urlOriginal: A, titulo: "atual" });
+    await act(async () => {
+      resolucoesPrevia.get(3)!.resolve(atual);
+    });
+    expect(result.current.estado).toEqual({ tipo: "pronto", previa: atual });
+    vi.useRealTimers();
+  });
+});
+
+describe("useClipora: tentar novamente (M6)", () => {
+  it("erro de prévia: repete obter_previa com o link atual", async () => {
+    const { servico } = criarServicoControlavel();
+    const url = "https://www.instagram.com/reel/abc/";
+    vi.mocked(servico.obter_previa)
+      .mockRejectedValueOnce({ codigo: "SEM_CONEXAO", mensagem: "x" })
+      .mockResolvedValueOnce(previaFalsa(2, { urlOriginal: url }));
+    const { result } = renderHook(() => useClipora(servico));
+
+    await act(async () => result.current.aoAlterarLink(url));
+    await waitFor(() => expect(result.current.estado.tipo).toBe("erro"), { timeout: 2000 });
+
+    await act(async () => result.current.tentarNovamente());
+    expect(servico.obter_previa).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(servico.obter_previa).mock.calls[1][0]).toEqual({ url, requisicaoId: 2 });
+    await waitFor(() => expect(result.current.estado.tipo).toBe("pronto"));
+  });
+
+  it("erro de download: inicia um novo download da mesma prévia", async () => {
+    const { servico } = criarServicoControlavel();
+    vi.mocked(servico.iniciar_download)
+      .mockRejectedValueOnce({ codigo: "DOWNLOAD_FALHOU", mensagem: "x" })
+      .mockImplementationOnce(async ({ onEvento }) => {
+        onEvento({ tipo: "concluido", caminho: "/d/v.mp4", nomeArquivo: "v.mp4", renomeado: false });
+      });
+    const { result } = await chegarEmPronto(servico);
+
+    await act(async () => result.current.baixar());
+    expect(result.current.estado).toMatchObject({ tipo: "erro", origem: "download" });
+
+    await act(async () => result.current.tentarNovamente());
+    expect(servico.iniciar_download).toHaveBeenCalledTimes(2);
+    const [primeira, segunda] = vi.mocked(servico.iniciar_download).mock.calls;
+    expect(segunda[0].url).toBe(primeira[0].url);
+    expect(segunda[0].downloadId).not.toBe(primeira[0].downloadId);
+    expect(result.current.estado.tipo).toBe("concluido");
+  });
+});
+
+describe("useClipora: abrir pasta com falha (M7)", () => {
+  it("mostra um aviso não bloqueante em vez de engolir o erro", async () => {
+    const { servico } = criarServicoControlavel();
+    vi.mocked(servico.iniciar_download).mockImplementation(async ({ onEvento }) => {
+      onEvento({ tipo: "concluido", caminho: "/d/v.mp4", nomeArquivo: "v.mp4", renomeado: false });
+    });
+    vi.mocked(servico.abrir_pasta_download).mockRejectedValue({ codigo: "PASTA_AUSENTE", mensagem: "x" });
+    const { result } = await chegarEmPronto(servico);
+    await act(async () => result.current.baixar());
+
+    await act(async () => result.current.abrirPasta());
+    expect(result.current.aviso).toBe(
+      "Não foi possível abrir a pasta. A pasta de destino não existe mais. Escolha outra.",
+    );
+    expect(result.current.estado.tipo).toBe("concluido"); // não bloqueia
+  });
+});
+
+describe("useClipora: recuperação ao abrir (M4)", () => {
+  it("recupera o download ativo, acompanha por obter_estado() e encerra quando ele some", async () => {
+    vi.useFakeTimers();
+    const { servico } = criarServicoControlavel();
+    vi.mocked(servico.obter_estado)
+      .mockResolvedValueOnce({
+        download: { downloadId: "d9", etapa: "baixando_video", percentual: 30 },
+        atualizacaoEmAndamento: false,
+      })
+      .mockResolvedValueOnce({
+        download: { downloadId: "d9", etapa: "unindo", percentual: 90 },
+        atualizacaoEmAndamento: false,
+      })
+      .mockResolvedValue({ download: null, atualizacaoEmAndamento: false });
+
+    const { result } = renderHook(() => useClipora(servico, { intervaloRecuperacaoMs: 100 }));
+    await act(async () => {});
+    expect(result.current.estado).toEqual({
+      tipo: "baixando",
+      previa: null,
+      downloadId: "d9",
+      progresso: { etapa: "baixando_video", percentual: 30 },
+      recuperado: true,
+    });
+    expect(result.current.podeEditarLink).toBe(false);
+
+    await act(async () => vi.advanceTimersByTime(100));
+    expect(result.current.estado).toMatchObject({ progresso: { etapa: "unindo", percentual: 90 } });
+
+    await act(async () => vi.advanceTimersByTime(100));
+    expect(result.current.estado).toEqual({ tipo: "aguardando_link" });
+    expect(result.current.aviso).toBe(AVISO_DOWNLOAD_RECUPERADO_ENCERRADO);
+    vi.useRealTimers();
+  });
+
+  it("usa a prévia de obter_estado() quando o backend já a envia", async () => {
+    const { servico } = criarServicoControlavel();
+    const previa = previaFalsa(5);
+    vi.mocked(servico.obter_estado).mockResolvedValue({
+      download: { downloadId: "d1", etapa: "preparando", percentual: null, previa },
+      atualizacaoEmAndamento: false,
+    });
+    const { result } = renderHook(() => useClipora(servico, { intervaloRecuperacaoMs: 60_000 }));
+    await waitFor(() => expect(result.current.estado).toMatchObject({ tipo: "baixando", previa }));
+  });
+
+  it("falha de obter_estado() na abertura é silenciosa", async () => {
+    const { servico } = criarServicoControlavel();
+    vi.mocked(servico.obter_estado).mockRejectedValue("indisponível");
+    const { result } = renderHook(() => useClipora(servico));
+    await act(async () => {});
+    expect(result.current.estado).toEqual({ tipo: "aguardando_link" });
   });
 });

@@ -1,32 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { CodigoErro } from "../tipos/contrato";
+import { CODIGOS_ERRO, ehCodigoErro, type CodigoErro } from "../tipos/contrato";
 import { MENSAGENS_ERRO, mensagemDoErro, sugestaoDoErro } from "./mensagens";
 
-const TODOS_OS_CODIGOS: CodigoErro[] = [
-  "LINK_INVALIDO",
-  "PLATAFORMA_NAO_SUPORTADA",
-  "PREVIA_CANCELADA",
-  "TEMPO_ESGOTADO",
-  "SEM_CONEXAO",
-  "LOGIN_NECESSARIO",
-  "CONTEUDO_PRIVADO_OU_REMOVIDO",
-  "LIMITE_DE_ACESSO",
-  "CONTEUDO_NAO_SUPORTADO",
-  "PREVIA_INDISPONIVEL",
-  "PASTA_NAO_DEFINIDA",
-  "PASTA_AUSENTE",
-  "PASTA_SEM_PERMISSAO",
-  "ESPACO_INSUFICIENTE",
-  "FFMPEG_INDISPONIVEL",
-  "ARQUIVO_INCOMPLETO",
-  "DOWNLOAD_EM_ANDAMENTO",
-  "DOWNLOAD_FALHOU",
-  "ATUALIZACAO_EM_ANDAMENTO",
-  "ATUALIZACAO_INTEGRIDADE",
-  "ATUALIZACAO_NAO_SUPORTADA",
-  "ATUALIZACAO_FALHOU",
-  "ERRO_INTERNO",
-];
+// Usa a lista em runtime do contrato (em vez de duplicá-la aqui) para que a
+// adição de um novo código (ex. YTDLP_INDISPONIVEL) force este teste a
+// cobri-lo automaticamente.
+const TODOS_OS_CODIGOS: readonly CodigoErro[] = CODIGOS_ERRO;
 
 describe("mensagens de erro", () => {
   it("tem uma mensagem em português não vazia para cada código do contrato", () => {
@@ -61,5 +40,20 @@ describe("mensagens de erro", () => {
   it("sugestaoDoErro sugere atualizar o yt-dlp quando o extrator falha", () => {
     expect(sugestaoDoErro({ codigo: "DOWNLOAD_FALHOU", mensagem: "x" })).toMatch(/yt-dlp/);
     expect(sugestaoDoErro({ codigo: "PREVIA_INDISPONIVEL", mensagem: "x" })).toMatch(/yt-dlp/);
+  });
+});
+
+describe("ehCodigoErro", () => {
+  it("reconhece todos os códigos válidos, incluindo YTDLP_INDISPONIVEL", () => {
+    for (const codigo of TODOS_OS_CODIGOS) {
+      expect(ehCodigoErro(codigo)).toBe(true);
+    }
+  });
+
+  it("rejeita valores que não são códigos de erro conhecidos", () => {
+    expect(ehCodigoErro("ALGO_DESCONHECIDO")).toBe(false);
+    expect(ehCodigoErro(123)).toBe(false);
+    expect(ehCodigoErro(null)).toBe(false);
+    expect(ehCodigoErro(undefined)).toBe(false);
   });
 });

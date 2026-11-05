@@ -1,23 +1,35 @@
+import type { Ref } from "react";
 import { mensagemDoErro, sugestaoDoErro } from "../erros/mensagens";
 import type { ErroClipora } from "../tipos/contrato";
 
 type Props = {
   erro: ErroClipora;
-  podeTentarNovamente: boolean;
+  /** Quando presente, exibe "Tentar novamente", que repete a ação que falhou. */
+  aoTentarNovamente?: () => void;
   aoFechar: () => void;
+  /** Recebe o primeiro botão, para onde o foco vai quando o aviso aparece
+   * no lugar do elemento focado. */
+  refBotao?: Ref<HTMLButtonElement>;
 };
 
-export function ErroAviso({ erro, podeTentarNovamente, aoFechar }: Props) {
+export function ErroAviso({ erro, aoTentarNovamente, aoFechar, refBotao }: Props) {
   const mensagem = mensagemDoErro(erro);
   const sugestao = sugestaoDoErro(erro);
 
   return (
-    <div id="erro-aviso" className="erro" role="alert" aria-live="assertive">
+    <div id="erro-aviso" className="erro" role="alert">
       <p className="erro-mensagem">{mensagem}</p>
       {sugestao && <p className="erro-sugestao">{sugestao}</p>}
-      <button type="button" onClick={aoFechar}>
-        {podeTentarNovamente ? "Tentar novamente" : "Entendi"}
-      </button>
+      <div className="erro-acoes">
+        {aoTentarNovamente && (
+          <button type="button" onClick={aoTentarNovamente} ref={refBotao}>
+            Tentar novamente
+          </button>
+        )}
+        <button type="button" onClick={aoFechar} ref={aoTentarNovamente ? undefined : refBotao}>
+          Entendi
+        </button>
+      </div>
     </div>
   );
 }
