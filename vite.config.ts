@@ -1,4 +1,7 @@
-import { defineConfig } from "vite";
+// `vitest/config` re-exporta `defineConfig` do Vite com o campo `test`
+// adicionado ao tipo, permitindo configurar Vite e Vitest neste mesmo
+// arquivo sem duplicar configuração.
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 // @ts-expect-error type error without @types/node package
 import process from "node:process";
@@ -28,5 +31,12 @@ export default defineConfig(() => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+  },
+
+  test: {
+    environment: "jsdom",
+    include: ["src/**/*.test.{ts,tsx}", "tests/unit/**/*.test.{ts,mjs}"],
+    exclude: ["tests/e2e/**"],
+    setupFiles: ["./tests/unit/configuracao.ts"],
   },
 }));

@@ -1,116 +1,274 @@
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafb);
-}
 :root {
+  color-scheme: light dark;
+  --cor-fundo: #f6f6f6;
+  --cor-texto: #1a1a1a;
+  --cor-texto-suave: #555;
+  --cor-borda: #d4d4d4;
+  --cor-superficie: #ffffff;
+  --cor-destaque: #2f6fed;
+  --cor-destaque-texto: #ffffff;
+  --cor-erro-fundo: #fdecea;
+  --cor-erro-borda: #e0a8a3;
+  --cor-erro-texto: #7a1f17;
+
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
+  line-height: 1.5;
+  color: var(--cor-texto);
+  background-color: var(--cor-fundo);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
+    --cor-fundo: #1b1b1f;
+    --cor-texto: #f1f1f3;
+    --cor-texto-suave: #b7b7bd;
+    --cor-borda: #3a3a40;
+    --cor-superficie: #26262b;
+    --cor-destaque: #5b8cff;
+    --cor-destaque-texto: #0b1020;
+    --cor-erro-fundo: #3a1f1d;
+    --cor-erro-borda: #7a3a33;
+    --cor-erro-texto: #f6c7c0;
   }
+}
 
-  a:hover {
-    color: #24c8db;
-  }
+* {
+  box-sizing: border-box;
+}
 
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
+body {
+  margin: 0;
+}
+
+.app {
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.subtitulo {
+  margin: 0;
+  color: var(--cor-texto-suave);
+}
+
+.campo-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.campo-link label {
+  font-weight: 600;
+}
+
+.campo-link input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 0.5rem;
+  background-color: var(--cor-superficie);
+  color: var(--cor-texto);
+  font-size: 1rem;
+}
+
+.campo-link input:focus-visible {
+  outline: 3px solid var(--cor-destaque);
+  outline-offset: 1px;
+}
+
+.campo-link input[aria-invalid="true"] {
+  border-color: var(--cor-erro-borda);
+}
+
+.campo-link-dica {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--cor-texto-suave);
+}
+
+.status {
+  margin: 0;
+  color: var(--cor-texto-suave);
+}
+
+.erro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--cor-erro-borda);
+  background-color: var(--cor-erro-fundo);
+  color: var(--cor-erro-texto);
+  border-radius: 0.5rem;
+}
+
+.erro-mensagem {
+  margin: 0;
+  font-weight: 600;
+}
+
+.erro-sugestao {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.previa {
+  display: flex;
+  gap: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 0.6rem;
+  background-color: var(--cor-superficie);
+}
+
+.previa-capa {
+  flex: 0 0 5.5rem;
+  height: 5.5rem;
+  border-radius: 0.4rem;
+  overflow: hidden;
+  background-color: var(--cor-fundo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.previa-capa img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.previa-capa-indisponivel {
+  font-size: 0.75rem;
+  color: var(--cor-texto-suave);
+  text-align: center;
+  padding: 0.5rem;
+}
+
+.previa-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.previa-titulo {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.previa-meta {
+  margin: 0;
+  color: var(--cor-texto-suave);
+  font-size: 0.9rem;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+button:focus-visible {
+  outline: 3px solid var(--cor-destaque);
+  outline-offset: 2px;
+}
+
+.botao-baixar {
+  align-self: flex-start;
+  padding: 0.6rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  background-color: var(--cor-destaque);
+  color: var(--cor-destaque-texto);
+  font-weight: 600;
+}
+
+.botao-baixar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.progresso {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.progresso-rotulo {
+  margin: 0;
+}
+
+.progresso-barra {
+  width: 100%;
+  height: 0.6rem;
+  border-radius: 0.3rem;
+}
+
+.conclusao {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 0.6rem;
+  background-color: var(--cor-superficie);
+}
+
+.conclusao p {
+  margin: 0;
+}
+
+.conclusao-nota {
+  color: var(--cor-texto-suave);
+  font-size: 0.9rem;
+}
+
+.conclusao button {
+  align-self: flex-start;
+  padding: 0.5rem 1.25rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 0.5rem;
+  background-color: var(--cor-fundo);
+  color: var(--cor-texto);
+}
+
+.configuracoes {
+  margin-top: 1rem;
+  border-top: 1px solid var(--cor-borda);
+  padding-top: 1rem;
+}
+
+.configuracoes summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.configuracoes-conteudo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.configuracoes-conteudo p {
+  margin: 0;
+}
+
+.configuracoes-conteudo button {
+  align-self: flex-start;
+  padding: 0.5rem 1.25rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 0.5rem;
+  background-color: var(--cor-fundo);
+  color: var(--cor-texto);
 }
