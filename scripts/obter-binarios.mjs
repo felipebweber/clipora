@@ -3,15 +3,18 @@
 // src-tauri/binaries/. Uso: `pnpm binarios` (ou `node scripts/obter-binarios.mjs`).
 //
 // Opções:
-//   --formato onefile|onedir  padrão: onefile (lock: ytDlp.formatoPadrao; também CLIPORA_YTDLP_FORMATO)
+//   --formato onefile|onedir|ambos  padrão: DETECTADO na configuração do Tauri (tauri.conf.json +
+//       tauri.<macos|windows|linux>.conf.json do alvo): externalBin com "binaries/clipora-yt-dlp" →
+//       onefile; referência a "binaries/yt-dlp" → onedir; as duas → ambos. Sem nenhuma → onefile.
+//       Também CLIPORA_YTDLP_FORMATO.
 //       onefile → src-tauri/binaries/clipora-yt-dlp-<triple>[.exe] (ARQUIVO único): o sidecar que o
 //                 bundle.externalBin atual espera. ~14 s por execução no macOS (distribuicao.md §4.2).
-//       onedir  → src-tauri/binaries/onedir/clipora-yt-dlp-<triple>/ (DIRETÓRIO, decisão do projeto,
-//                 a integrar na etapa 6) com o zip oficial extraído:
+//       onedir  → src-tauri/binaries/yt-dlp/ (DIRETÓRIO ESTÁVEL, sem triple no nome; o manifesto
+//                 registra o triple e o conteúdo é trocado se o alvo mudar) com o zip oficial extraído:
 //                 yt-dlp[.exe]  (executável oficial renomeado para nome fixo)
 //                 _internal/    (Python e bibliotecas)
 //                 clipora-yt-dlp.json (manifesto: versão, asset, SHA-256 do zip e de cada arquivo)
-//       Os dois formatos coexistem (caminhos diferentes); rode o script uma vez para cada.
+//       Os dois formatos coexistem (caminhos diferentes).
 //   --target <triple>   força o triple (padrão: `rustc -vV`; também CLIPORA_TARGET)
 //   --exigir-gpg        falha se o gpg não estiver disponível (recomendado no CI)
 //   CLIPORA_GPG=<caminho>|nenhum   escolhe o gpg ou simula a ausência
@@ -19,8 +22,6 @@
 // Idempotente: se o destino já confere com o lock (e, no onedir, cada arquivo com o manifesto),
 // nada é baixado. Verificações: SHA-256 do SHA2-256SUMS (fixado no lock) + assinatura GPG dele
 // (chave fixada por fingerprint, chaveiro temporário isolado) + SHA-256 do asset (lock E SHA2-256SUMS).
-// Também grava src-tauri/binaries/tauri.binarios.json: sobreposição de configuração sugerida para
-// `tauri dev|build --config src-tauri/binaries/tauri.binarios.json` (proposta; ver distribuicao.md §4.5).
 // O FFmpeg é compilado por scripts/compilar-ffmpeg.mjs (build mínimo LGPL).
 //
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -30,12 +31,12 @@
 //    "binaries/clipora-ffprobe" → arquivos clipora-ffmpeg-<triple>[.exe], clipora-ffprobe-<triple>[.exe].
 //    O prefixo "clipora-" evita conflito com /usr/bin/ffmpeg nos pacotes .deb/.rpm.
 // 2. yt-dlp ONEDIR (decisão do projeto) NÃO vai em externalBin (é um diretório):
-//      macOS:         bundle.macOS.files {"Helpers/yt-dlp": "binaries/clipora-yt-dlp-<triple>"}
+//      tauri.macos.conf.json:          bundle.macOS.files {"Helpers/yt-dlp": "binaries/yt-dlp"}
 //                     → Clipora.app/Contents/Helpers/yt-dlp/yt-dlp (pré-assinar cada Mach-O!)
-//      Windows/Linux: bundle.resources {"binaries/clipora-yt-dlp-<triple>/": "yt-dlp/"}
+//      tauri.windows/linux.conf.json:  bundle.resources {"binaries/yt-dlp/": "yt-dlp/"}
 //                     → resource_dir()/yt-dlp/yt-dlp[.exe]
-//    O tauri.binarios.json gerado por este script contém exatamente isso para o triple atual.
-//    Em `tauri dev`, resolver pelo caminho de desenvolvimento src-tauri/binaries/clipora-yt-dlp-<triple>/.
+//    (não pôr resources no tauri.conf.json base: no macOS duplicaria em Contents/Resources)
+//    Em `tauri dev`, resolver por CARGO_MANIFEST_DIR/binaries/yt-dlp/yt-dlp[.exe].
 // 3. Ordem de resolução no Rust: cópia atualizada válida em app_local_data_dir()/bin/yt-dlp/<versao>/
 //    (ponteiro 'atual') → cópia embutida → (debug) src-tauri/binaries. O executável dentro do
 //    diretório tem nome fixo: yt-dlp (yt-dlp.exe no Windows).
@@ -74,9 +75,11 @@ import {
 import { extrairZip } from './zip.mjs';
 
 const MANIFESTO = 'clipora-yt-dlp.json';
-// O onedir fica num subdiretório próprio: em src-tauri/binaries/clipora-yt-dlp-<triple> o Tauri
-// (externalBin) espera um ARQUIVO, e um diretório ali quebra `tauri dev`/`tauri build`.
-const DIR_ONEDIR = join(DIR_BINARIOS, 'onedir');
+// Diretório estável (sem triple): a configuração do Tauri e o Rust não dependem da arquitetura,
+// o que também cobre o universal-apple-darwin (compilado como aarch64 + x86_64).
+const DIR_YTDLP = join(DIR_BINARIOS, 'yt-dlp');
+// Layout antigo (até 2026-11-05), removido ao rodar: binaries/onedir/clipora-yt-dlp-<triple>/.
+const DIR_ONEDIR_ANTIGO = join(DIR_BINARIOS, 'onedir');
 
 /** Baixa e valida o SHA2-256SUMS (hash do lock + GPG). Retorna Map asset → sha256. */
 async function somasVerificadas(yt, trabalho) {
@@ -167,7 +170,7 @@ async function onedirIntegro(dir, yt, alvo, triple) {
     return false;
   }
   if (m.versao !== yt.versao || m.asset !== alvo.asset || m.sha256Zip !== alvo.sha256) return false;
-  if (m.executavel !== nomeExecutavel(triple)) return false;
+  if (m.executavel !== nomeExecutavel(triple) || m.triple !== triple) return false;
   for (const [rel, h] of Object.entries(m.arquivos ?? {})) {
     const p = join(dir, ...rel.split('/'));
     if (!existsSync(p) || (await sha256Arquivo(p)) !== h) return false;
@@ -177,8 +180,7 @@ async function onedirIntegro(dir, yt, alvo, triple) {
 
 async function onedir(yt, triple) {
   const alvo = yt.alvos[triple].onedir;
-  await mkdir(DIR_ONEDIR, { recursive: true });
-  const destino = join(DIR_ONEDIR, `clipora-yt-dlp-${triple}`);
+  const destino = DIR_YTDLP;
   const rel = relative(RAIZ, destino);
   if (await onedirIntegro(destino, yt, alvo, triple)) {
     await chmod(join(destino, nomeExecutavel(triple)), 0o755);
@@ -210,6 +212,7 @@ async function onedir(yt, triple) {
     }
     const manifesto = {
       formato: 1,
+      triple,
       versao: yt.versao,
       asset: alvo.asset,
       sha256Zip: hZip,
@@ -227,17 +230,18 @@ async function onedir(yt, triple) {
   }
 }
 
-/** Sobreposição de configuração do Tauri sugerida para o triple/formato atuais (não aplicada). */
-async function escreverConfigTauri(triple, formato) {
-  const ffmpeg = ['binaries/clipora-ffmpeg', 'binaries/clipora-ffprobe'];
-  let bundle;
-  if (formato === 'onefile') bundle = { externalBin: ['binaries/clipora-yt-dlp', ...ffmpeg] };
-  else if (triple.endsWith('apple-darwin')) {
-    bundle = { externalBin: ffmpeg, macOS: { files: { 'Helpers/yt-dlp': `binaries/onedir/clipora-yt-dlp-${triple}` } } };
-  } else bundle = { externalBin: ffmpeg, resources: { [`binaries/onedir/clipora-yt-dlp-${triple}/`]: 'yt-dlp/' } };
-  const arq = join(formato === 'onedir' ? DIR_ONEDIR : DIR_BINARIOS, 'tauri.binarios.json');
-  await writeFile(arq, `${JSON.stringify({ bundle }, null, 2)}\n`);
-  log(`sobreposição sugerida para o Tauri: ${relative(RAIZ, arq)} (uso: tauri build --config ${relative(RAIZ, arq)})`);
+/** Lê tauri.conf.json + tauri.<plataforma>.conf.json e deduz quais formatos a configuração usa. */
+async function formatosDaConfig(triple) {
+  const plataforma = triple.includes('apple-darwin') ? 'macos' : triple.includes('windows') ? 'windows' : 'linux';
+  let texto = '';
+  for (const nome of ['tauri.conf.json', `tauri.${plataforma}.conf.json`]) {
+    const arq = join(RAIZ, 'src-tauri', nome);
+    if (existsSync(arq)) texto += await readFile(arq, 'utf8');
+  }
+  const formatos = [];
+  if (/"binaries\/clipora-yt-dlp"/.test(texto)) formatos.push('onefile');
+  if (/"binaries\/yt-dlp\/?"/.test(texto)) formatos.push('onedir');
+  return formatos.length ? formatos : ['onefile'];
 }
 
 function conferirFfmpeg(triple) {
@@ -259,17 +263,23 @@ principal(async () => {
   const lock = await lerLock();
   const yt = lock.ytDlp;
   const triple = detectarTriple();
-  const formato = argumento('formato') ?? process.env.CLIPORA_YTDLP_FORMATO ?? yt.formatoPadrao ?? 'onefile';
-  if (!['onedir', 'onefile'].includes(formato)) throw new ErroBinarios(`--formato inválido: ${formato}`);
+  const pedido = argumento('formato') ?? process.env.CLIPORA_YTDLP_FORMATO;
+  if (pedido && !['onedir', 'onefile', 'ambos'].includes(pedido)) throw new ErroBinarios(`--formato inválido: ${pedido}`);
   if (!yt.alvos[triple]) {
     throw new ErroBinarios(
       `Target "${triple}" não está em scripts/binarios.lock. Suportados: ${Object.keys(yt.alvos).join(', ')}`,
     );
   }
-  log(`target triple: ${triple}; formato do yt-dlp: ${formato}`);
+  const formatos = pedido === 'ambos' ? ['onefile', 'onedir'] : pedido ? [pedido] : await formatosDaConfig(triple);
+  log(`target triple: ${triple}; formato(s) do yt-dlp: ${formatos.join(' + ')}${pedido ? '' : ' (detectado na configuração do Tauri)'}`);
   await mkdir(DIR_BINARIOS, { recursive: true });
-  if (formato === 'onedir') await onedir(yt, triple);
-  else await onefile(yt, triple);
-  await escreverConfigTauri(triple, formato);
+  if (formatos.includes('onefile')) await onefile(yt, triple);
+  if (formatos.includes('onedir')) await onedir(yt, triple);
+  // Restos de versões anteriores deste script.
+  if (existsSync(DIR_ONEDIR_ANTIGO)) {
+    await rm(DIR_ONEDIR_ANTIGO, { recursive: true, force: true });
+    log(`removido layout antigo ${relative(RAIZ, DIR_ONEDIR_ANTIGO)}/ (agora: ${relative(RAIZ, DIR_YTDLP)}/).`);
+  }
+  await rm(join(DIR_BINARIOS, 'tauri.binarios.json'), { force: true });
   conferirFfmpeg(triple);
 });

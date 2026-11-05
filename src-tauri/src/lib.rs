@@ -1,5 +1,6 @@
 mod binarios;
 mod download;
+mod instalacao;
 pub mod integridade;
 mod links;
 mod pasta;
@@ -66,6 +67,18 @@ async fn iniciar_download(
     url: String,
     on_evento: tauri::ipc::Channel<download::Evento>,
 ) -> Result<(), previa::ErroClipora> {
+    {
+        let dados = controle
+            .0
+            .lock()
+            .map_err(|_| previa::ErroClipora::novo("ERRO_INTERNO", None))?;
+        if dados.atualizacao {
+            return Err(previa::ErroClipora::novo("ATUALIZACAO_EM_ANDAMENTO", None));
+        }
+        if dados.ativo.is_some() {
+            return Err(previa::ErroClipora::novo("DOWNLOAD_EM_ANDAMENTO", None));
+        }
+    }
     let (normalizada, _) = links::validar(&url).map_err(|c| previa::ErroClipora::novo(c, None))?;
     let pasta = config_pasta(&app)?.obter();
     let codigo = match pasta.estado {
@@ -83,7 +96,8 @@ async fn iniciar_download(
             .ok_or_else(|| previa::ErroClipora::novo("PASTA_NAO_DEFINIDA", None))?,
     );
     download::limpar_antigos(&destino);
-    let bin = binarios::resolver(&app, "clipora-yt-dlp")
+    let bin = binarios::resolver_ytdlp(&app)
+        .map(|(p, _)| p)
         .map_err(|e| previa::ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e)))?;
     let ffmpeg = binarios::resolver(&app, "clipora-ffmpeg")
         .map_err(|e| previa::ErroClipora::novo("FFMPEG_INDISPONIVEL", Some(e)))?;
@@ -150,17 +164,53 @@ async fn abrir_pasta_download(
 }
 
 #[tauri::command]
+async fn atualizar_ytdlp(
+    app: tauri::AppHandle,
+    controle: State<'_, download::Controle>,
+    previa: State<'_, previa::ControlePrevia>,
+    versao_esperada: String,
+    on_evento: tauri::ipc::Channel<instalacao::EventoAtualizacao>,
+) -> Result<instalacao::ResultadoAtualizacao, previa::ErroClipora> {
+    let _guarda = controle
+        .entrar_atualizacao(&previa)
+        .await
+        .map_err(|c| previa::ErroClipora::novo(c, None))?;
+    let raiz = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| previa::ErroClipora::novo("ERRO_INTERNO", Some(e.to_string())))?
+        .join("bin/yt-dlp");
+    instalacao::atualizar(&raiz, &versao_esperada, &on_evento).await
+}
+
+#[tauri::command]
+async fn verificar_ytdlp(
+    app: tauri::AppHandle,
+) -> Result<versao::Verificacao, previa::ErroClipora> {
+    let (bin, origem) = binarios::resolver_ytdlp(&app)
+        .map_err(|e| previa::ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e)))?;
+    let mut resultado = versao::verificar(&bin).await?;
+    resultado.origem = origem;
+    Ok(resultado)
+}
+
+#[tauri::command]
 async fn obter_previa(
     app: tauri::AppHandle,
     estado: State<'_, previa::ControlePrevia>,
+    controle: State<'_, download::Controle>,
     url: String,
     requisicao_id: u64,
 ) -> Result<previa::Previa, previa::ErroClipora> {
+    let _guarda = controle
+        .entrar_previa()
+        .map_err(|c| previa::ErroClipora::novo(c, None))?;
     let cancelado = estado
         .iniciar(requisicao_id)
         .map_err(|c| previa::ErroClipora::novo(c, None))?;
     links::validar(&url).map_err(|c| previa::ErroClipora::novo(c, None))?;
-    let bin = binarios::resolver(&app, "clipora-yt-dlp")
+    let bin = binarios::resolver_ytdlp(&app)
+        .map(|(p, _)| p)
         .map_err(|e| previa::ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e)))?;
     let ffmpeg = binarios::resolver(&app, "clipora-ffmpeg")
         .map_err(|e| previa::ErroClipora::novo("FFMPEG_INDISPONIVEL", Some(e)))?;
@@ -175,6 +225,9 @@ pub fn run() {
         .setup(|app| {
             app.manage(previa::ControlePrevia::default());
             app.manage(download::Controle::default());
+            if let Ok(raiz) = app.path().app_local_data_dir() {
+                instalacao::coleta(&raiz.join("bin/yt-dlp"));
+            }
             if let Ok(config) = config_pasta(app.handle())
                 && let Some(pasta) = config.obter().caminho
             {
@@ -184,6 +237,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             obter_previa,
+            verificar_ytdlp,
+            atualizar_ytdlp,
             obter_estado,
             obter_pasta_destino,
             selecionar_pasta_destino,

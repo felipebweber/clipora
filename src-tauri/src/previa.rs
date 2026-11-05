@@ -6,6 +6,14 @@ use tokio::sync::watch;
 #[derive(Default)]
 pub struct ControlePrevia(Mutex<Option<(u64, watch::Sender<bool>)>>);
 impl ControlePrevia {
+    pub fn cancelar(&self) {
+        if let Ok(atual) = self.0.lock()
+            && let Some((_, tx)) = atual.as_ref()
+        {
+            let _ = tx.send(true);
+        }
+    }
+
     pub fn iniciar(&self, id: u64) -> Result<watch::Receiver<bool>, &'static str> {
         let mut atual = self.0.lock().map_err(|_| "ERRO_INTERNO")?;
         let (tx, rx) = watch::channel(false);

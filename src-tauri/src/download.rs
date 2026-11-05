@@ -337,6 +337,44 @@ mod tests {
         assert_eq!(unsafe { libc::kill(pid as i32, 0) }, -1);
     }
     #[tokio::test]
+    async fn atualizacao_exclui_previa_e_download() {
+        let controle = Controle::default();
+        let previa = crate::previa::ControlePrevia::default();
+        let ativa = controle.entrar_previa().unwrap();
+        let rx = previa.iniciar(1).unwrap();
+        let compartilhado = controle.0.clone();
+        let tarefa = tokio::spawn(async move {
+            let c = Controle(compartilhado);
+            let p = previa;
+            let g = c.entrar_atualizacao(&p).await.unwrap();
+            (c, g)
+        });
+        let mut rx = rx;
+        tokio::time::timeout(std::time::Duration::from_secs(1), rx.changed())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            controle.entrar_previa(),
+            Err("ATUALIZACAO_EM_ANDAMENTO")
+        ));
+        drop(ativa);
+        let (c, guarda) = tarefa.await.unwrap();
+        assert!(c.0.lock().unwrap().atualizacao);
+        drop(guarda);
+        assert!(!c.0.lock().unwrap().atualizacao);
+        c.0.lock().unwrap().ativo = Some(EstadoDownload {
+            download_id: "id".into(),
+            percentual: None,
+            etapa: "baixando_video".into(),
+        });
+        assert!(matches!(
+            c.entrar_atualizacao(&crate::previa::ControlePrevia::default())
+                .await,
+            Err("DOWNLOAD_EM_ANDAMENTO")
+        ));
+    }
+    #[tokio::test]
     async fn fixture_rejeita_ffmpeg_quebrado() {
         let script =
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/preparar-bin.mjs");
@@ -645,6 +683,7 @@ pub struct Estado {
 pub struct Dados {
     pub ativo: Option<EstadoDownload>,
     pub atualizacao: bool,
+    pub previas_ativas: usize,
     pub arquivos: std::collections::HashMap<String, PathBuf>,
     pub tarefa: Option<tokio::task::AbortHandle>,
     pub encerrando: bool,
@@ -669,6 +708,56 @@ impl Controle {
             if let Some(pasta) = dados.temporario.take() {
                 let _ = fs::remove_dir_all(pasta);
             }
+        }
+    }
+}
+pub struct GuardaPrevia(Arc<Mutex<Dados>>);
+impl Drop for GuardaPrevia {
+    fn drop(&mut self) {
+        if let Ok(mut d) = self.0.lock() {
+            d.previas_ativas = d.previas_ativas.saturating_sub(1);
+        }
+    }
+}
+pub struct GuardaAtualizacao(Arc<Mutex<Dados>>);
+impl Drop for GuardaAtualizacao {
+    fn drop(&mut self) {
+        if let Ok(mut d) = self.0.lock() {
+            d.atualizacao = false;
+        }
+    }
+}
+impl Controle {
+    pub fn entrar_previa(&self) -> Result<GuardaPrevia, &'static str> {
+        let mut d = self.0.lock().map_err(|_| "ERRO_INTERNO")?;
+        if d.atualizacao {
+            return Err("ATUALIZACAO_EM_ANDAMENTO");
+        }
+        d.previas_ativas += 1;
+        Ok(GuardaPrevia(self.0.clone()))
+    }
+    pub async fn entrar_atualizacao(
+        &self,
+        previa: &crate::previa::ControlePrevia,
+    ) -> Result<GuardaAtualizacao, &'static str> {
+        {
+            let mut d = self.0.lock().map_err(|_| "ERRO_INTERNO")?;
+            if d.atualizacao {
+                return Err("ATUALIZACAO_EM_ANDAMENTO");
+            }
+            if d.ativo.is_some() {
+                return Err("DOWNLOAD_EM_ANDAMENTO");
+            }
+            d.atualizacao = true;
+        }
+        let guarda = GuardaAtualizacao(self.0.clone());
+        previa.cancelar();
+        loop {
+            let count = self.0.lock().map_err(|_| "ERRO_INTERNO")?.previas_ativas;
+            if count == 0 {
+                return Ok(guarda);
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         }
     }
 }

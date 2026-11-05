@@ -34,7 +34,6 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "binaries/clipora-yt-dlp",
       "binaries/clipora-ffmpeg",
       "binaries/clipora-ffprobe"
     ]
