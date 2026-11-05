@@ -65,11 +65,14 @@ export const FLAGS_COMUNS = [
   '--enable-protocol=file,pipe',
   '--enable-demuxer=mov,matroska,mp3,aac,mpegts,hls,concat',
   '--enable-muxer=mp4,mov,ipod,matroska,webm,mpegts,adts,mp3',
-  '--enable-parser=h264,hevc,aac,av1,vp8,vp9,opus,mpegaudio',
-  '--enable-bsf=aac_adtstoasc,h264_mp4toannexb,hevc_mp4toannexb,extract_extradata,vp9_superframe,setts,null',
-  // Decodificadores de áudio apenas para obter parâmetros (sample rate) de AAC/MP3 em MPEG-TS
-  // (fixup de HLS do yt-dlp: "sample rate not set" sem eles). Nenhum codificador é habilitado.
-  '--enable-decoder=aac,mp3',
+  '--enable-parser=vp8,vp9,av1,h264,hevc,aac,opus,mpegaudio,ac3',
+  '--enable-bsf=vp9_superframe,vp9_superframe_split,aac_adtstoasc,extract_extradata,h264_mp4toannexb,hevc_mp4toannexb,av1_frame_merge,av1_frame_split,setts,null',
+  // Decodificadores apenas para obter parâmetros durante a análise do fluxo; nenhum codificador:
+  //  - aac, mp3: sample rate de AAC/MP3 em MPEG-TS (fixup de HLS: "sample rate not set" sem eles);
+  //  - vp9: formato de pixel do VP9. Sem ele, o muxer mp4 grava um 'vpcC' vazio ("Unsupported pixel
+  //    format (-1)") e o arquivo final não abre ("Empty VP Codec Configuration box") — visto com
+  //    VP9 em MP4 do Instagram em 2026-11-05.
+  '--enable-decoder=aac,mp3,vp9',
 ];
 
 /** Flags específicas por arquitetura/sistema. */
@@ -129,13 +132,25 @@ async function obterFonte(lock, cache) {
     throw new ErroBinarios(`SHA-256 do tarball divergente: obtido ${h}, esperado ${ff.tarball.sha256}.`);
   }
   log(`SHA-256 do tarball confere (${h}).`);
-  await baixar(ff.tarball.assinaturaUrl, asc);
-  const gpg = await verificarAssinaturaGpg({
-    arquivo: tarball,
-    assinatura: asc,
-    chave: join(DIR_SCRIPTS, ff.chaveGpg.arquivo),
-    fingerprint: ff.chaveGpg.fingerprint,
-  });
+  // A assinatura fica em cache junto do tarball (o ffmpeg.org às vezes derruba conexões);
+  // ela é verificada a cada execução e baixada de novo se faltar ou não validar.
+  const verificar = () =>
+    verificarAssinaturaGpg({
+      arquivo: tarball,
+      assinatura: asc,
+      chave: join(DIR_SCRIPTS, ff.chaveGpg.arquivo),
+      fingerprint: ff.chaveGpg.fingerprint,
+    });
+  if (!existsSync(asc)) await baixar(ff.tarball.assinaturaUrl, asc, 6);
+  let gpg;
+  try {
+    gpg = await verificar();
+  } catch (e) {
+    log(`assinatura em cache não validou (${e.message.split('\n')[0]}); baixando de novo.`);
+    await rm(asc, { force: true });
+    await baixar(ff.tarball.assinaturaUrl, asc, 6);
+    gpg = await verificar();
+  }
   if (gpg === 'ok') log(`assinatura GPG do tarball válida (chave ${ff.chaveGpg.fingerprint}).`);
   else if (temFlag('exigir-gpg')) throw new ErroBinarios('gpg não encontrado e --exigir-gpg foi informado.');
   else avisarSemGpg(`ffmpeg-${ff.versao}.tar.xz`);

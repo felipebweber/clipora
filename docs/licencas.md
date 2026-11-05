@@ -91,18 +91,20 @@ Gerado por `scripts/compilar-ffmpeg.mjs` (flags em `FLAGS_COMUNS` e `flagsAlvo`;
   --enable-protocol=file,pipe
   --enable-demuxer=mov,matroska,mp3,aac,mpegts,hls,concat
   --enable-muxer=mp4,mov,ipod,matroska,webm,mpegts,adts,mp3
-  --enable-parser=h264,hevc,aac,av1,vp8,vp9,opus,mpegaudio
-  --enable-bsf=aac_adtstoasc,h264_mp4toannexb,hevc_mp4toannexb,extract_extradata,vp9_superframe,setts,null
-  --enable-decoder=aac,mp3
+  --enable-parser=vp8,vp9,av1,h264,hevc,aac,opus,mpegaudio,ac3
+  --enable-bsf=vp9_superframe,vp9_superframe_split,aac_adtstoasc,extract_extradata,h264_mp4toannexb,hevc_mp4toannexb,av1_frame_merge,av1_frame_split,setts,null
+  --enable-decoder=aac,mp3,vp9
   ```
 - **Flags por alvo**:
   - macOS (`aarch64`/`x86_64`): `--cc=clang --arch=<aarch64|x86_64> --target-os=darwin --enable-cross-compile --extra-cflags='-arch <arm64|x86_64> -mmacosx-version-min=11.0' --extra-ldflags='-arch <arm64|x86_64> -mmacosx-version-min=11.0'`, mais `--disable-x86asm` em x86_64. O universal é o `lipo -create` das duas arquiteturas.
   - Linux x86_64: `--disable-x86asm`. Linux aarch64: nenhuma.
   - Windows: pendente.
-- **Componentes resultantes [verificado em 2026-11-05, aarch64-apple-darwin]**: `-encoders` vazio (nenhum codificador); `-decoders` = só `aac` e `mp3`; `ffmpeg -L` declara “GNU Lesser General Public License … version 2.1 or later”. Liga apenas bibliotecas do sistema (`libSystem`, `CoreFoundation`, `CoreVideo`, `CoreMedia`), que se enquadram na exceção de bibliotecas do sistema da LGPL.
-- **Por que há decodificadores de áudio**: sem eles, o *fixup* de HLS do yt-dlp (MPEG-TS → MP4 com `aac_adtstoasc`) falhou com “sample rate not set”. Eles só servem para obter parâmetros; o app não transcodifica.
+- **Componentes resultantes [verificado em 2026-11-05, aarch64-apple-darwin]**: `-encoders` vazio (nenhum codificador); `-decoders` = só `vp9`, `aac` e `mp3`; `-bsfs` = os da lista mais `pgs_frame_merge` e `vvc_mp4toannexb`, que o `configure` liga sozinho como dependências dos muxers; `ffmpeg -L` declara “GNU Lesser General Public License … version 2.1 or later”. Liga apenas bibliotecas do sistema (`libSystem`, `CoreFoundation`, `CoreVideo`, `CoreMedia`), que se enquadram na exceção de bibliotecas do sistema da LGPL.
+- **Por que há decodificadores** (eles só servem para o `libavformat` descobrir parâmetros do fluxo; o app não transcodifica):
+  - `aac`, `mp3`: sem eles, o *fixup* de HLS do yt-dlp (MPEG-TS → MP4 com `aac_adtstoasc`) falha com “sample rate not set”.
+  - `vp9`: sem ele, o *muxer* MP4 não sabe o formato de pixel do VP9 (“Unsupported pixel format (-1)”) e grava uma caixa `vpcC` vazia. O arquivo resultante é inválido: tanto o nosso `ffprobe` quanto o do Homebrew recusam com “Empty VP Codec Configuration box”. Foi o que aconteceu com um Reel do Instagram (VP9 + AAC) em 2026-11-05. Parsers e bsfs **não** resolvem: um build experimental com todos eles e sem o decodificador `vp9` reproduziu o erro (detalhes em `docs/distribuicao.md` §4.3).
 
-**Patentes**: o ffmpeg.org lembra que H.264, AAC e outros padrões podem estar sujeitos a patentes em algumas jurisdições. Um build só de *remux*, sem codificadores e com o mínimo de decodificadores (hoje só AAC e MP3, §3.4), reduz essa exposição, mas **não** a elimina. É tema para revisão jurídica se houver uso comercial. <https://ffmpeg.org/legal.html>
+**Patentes**: o ffmpeg.org lembra que H.264, AAC e outros padrões podem estar sujeitos a patentes em algumas jurisdições. Um build só de *remux*, sem codificadores e com o mínimo de decodificadores (hoje só VP9, AAC e MP3, §3.4; o VP9 é publicado pelo Google com licença de patentes gratuita), reduz essa exposição, mas **não** a elimina. É tema para revisão jurídica se houver uso comercial. <https://ffmpeg.org/legal.html>
 
 ---
 
