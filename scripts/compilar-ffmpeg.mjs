@@ -1,20 +1,27 @@
 #!/usr/bin/env node
 // Compila o FFmpeg mínimo LGPL do Clipora (apenas remux: ffmpeg + ffprobe) a partir do tarball
 // oficial fixado em scripts/binarios.lock, verificado por SHA-256 e assinatura GPG.
-// Gera src-tauri/binaries/clipora-ffmpeg-<triple> e clipora-ffprobe-<triple>, além de
+// Gera src-tauri/binaries/clipora-ffmpeg-<triple>[.exe] e clipora-ffprobe-<triple>[.exe], além de
 // src-tauri/binaries/ffmpeg-build-info-<triple>.txt (obrigação LGPL: versão + configure).
 //
 // Uso: node scripts/compilar-ffmpeg.mjs [--target <triple>] [--forcar] [--exigir-gpg]
 //
-// Alvos suportados por este script:
-//   - aarch64-apple-darwin, x86_64-apple-darwin, universal-apple-darwin (em host macOS; x86_64 é
-//     compilado de forma cruzada com clang -arch x86_64; universal = lipo das duas arquiteturas)
-//   - x86_64-unknown-linux-gnu / aarch64-unknown-linux-gnu (somente compilação nativa no host
-//     correspondente, com gcc/clang + make + xz)
-//   - Windows: AINDA NÃO (pendente: CI com MSYS2/clang; ver docs/distribuicao.md §4.4).
+// Alvos suportados:
+//   - aarch64-apple-darwin, x86_64-apple-darwin, universal-apple-darwin — em host macOS (x86_64
+//     cruzado com clang -arch x86_64; universal = lipo das duas arquiteturas).
+//   - x86_64-unknown-linux-gnu / aarch64-unknown-linux-gnu — compilação nativa em Linux da mesma
+//     arquitetura (gcc/clang + make + xz). Liga só a glibc do sistema; a glibc mínima é a do host de
+//     build (CI: Ubuntu 22.04 → glibc 2.35).
+//   - x86_64-pc-windows-msvc / aarch64-pc-windows-msvc — compilação CRUZADA em host Linux ou macOS
+//     com llvm-mingw (clang + mingw-w64, UCRT), versão e SHA-256 fixados em binarios.lock
+//     (llvmMingw). O toolchain é baixado e verificado automaticamente; para usar outro, aponte
+//     CLIPORA_LLVM_MINGW=<diretório que contém bin/>. O executável gerado é PE nativo, ligado
+//     estaticamente ao runtime mingw; depende só de DLLs do Windows (KERNEL32, UCRT api-ms-win-crt-*).
+//     O sufixo "-msvc" é só o nome que o Tauri espera para o sidecar (triple do app Rust).
 //
-// Idempotente: se os binários existem e `-version` mostra exatamente a mesma configuração,
-// nada é recompilado (use --forcar para recompilar).
+// Idempotente: se os binários existem, o registro de build tem o mesmo carimbo de configuração e os
+// SHA-256 registrados conferem, nada é recompilado (use --forcar para recompilar). Isso também
+// funciona para alvos cruzados, que não podem ser executados no host.
 //
 // Licença: o build NÃO usa --enable-gpl nem --enable-nonfree e não liga bibliotecas externas
 // (--disable-autodetect), portanto é LGPL-2.1-or-later. As flags estão documentadas em
@@ -24,7 +31,7 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { chmod, copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { availableParallelism, tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { delimiter, join, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
   DIR_BINARIOS,
@@ -75,7 +82,7 @@ export const FLAGS_COMUNS = [
   '--enable-decoder=aac,mp3,vp9',
 ];
 
-/** Flags específicas por arquitetura/sistema. */
+/** Flags específicas por arquitetura/sistema. Não incluem caminhos locais (entram no carimbo). */
 function flagsAlvo(arch, sistema) {
   if (sistema === 'darwin') {
     const a = arch === 'aarch64' ? 'arm64' : 'x86_64';
@@ -91,26 +98,93 @@ function flagsAlvo(arch, sistema) {
     if (arch === 'x86_64') f.push('--disable-x86asm');
     return f;
   }
+  if (sistema === 'windows') {
+    const prefixo = `${arch}-w64-mingw32-`;
+    const f = [
+      `--arch=${arch}`,
+      '--target-os=mingw32',
+      '--enable-cross-compile',
+      `--cross-prefix=${prefixo}`,
+      `--cc=${prefixo}clang`,
+      // Threads nativas do Windows (sem libwinpthread) e runtime mingw estático: o .exe depende só
+      // de DLLs do sistema.
+      '--enable-w32threads',
+      '--extra-ldflags=-static',
+    ];
+    if (arch === 'x86_64') f.push('--disable-x86asm');
+    return f;
+  }
   return arch === 'x86_64' ? ['--disable-x86asm'] : [];
 }
 
+const archHost = () => (process.arch === 'arm64' ? 'aarch64' : process.arch === 'x64' ? 'x86_64' : process.arch);
+
 function plano(triple) {
-  const hostDarwin = process.platform === 'darwin';
   const m = /^(aarch64|x86_64|universal)-(apple-darwin|unknown-linux-gnu|pc-windows-msvc)$/.exec(triple);
   if (!m) throw new ErroBinarios(`Target não suportado: ${triple}`);
   const [, arch, resto] = m;
   if (resto === 'pc-windows-msvc') {
-    throw new ErroBinarios('Compilação do FFmpeg para Windows ainda não implementada (pendente: CI com MSYS2/clang).');
+    if (arch === 'universal') throw new ErroBinarios('Não existe universal para Windows.');
+    if (!['linux', 'darwin'].includes(process.platform)) {
+      throw new ErroBinarios('O FFmpeg para Windows é compilado de forma cruzada em host Linux ou macOS (llvm-mingw).');
+    }
+    return { sistema: 'windows', archs: [arch], executavel: false, ext: '.exe' };
   }
   if (resto === 'apple-darwin') {
-    if (!hostDarwin) throw new ErroBinarios('Alvos macOS só podem ser compilados em host macOS.');
-    return { sistema: 'darwin', archs: arch === 'universal' ? ['aarch64', 'x86_64'] : [arch] };
+    if (process.platform !== 'darwin') throw new ErroBinarios('Alvos macOS só podem ser compilados em host macOS.');
+    const archs = arch === 'universal' ? ['aarch64', 'x86_64'] : [arch];
+    // Executável no host se a arquitetura do host estiver entre as compiladas (ou houver Rosetta, não presumido).
+    return { sistema: 'darwin', archs, executavel: archs.includes(archHost()), ext: '' };
   }
-  const hostArch = process.arch === 'arm64' ? 'aarch64' : process.arch === 'x64' ? 'x86_64' : process.arch;
-  if (process.platform !== 'linux' || hostArch !== arch) {
+  if (process.platform !== 'linux' || archHost() !== arch) {
     throw new ErroBinarios(`Alvo ${triple} exige compilação nativa em Linux ${arch}.`);
   }
-  return { sistema: 'linux', archs: [arch] };
+  return { sistema: 'linux', archs: [arch], executavel: true, ext: '' };
+}
+
+/** Garante o toolchain llvm-mingw (fixado no lock) e devolve o diretório bin/. */
+async function toolchainMingw(lock, cache, archs) {
+  const proprio = process.env.CLIPORA_LLVM_MINGW;
+  if (proprio) {
+    const bin = join(proprio, 'bin');
+    log(`usando llvm-mingw de CLIPORA_LLVM_MINGW: ${bin}`);
+    return bin;
+  }
+  const lm = lock.llvmMingw;
+  if (!lm) throw new ErroBinarios('binarios.lock sem a seção llvmMingw.');
+  const chaveHost = `${process.platform}-${process.arch}`;
+  const asset = lm.hosts[chaveHost];
+  if (!asset) {
+    throw new ErroBinarios(`llvm-mingw sem build fixado para o host ${chaveHost}. Hosts: ${Object.keys(lm.hosts).join(', ')}`);
+  }
+  const arquivo = join(cache, asset.arquivo);
+  const raiz = join(cache, asset.arquivo.replace(/\.tar\.xz$/, ''));
+  const bin = join(raiz, 'bin');
+  const marca = join(raiz, '.clipora-verificado');
+  if (existsSync(marca) && (await readFile(marca, 'utf8')).trim() === asset.sha256) {
+    log(`llvm-mingw ${lm.versao} em cache: ${raiz}`);
+  } else {
+    if (!existsSync(arquivo) || (await sha256Arquivo(arquivo)) !== asset.sha256) {
+      log(`baixando ${asset.url}`);
+      await baixar(asset.url, arquivo, 6);
+    }
+    const h = await sha256Arquivo(arquivo);
+    if (h !== asset.sha256) {
+      await rm(arquivo, { force: true });
+      throw new ErroBinarios(`SHA-256 do llvm-mingw divergente: obtido ${h}, esperado ${asset.sha256}.`);
+    }
+    log(`SHA-256 do llvm-mingw confere (${h}).`);
+    await rm(raiz, { recursive: true, force: true });
+    executar('tar', ['-xJf', arquivo, '-C', cache]);
+    if (!existsSync(bin)) throw new ErroBinarios(`llvm-mingw extraído sem ${bin}.`);
+    await writeFile(marca, `${asset.sha256}\n`);
+  }
+  for (const a of archs) {
+    if (!existsSync(join(bin, `${a}-w64-mingw32-clang`))) {
+      throw new ErroBinarios(`${a}-w64-mingw32-clang não encontrado em ${bin}.`);
+    }
+  }
+  return bin;
 }
 
 function versaoInstalada(binario) {
@@ -161,48 +235,71 @@ async function obterFonte(lock, cache) {
   return fonte;
 }
 
-function compilarArch(fonte, cache, arch, sistema) {
+function compilarArch(fonte, cache, arch, sistema, ext, env) {
   const build = join(cache, `build-${sistema}-${arch}`);
   spawnSync('rm', ['-rf', build]);
   spawnSync('mkdir', ['-p', build]);
   const flags = [...FLAGS_COMUNS, ...flagsAlvo(arch, sistema)];
   log(`configure (${sistema}/${arch}): ${flags.join(' ')}`);
-  executar(join(fonte, 'configure'), flags, { cwd: build });
-  executar('make', [`-j${availableParallelism()}`, 'ffmpeg', 'ffprobe'], { cwd: build });
-  return { ffmpeg: join(build, 'ffmpeg'), ffprobe: join(build, 'ffprobe'), flags };
+  executar(join(fonte, 'configure'), flags, { cwd: build, env });
+  // Os alvos do make levam o sufixo de executável do sistema (ffmpeg.exe no Windows).
+  executar('make', [`-j${availableParallelism()}`, `ffmpeg${ext}`, `ffprobe${ext}`], { cwd: build, env });
+  return { ffmpeg: join(build, `ffmpeg${ext}`), ffprobe: join(build, `ffprobe${ext}`), flags };
 }
+
+/** Lê o SHA-256 registrado de um programa no arquivo de informações de build. */
+const shaRegistrado = (info, prog) => new RegExp(`^SHA-256 clipora-${prog}: ([0-9a-f]{64})$`, 'm').exec(info)?.[1];
 
 principal(async () => {
   const lock = await lerLock();
   const triple = detectarTriple();
-  const { sistema, archs } = plano(triple);
+  const { sistema, archs, executavel, ext } = plano(triple);
   log(`target triple: ${triple} (arquiteturas: ${archs.join(', ')})`);
 
   const destinos = {
-    ffmpeg: join(DIR_BINARIOS, `clipora-ffmpeg-${triple}`),
-    ffprobe: join(DIR_BINARIOS, `clipora-ffprobe-${triple}`),
+    ffmpeg: join(DIR_BINARIOS, `clipora-ffmpeg-${triple}${ext}`),
+    ffprobe: join(DIR_BINARIOS, `clipora-ffprobe-${triple}${ext}`),
   };
-  // Carimbo da configuração: versão + hash do tarball + flags de cada arquitetura.
+  // Carimbo da configuração: versão + hash do tarball + flags (+ toolchain fixado, no Windows).
   const carimbo = createHash('sha256')
-    .update(JSON.stringify({ v: lock.ffmpeg.versao, s: lock.ffmpeg.tarball.sha256, f: archs.map((a) => flagsAlvo(a, sistema)), c: FLAGS_COMUNS }))
+    .update(
+      JSON.stringify({
+        v: lock.ffmpeg.versao,
+        s: lock.ffmpeg.tarball.sha256,
+        f: archs.map((a) => flagsAlvo(a, sistema)),
+        c: FLAGS_COMUNS,
+        ...(sistema === 'windows' ? { t: lock.llvmMingw?.versao } : {}),
+      }),
+    )
     .digest('hex');
   const arqInfo = join(DIR_BINARIOS, `ffmpeg-build-info-${triple}.txt`);
-  const atual = versaoInstalada(destinos.ffmpeg);
   const infoAtual = existsSync(arqInfo) ? await readFile(arqInfo, 'utf8') : '';
-  if (
-    !temFlag('forcar') &&
-    atual?.includes(`ffmpeg version ${lock.ffmpeg.versao}-clipora`) &&
-    versaoInstalada(destinos.ffprobe) &&
-    infoAtual.includes(`Carimbo: ${carimbo}`)
-  ) {
-    log(`FFmpeg ${lock.ffmpeg.versao} já compilado com a configuração atual: ${relative(RAIZ, destinos.ffmpeg)}. Nada a fazer.`);
-    return;
+  if (!temFlag('forcar') && infoAtual.includes(`Carimbo: ${carimbo}`)) {
+    let integro = true;
+    for (const prog of ['ffmpeg', 'ffprobe']) {
+      const esperado = shaRegistrado(infoAtual, prog);
+      if (!existsSync(destinos[prog]) || !esperado || (await sha256Arquivo(destinos[prog])) !== esperado) integro = false;
+    }
+    if (integro && executavel) {
+      integro = !!versaoInstalada(destinos.ffmpeg)?.includes(`ffmpeg version ${lock.ffmpeg.versao}-clipora`);
+    }
+    if (integro) {
+      log(`FFmpeg ${lock.ffmpeg.versao} já compilado com a configuração atual: ${relative(RAIZ, destinos.ffmpeg)}. Nada a fazer.`);
+      return;
+    }
   }
 
   const cache = join(tmpdir(), `clipora-ffmpeg-${lock.ffmpeg.versao}`);
   await mkdir(cache, { recursive: true });
+  let env = process.env;
+  let compilador = sistema === 'darwin' ? ['clang', '--version'] : ['cc', '--version'];
+  if (sistema === 'windows') {
+    const bin = await toolchainMingw(lock, cache, archs);
+    env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` };
+    compilador = [join(bin, `${archs[0]}-w64-mingw32-clang`), '--version'];
+  }
   const fonte = await obterFonte(lock, cache);
-  const resultados = archs.map((a) => compilarArch(fonte, cache, a, sistema));
+  const resultados = archs.map((a) => compilarArch(fonte, cache, a, sistema, ext, env));
 
   await mkdir(DIR_BINARIOS, { recursive: true });
   for (const prog of ['ffmpeg', 'ffprobe']) {
@@ -218,7 +315,7 @@ principal(async () => {
   }
 
   // Registro exigido pela LGPL: versão exata, origem verificada e linha de configure.
-  const compilador = spawnSync(sistema === 'darwin' ? 'clang' : 'cc', ['--version'], { encoding: 'utf8' }).stdout;
+  const versaoCompilador = spawnSync(compilador[0], compilador.slice(1), { encoding: 'utf8', env }).stdout;
   const info = [
     `Clipora — FFmpeg mínimo (remux) — ${triple}`,
     `Licença: LGPL-2.1-or-later (sem --enable-gpl, sem --enable-nonfree, sem bibliotecas externas)`,
@@ -228,7 +325,10 @@ principal(async () => {
     `Modificações no código-fonte: nenhuma (changes.diff vazio)`,
     ...resultados.map((r, i) => `configure (${archs[i]}): ./configure ${r.flags.map((f) => (f.includes(' ') ? `'${f}'` : f)).join(' ')}`),
     `Compilado com: make -j${availableParallelism()} ffmpeg ffprobe`,
-    `Compilador: ${(compilador ?? '').split('\n')[0]}`,
+    `Compilador: ${(versaoCompilador ?? '').split('\n')[0]}`,
+    ...(sistema === 'windows' && !process.env.CLIPORA_LLVM_MINGW
+      ? [`Toolchain: llvm-mingw ${lock.llvmMingw.versao} (${lock.llvmMingw.hosts[`${process.platform}-${process.arch}`].url})`]
+      : []),
     `SHA-256 clipora-ffmpeg: ${await sha256Arquivo(destinos.ffmpeg)}`,
     `SHA-256 clipora-ffprobe: ${await sha256Arquivo(destinos.ffprobe)}`,
     `Carimbo: ${carimbo}`,

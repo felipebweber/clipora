@@ -15,7 +15,7 @@ Responsável: Estaleiro (distribuição). Complementa [distribuicao.md](distribu
 | **FFmpeg (build próprio mínimo, recomendado)** | **LGPL v2.1+** (sem `--enable-gpl` e sem `--enable-nonfree`) | Publicar o código-fonte exato, a linha de `configure` e eventuais patches junto dos binários; avisos no site e na tela “Sobre” |
 | FFmpeg de terceiros com `--enable-gpl` (gyan.dev, evermeet.cx, BtbN `gpl`) | GPL v2+ (ou v3 com `--enable-version3`) | Iguais às da GPL; **evitar** |
 | FFmpeg com `--enable-nonfree` | **Não redistribuível** | Proibido distribuir |
-| Código do Clipora (Tauri, Rust, React) | A definir pelo usuário | Avisos das dependências MIT/Apache/BSD (crates e npm) |
+| Código do Clipora (Tauri, Rust, React) | A definir pelo usuário | Avisos das dependências (gerados por `scripts/gerar-licencas.mjs`). **Atenção**: `sequoia-openpgp`/`buffered-reader` (LGPL-2.0+) são ligadas estaticamente; ver §4.1 |
 
 Como o Clipora executa o yt-dlp e o FFmpeg como **processos separados** (linha de comando), sem ligá-los ao executável do app, a interpretação usual (FAQ da GPL sobre “agregação”) é que a licença do Clipora **não** fica sujeita à GPL/LGPL. As obrigações recaem sobre a redistribuição desses binários. **[validar com assessoria jurídica se houver uso comercial]**
 
@@ -98,7 +98,7 @@ Gerado por `scripts/compilar-ffmpeg.mjs` (flags em `FLAGS_COMUNS` e `flagsAlvo`;
 - **Flags por alvo**:
   - macOS (`aarch64`/`x86_64`): `--cc=clang --arch=<aarch64|x86_64> --target-os=darwin --enable-cross-compile --extra-cflags='-arch <arm64|x86_64> -mmacosx-version-min=11.0' --extra-ldflags='-arch <arm64|x86_64> -mmacosx-version-min=11.0'`, mais `--disable-x86asm` em x86_64. O universal é o `lipo -create` das duas arquiteturas.
   - Linux x86_64: `--disable-x86asm`. Linux aarch64: nenhuma.
-  - Windows: pendente.
+  - Windows (`x86_64`/`aarch64`, compilação cruzada com llvm-mingw `20261020`): `--arch=<arch> --target-os=mingw32 --enable-cross-compile --cross-prefix=<arch>-w64-mingw32- --cc=<arch>-w64-mingw32-clang --enable-w32threads --extra-ldflags=-static`, mais `--disable-x86asm` em x86_64. O runtime mingw-w64 e o compiler-rt ligados estaticamente têm licenças permissivas (ZPL/MIT/BSD, e Apache-2.0 com exceção LLVM); não muda a licença LGPL do build **[validar a lista exata de avisos do mingw-w64 se exigida]**.
 - **Componentes resultantes [verificado em 2026-11-05, aarch64-apple-darwin]**: `-encoders` vazio (nenhum codificador); `-decoders` = só `vp9`, `aac` e `mp3`; `-bsfs` = os da lista mais `pgs_frame_merge` e `vvc_mp4toannexb`, que o `configure` liga sozinho como dependências dos muxers; `ffmpeg -L` declara “GNU Lesser General Public License … version 2.1 or later”. Liga apenas bibliotecas do sistema (`libSystem`, `CoreFoundation`, `CoreVideo`, `CoreMedia`), que se enquadram na exceção de bibliotecas do sistema da LGPL.
 - **Por que há decodificadores** (eles só servem para o `libavformat` descobrir parâmetros do fluxo; o app não transcodifica):
   - `aac`, `mp3`: sem eles, o *fixup* de HLS do yt-dlp (MPEG-TS → MP4 com `aac_adtstoasc`) falha com “sample rate not set”.
@@ -109,18 +109,60 @@ Gerado por `scripts/compilar-ffmpeg.mjs` (flags em `FLAGS_COMUNS` e `flagsAlvo`;
 ---
 
 ## 4. Demais componentes
-- **Tauri e crates Rust**: em geral MIT/Apache-2.0, que exigem preservar avisos de copyright. Gerar um arquivo de avisos de terceiros automaticamente (por exemplo, `cargo about`) no build. **[a configurar]**
-- **Dependências npm** (React etc.): em geral MIT. Gerar avisos de forma semelhante (por exemplo, `license-checker`/`pnpm licenses list`).
+
+### 4.1 Crates Rust (ligadas ao executável do Clipora) [verificado em 2026-11-05 com cargo-about 0.9.2]
+`cargo about generate` (configuração em `scripts/licencas/about.toml`) lista **364 crates** para `aarch64-apple-darwin` e **361** para `x86_64-pc-windows-msvc`. Quase todas são MIT, Apache-2.0, BSD, ISC, Zlib ou Unicode-3.0. O gerador **falha** se aparecer uma licença fora da lista aceita. Exceções encontradas:
+- **`sequoia-openpgp` 2.4.2 e `buffered-reader` 1.4.1: LGPL-2.0-or-later**, usadas na verificação GPG da atualização do yt-dlp e **ligadas estaticamente** ao executável do Clipora. Diferente do FFmpeg e do yt-dlp, que são processos separados, aqui a LGPL alcança o executável:
+  - quem recebe o app precisa poder **trocar a biblioteca e religar** (LGPL-2.1 §6). Em Rust, com ligação estática, isso na prática significa publicar o código-fonte do Clipora ou os arquivos-objeto necessários para religar;
+  - também é preciso incluir o texto da LGPL (já incluído pelo gerador) e não proibir engenharia reversa para depuração dessas modificações;
+  - **opções**: (a) se o Clipora tiver código aberto, a obrigação fica praticamente cumprida; (b) se for proprietário, trocar por **`pgp` (rPGP, MIT/Apache-2.0)**, mudança de Ferrugem no núcleo, ou aceitar publicar objetos para religação. A exceção em `about.toml` é **provisória**, só para os avisos refletirem o que é distribuído hoje. **Decisão do usuário** (§6, item 8).
+- **MPL-2.0** (`cssparser`, `cssparser-macros`, `dtoa-short`, `selectors`, dependências do Tauri/WebKit, e `option-ext`): copyleft **por arquivo**. Exige oferecer o código-fonte dos arquivos MPL usados (basta apontar para a versão publicada no crates.io) e manter os avisos. Não alcança o restante do Clipora.
+
+### 4.2 npm (empacotado pelo Vite na interface)
+`pnpm licenses list --prod`: `@tauri-apps/api` 2.12.4 (Apache-2.0 OR MIT), `react` e `react-dom` 19.3.1 e `scheduler` 0.28.0 (MIT). O gerador inclui o arquivo `LICENSE` de cada um.
+
+### 4.3 Outros
 - **WebView2**: com o modo padrão `downloadBootstrapper`, o runtime não é redistribuído por nós. Se usarmos `offlineInstaller`/`fixedVersion`, valem os termos de redistribuição da Microsoft. **[revisar se mudar o modo]**
-- **WebKitGTK** (Linux, LGPL): é dependência do sistema no `.deb`/`.rpm`. O **AppImage** pode embutir bibliotecas do sistema via linuxdeploy; nesse caso, verificar quais bibliotecas LGPL entram e publicar avisos e fontes correspondentes. **[validar ao gerar o primeiro AppImage]**
+- **WebKitGTK** (Linux, LGPL): é dependência do sistema no `.deb`/`.rpm`. O **AppImage** pode embutir bibliotecas do sistema via linuxdeploy; nesse caso, verificar quais bibliotecas LGPL entram e publicar avisos e fontes correspondentes. **[validar ao gerar o primeiro AppImage no CI]**
+- **Runtime mingw-w64 / compiler-rt** no FFmpeg de Windows: licenças permissivas, ligadas estaticamente (§3.4). **[validar se precisam de aviso próprio]**
 
 ---
 
-## 5. Entregáveis de conformidade propostos
-1. `THIRD_PARTY_NOTICES` (ou pasta `licenses/`) incluído no pacote, com GPLv3, LGPLv2.1, `THIRD_PARTY_LICENSES.txt` do yt-dlp, `ffmpeg-build-info.txt` e avisos das crates e pacotes npm. Incluir no pacote exige `bundle.resources` em `tauri.conf.json`: pedir a Ferrugem.
-2. Tela “Sobre / Licenças” no app: versões do yt-dlp (embutida e atualizada) e do FFmpeg, as licenças e links para o código-fonte.
-3. Página de release com os instaladores, `SHA256SUMS`, o código-fonte do FFmpeg e do yt-dlp correspondentes e os textos de aviso.
-4. Verificação no CI: falhar se o `ffmpeg -version` mostrar `--enable-gpl`/`--enable-nonfree`, ou se o SHA-256 dos binários divergir do lock.
+## 5. Entregáveis de conformidade
+
+### 5.1 Implementados (2026-11-05)
+1. **`scripts/gerar-licencas.mjs`** (no CI: passo “THIRD_PARTY_LICENSES” de cada alvo) gera em `src-tauri/binaries/licencas/`:
+   - `THIRD_PARTY_LICENSES.txt` (~740 KB), com quatro seções:
+     1. **yt-dlp**: versão, URL do binário e do `yt-dlp.tar.gz` da mesma tag, link para o workflow de build, `THIRD_PARTY_LICENSES.txt` do próprio build PyInstaller e texto da GPLv3;
+     2. **FFmpeg**: aviso exigido pelo ffmpeg.org, URL e SHA-256 da fonte exata, linha de `configure` completa do alvo e texto da LGPL-2.1;
+     3. **crates Rust** (cargo-about, por alvo; o universal junta as duas fatias);
+     4. **npm** de produção;
+   - `licencas.json`: resumo estruturado (componentes, versões, licenças, links) para a tela “Sobre / Licenças”.
+   - Textos GPL/LGPL vendorizados de fonte verificada (`scripts/licencas/LEIAME.md`). Falha se o build do FFmpeg tiver `--enable-gpl|nonfree|version3` ou se o yt-dlp extraído não for a versão do lock.
+2. **Verificação no CI** (estágio `ffmpeg`): falha se o `configure` registrado tiver `--enable-gpl|nonfree|version3` ou não tiver `--disable-gpl`/`--disable-nonfree`. Onde executável, exige `-L` LGPL e 0 codificadores. Os SHA-256 do yt-dlp são conferidos contra o lock e o `SHA2-256SUMS` assinado.
+
+### 5.2 Pendentes
+1. **Incluir no pacote**: pedir a Ferrugem `bundle.resources: {"binaries/licencas/": "licencas/"}`. Como `licencas/` deve ir para os três sistemas (no macOS, em `Contents/Resources`, que é o lugar certo para texto), a entrada pode ficar no `tauri.conf.json` base. Antes disso, rodar o gerador no `beforeBuildCommand` ou no CI, como já está.
+2. **Página de release** com os instaladores, `SHA256SUMS`, o código-fonte do FFmpeg e do yt-dlp correspondentes e os textos de aviso (depende da decisão de onde publicar).
+
+### 5.3 Proposta da tela “Sobre / Licenças” (para Vitral; NÃO implementada)
+**Acesso**: link discreto “Sobre e licenças” no rodapé da janela principal (ou no menu do app no macOS: *Clipora › Sobre o Clipora*). Abre um painel ou diálogo modal, fechável com Esc, sem sair do fluxo de download.
+
+**Fonte dos dados**: `licencas/licencas.json` do pacote, via um comando Rust somente leitura (por exemplo, `licencas_terceiros()`, a cargo de Ferrugem) que lê de `resource_dir()/licencas/`. A interface não acessa o sistema de arquivos. A versão do yt-dlp **em uso** (embutida ou atualizada, §6 de distribuicao.md) vem do mesmo comando que já informa a versão para o aviso de atualização.
+
+**Conteúdo** (textos em português, curtos):
+1. Cabeçalho: “Clipora {versão}”, uma linha do que o app faz e a licença do próprio Clipora (quando decidida).
+2. **Componentes principais**, um cartão cada:
+   - **yt-dlp {versão em uso}**: “Obtém o vídeo público a partir do link.” Licença: “GPL versão 3 ou posterior (executável); código do yt-dlp: Unlicense.” Links: “Código-fonte desta versão” (`codigoFonte` do JSON) e “Projeto”. Se a versão em uso for uma atualização, dizer “atualizado pelo app; código-fonte desta versão” e montar o link da tag correspondente.
+   - **FFmpeg {versão}**: “Junta vídeo e áudio sem recodificar.” Texto obrigatório: “Este programa usa código do FFmpeg, licenciado sob a LGPLv2.1. O código-fonte exato está disponível em …” (link `codigoFonte`) e “Como foi compilado” (expande a linha de configure, que já está no arquivo completo).
+3. **Bibliotecas de código aberto**: contagem (“364 bibliotecas Rust e 4 pacotes JavaScript”), lista filtrável por nome com licença ao lado (`crates` e `npm` do JSON) e aviso da LGPL do `sequoia-openpgp` enquanto ela existir.
+4. Botão **“Ver texto completo das licenças”**: abre `THIRD_PARTY_LICENSES.txt`, de preferência no visualizador de texto do sistema via comando Rust (o arquivo tem ~740 KB; evite renderizar tudo na webview). Alternativa: exibir com rolagem virtual.
+5. Nota: “O Clipora não é afiliado ao Instagram, ao TikTok, ao yt-dlp nem ao FFmpeg.”
+
+**Requisitos**:
+- Acessível por teclado; links externos abrem no navegador padrão via Rust, nunca dentro da webview (CSP atual).
+- Funciona sem rede: nada é baixado para exibir a tela.
+- Testes (Vitest): renderiza com um `licencas.json` de exemplo; mostra a versão do yt-dlp em uso; o link do FFmpeg aponta para o tarball exato.
 
 ---
 
@@ -131,4 +173,5 @@ Gerado por `scripts/compilar-ffmpeg.mjs` (flags em `FLAGS_COMUNS` e `flagsAlvo`;
 4. **EULA ou termos de uso**: haverá? Se sim, precisa das cláusulas da seção 3.2 e não pode restringir o yt-dlp nem o FFmpeg.
 5. **FFmpeg**: confirmar o build próprio mínimo LGPL (recomendado) em vez de builds prontos.
 6. **Espelhar ou não** o código-fonte dos componentes GPL de terceiros embutidos no binário PyInstaller do yt-dlp (opção conservadora: espelhar).
-7. **Texto final** da tela “Sobre / Licenças” e da página de download (aviso do FFmpeg em português).
+7. **Texto final** da tela “Sobre / Licenças” (proposta em §5.3) e da página de download (aviso do FFmpeg em português).
+8. **`sequoia-openpgp` (LGPL, ligada estaticamente; §4.1)**: manter (exige publicar o código do Clipora ou objetos para religação) ou trocar por `pgp`/rPGP (MIT/Apache-2.0), a cargo de Ferrugem. Depende do item 1.

@@ -1,0 +1,40 @@
+# Configuração do cargo-about para scripts/gerar-licencas.mjs.
+# Licenças aceitas para crates compiladas no executável do Clipora. Uma crate com licença fora da
+# lista faz o gerador FALHAR, de propósito: a decisão de aceitar uma licença nova (sobretudo
+# copyleft, como LGPL/MPL/GPL) é do usuário e deve ser registrada em docs/licencas.md.
+accepted = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "BSL-1.0",
+    "CC0-1.0",
+    "Unlicense",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "CDLA-Permissive-2.0",
+    # MPL-2.0: copyleft por arquivo; obriga a oferecer o código-fonte dos arquivos MPL usados.
+    "MPL-2.0",
+]
+
+# Só dependências que entram no binário final (não as de build/dev).
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+
+# ── Exceções por crate ────────────────────────────────────────────────────────────────────────
+# PROVISÓRIO (2026-11-05), DECISÃO PENDENTE DO USUÁRIO — docs/licencas.md §4.1:
+# sequoia-openpgp e buffered-reader (verificação GPG da atualização do yt-dlp) são
+# LGPL-2.0-or-later e ficam ligadas ESTATICAMENTE ao executável do Clipora. Aceitas aqui só para
+# que o arquivo de avisos reflita o que é distribuído hoje. Manter exige cumprir a LGPL (permitir
+# religar: publicar o código do Clipora ou os objetos); alternativa: trocar pela crate `pgp` (rPGP,
+# MIT/Apache-2.0), a cargo de Ferrugem.
+[sequoia-openpgp]
+accepted = ["LGPL-2.0-or-later"]
+
+[buffered-reader]
+accepted = ["LGPL-2.0-or-later"]

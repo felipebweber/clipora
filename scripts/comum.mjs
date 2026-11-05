@@ -104,7 +104,14 @@ export function encontrarGpg() {
   const forcado = process.env.CLIPORA_GPG;
   if (forcado === 'nenhum') return null;
   if (forcado) return forcado;
-  return encontrarExecutavel('gpg', ['/opt/homebrew/bin', '/usr/local/bin', 'C:\\Program Files (x86)\\GnuPG\\bin']);
+  return encontrarExecutavel('gpg', [
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    'C:\\Program Files (x86)\\GnuPG\\bin',
+    'C:\\Program Files\\GnuPG\\bin',
+    // Git for Windows (presente nos runners do GitHub) traz o GnuPG.
+    'C:\\Program Files\\Git\\usr\\bin',
+  ]);
 }
 
 /**

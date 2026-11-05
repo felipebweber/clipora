@@ -1,0 +1,333 @@
+# Build do Clipora (etapa 7) — dono: Estaleiro. Documentação: docs/distribuicao.md §3 e §7.
+#
+# Dois estágios:
+#   1. ffmpeg: compila o FFmpeg mínimo LGPL por alvo (scripts/compilar-ffmpeg.mjs), com cache.
+#      Windows é compilado de forma cruzada em Linux com llvm-mingw (versão e SHA-256 no lock).
+#   2. build: yt-dlp verificado (pnpm binarios), testes, avisos de licença e `tauri build` SEM
+#      assinatura. As etapas de assinatura existem, mas ficam DESATIVADAS até o usuário fornecer
+#      certificados e ligar as variáveis do repositório (Settings › Secrets and variables › Actions):
+#        vars.CLIPORA_ASSINAR_MACOS   = 'true'  + segredos APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD,
+#                                                 APPLE_SIGNING_IDENTITY, APPLE_API_ISSUER, APPLE_API_KEY,
+#                                                 APPLE_API_KEY_P8 (conteúdo da chave .p8)
+#        vars.CLIPORA_ASSINAR_WINDOWS = 'true'  + segredos AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
+#                                                 AZURE_TENANT_ID e variáveis CLIPORA_AZURE_ENDPOINT,
+#                                                 CLIPORA_AZURE_CONTA, CLIPORA_AZURE_PERFIL
+#      Nenhum segredo é usado enquanto as variáveis não forem 'true'.
+
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '10.32.1'
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ffmpeg:
+    name: FFmpeg LGPL (${{ matrix.triple }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { triple: aarch64-apple-darwin, runner: macos-14 }
+          - { triple: universal-apple-darwin, runner: macos-14 }
+          - { triple: x86_64-pc-windows-msvc, runner: ubuntu-22.04 }
+          - { triple: aarch64-pc-windows-msvc, runner: ubuntu-22.04 }
+          - { triple: x86_64-unknown-linux-gnu, runner: ubuntu-22.04 }
+          - { triple: aarch64-unknown-linux-gnu, runner: ubuntu-22.04-arm }
+    env:
+      TRIPLE: ${{ matrix.triple }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Ferramentas de build (gpg, xz)
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            command -v gpg >/dev/null || brew install gnupg
+          else
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends build-essential gnupg xz-utils
+          fi
+
+      - name: Cache do FFmpeg compilado
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            src-tauri/binaries/clipora-ffmpeg-${{ matrix.triple }}*
+            src-tauri/binaries/clipora-ffprobe-${{ matrix.triple }}*
+            src-tauri/binaries/ffmpeg-build-info-${{ matrix.triple }}.txt
+          key: ffmpeg-${{ matrix.triple }}-${{ matrix.runner }}-${{ hashFiles('scripts/compilar-ffmpeg.mjs', 'scripts/comum.mjs', 'scripts/binarios.lock') }}
+
+      - name: Compilar (idempotente; com cache válido não recompila)
+        run: node scripts/compilar-ffmpeg.mjs --target "$TRIPLE" --exigir-gpg
+
+      - name: Conferir licença do build (LGPL, sem GPL/nonfree)
+        run: |
+          info="src-tauri/binaries/ffmpeg-build-info-$TRIPLE.txt"
+          cat "$info"
+          # Só as linhas de configure (a linha "Licença:" cita as flags em negativo).
+          cfg=$(grep '^configure' "$info")
+          grep -q -- '--disable-gpl' <<<"$cfg"
+          grep -q -- '--disable-nonfree' <<<"$cfg"
+          if grep -Eq -- '--enable-(gpl|nonfree|version3)\b' <<<"$cfg"; then
+            echo "::error::build do FFmpeg com flag GPL/nonfree"; exit 1
+          fi
+          case "$TRIPLE" in
+            *windows*) ;;  # compilação cruzada: não executa no runner Linux
+            *)
+              ff="src-tauri/binaries/clipora-ffmpeg-$TRIPLE"
+              "$ff" -hide_banner -L | grep -q 'GNU Lesser General Public License'
+              test "$("$ff" -hide_banner -encoders | sed -n '/------/,$p' | tail -n +2 | wc -l)" -eq 0
+              ;;
+          esac
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ffmpeg-${{ matrix.triple }}
+          path: |
+            src-tauri/binaries/clipora-ffmpeg-${{ matrix.triple }}*
+            src-tauri/binaries/clipora-ffprobe-${{ matrix.triple }}*
+            src-tauri/binaries/ffmpeg-build-info-${{ matrix.triple }}.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    name: App (${{ matrix.triple }})
+    needs: ffmpeg
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - triple: aarch64-apple-darwin
+            runner: macos-14
+            rust-targets: aarch64-apple-darwin
+            bundles: app,dmg
+            testes: true
+          - triple: universal-apple-darwin
+            runner: macos-14
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            bundles: app,dmg
+            testes: false # mesmo host do aarch64; os testes já rodam lá
+          - triple: x86_64-pc-windows-msvc
+            runner: windows-2022
+            rust-targets: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+            testes: true
+          - triple: aarch64-pc-windows-msvc
+            runner: windows-11-arm
+            rust-targets: aarch64-pc-windows-msvc
+            bundles: nsis # o MSI (WiX) do Tauri não gera arm64
+            testes: true
+          - triple: x86_64-unknown-linux-gnu
+            runner: ubuntu-22.04
+            rust-targets: x86_64-unknown-linux-gnu
+            bundles: deb,rpm,appimage
+            testes: true
+          - triple: aarch64-unknown-linux-gnu
+            runner: ubuntu-22.04-arm
+            rust-targets: aarch64-unknown-linux-gnu
+            bundles: deb,rpm,appimage
+            testes: true
+    env:
+      TRIPLE: ${{ matrix.triple }}
+      BUNDLES: ${{ matrix.bundles }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Dependências do sistema (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential curl wget file gnupg xz-utils libxdo-dev libssl-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: gpg (macOS)
+        if: runner.os == 'macOS'
+        run: command -v gpg >/dev/null || brew install gnupg
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable (2026-10-16)
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.triple }}
+
+      - name: FFmpeg LGPL do estágio anterior
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ffmpeg-${{ matrix.triple }}
+          path: src-tauri/binaries
+
+      - name: Permissões e sidecars por arquitetura
+        run: |
+          [ "$RUNNER_OS" = Windows ] || chmod +x src-tauri/binaries/clipora-ff*
+          # No universal, o tauri-build de cada fatia (aarch64 e x86_64) procura o sidecar com o
+          # próprio triple; o binário universal (fat) serve às duas. O pacote usa o -universal-.
+          if [ "$TRIPLE" = universal-apple-darwin ]; then
+            for p in ffmpeg ffprobe; do
+              for a in aarch64 x86_64; do
+                cp "src-tauri/binaries/clipora-$p-universal-apple-darwin" "src-tauri/binaries/clipora-$p-$a-apple-darwin"
+              done
+            done
+          fi
+          ls -l src-tauri/binaries
+
+      - name: Dependências npm
+        run: pnpm install --frozen-lockfile
+
+      - name: yt-dlp verificado (SHA-256 + GPG; formato detectado na configuração do Tauri)
+        run: pnpm binarios --target "$TRIPLE" --exigir-gpg
+
+      - name: Testes do frontend
+        if: matrix.testes
+        run: |
+          pnpm typecheck
+          pnpm test
+
+      - name: Testes do Rust
+        if: matrix.testes
+        run: pnpm test:rust
+
+      - name: cargo-about (avisos de licença das crates)
+        run: cargo install --locked cargo-about --version 0.9.2 --features cli
+
+      - name: THIRD_PARTY_LICENSES
+        run: node scripts/gerar-licencas.mjs --target "$TRIPLE"
+
+      - name: tauri build (sem assinatura)
+        if: >-
+          !((runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true') ||
+            (runner.os == 'Windows' && vars.CLIPORA_ASSINAR_WINDOWS == 'true'))
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          NO_STRIP: 'true'
+        run: pnpm tauri build --ci --target "$TRIPLE" --bundles "$BUNDLES"
+
+      # ── Assinatura macOS: DESATIVADA até vars.CLIPORA_ASSINAR_MACOS == 'true' ──────────────
+      # Antes de ligar: implementar a pré-assinatura do onedir (scripts/assinar-yt-dlp.mjs,
+      # distribuicao.md §4.5 item 4); o Tauri não assina Contents/Helpers/yt-dlp.
+      - name: Chave da API do App Store Connect
+        if: runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true'
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/apple"
+          printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/apple/AuthKey.p8"
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/apple/AuthKey.p8" >> "$GITHUB_ENV"
+
+      - name: tauri build (assinado e notarizado, macOS)
+        if: runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+        run: pnpm tauri build --ci --target "$TRIPLE" --bundles "$BUNDLES"
+
+      # ── Assinatura Windows: DESATIVADA até vars.CLIPORA_ASSINAR_WINDOWS == 'true' ──────────
+      # Modelo para Azure Artifact Signing (ex-Trusted Signing). Para certificado OV, troque o
+      # signCommand. O comando é passado por --config para não fixar segredos no tauri.conf.json.
+      # Antes de ligar: assinar também yt-dlp/_internal/**/*.pyd (o Tauri só assina .exe/.dll).
+      - name: trusted-signing-cli
+        if: runner.os == 'Windows' && vars.CLIPORA_ASSINAR_WINDOWS == 'true'
+        run: cargo install --locked trusted-signing-cli
+
+      - name: tauri build (assinado, Windows)
+        if: runner.os == 'Windows' && vars.CLIPORA_ASSINAR_WINDOWS == 'true'
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ENDPOINT: ${{ vars.CLIPORA_AZURE_ENDPOINT }}
+          CONTA: ${{ vars.CLIPORA_AZURE_CONTA }}
+          PERFIL: ${{ vars.CLIPORA_AZURE_PERFIL }}
+        run: |
+          # Endpoint, conta e perfil são URL/nomes simples (sem aspas); %1 = arquivo a assinar.
+          config=$(printf '{"bundle":{"windows":{"signCommand":"trusted-signing-cli -e %s -a %s -c %s -d Clipora %%1"}}}' "$ENDPOINT" "$CONTA" "$PERFIL")
+          pnpm tauri build --ci --target "$TRIPLE" --bundles "$BUNDLES" --config "$config"
+
+      # ── Conferência do pacote ───────────────────────────────────────────────────────────────
+      - name: Conferir yt-dlp e FFmpeg dentro do pacote
+        run: |
+          b="src-tauri/target/$TRIPLE/release/bundle"
+          case "$RUNNER_OS" in
+            macOS)
+              app=$(find "$b/macos" -maxdepth 1 -name '*.app' | head -n 1)
+              "$app/Contents/Helpers/yt-dlp/yt-dlp" --ignore-config --no-update --version
+              "$app/Contents/MacOS/clipora-ffmpeg" -hide_banner -version | head -n 1
+              lipo -info "$app/Contents/MacOS/clipora-ffmpeg"
+              ;;
+            Linux)
+              deb=$(find "$b/deb" -name '*.deb' | head -n 1)
+              dpkg-deb -c "$deb" | grep -E 'yt-dlp/yt-dlp$|clipora-ffmpeg$'
+              dpkg-deb -c "$deb" | grep -E 'yt-dlp/yt-dlp$' | grep -q '^-rwxr-xr-x'
+              ;;
+            Windows)
+              find "$b" -name '*.exe' -o -name '*.msi'
+              ;;
+          esac
+
+      - name: SHA256SUMS dos artefatos
+        run: |
+          cd "src-tauri/target/$TRIPLE/release/bundle"
+          if command -v sha256sum >/dev/null; then soma=(sha256sum); else soma=(shasum -a 256); fi
+          find . -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.msi' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) \
+            -exec "${soma[@]}" {} + | tee SHA256SUMS
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: clipora-${{ matrix.triple }}
+          path: |
+            src-tauri/target/${{ matrix.triple }}/release/bundle/**/*.dmg
+            src-tauri/target/${{ matrix.triple }}/release/bundle/**/*.exe
+            src-tauri/target/${{ matrix.triple }}/release/bundle/**/*.msi
+            src-tauri/target/${{ matrix.triple }}/release/bundle/**/*.deb
+            src-tauri/target/${{ matrix.triple }}/release/bundle/**/*.rpm
+            src-tauri/target/${{ matrix.triple }}/release/bundle/**/*.AppImage
+            src-tauri/target/${{ matrix.triple }}/release/bundle/SHA256SUMS
+            src-tauri/binaries/ffmpeg-build-info-${{ matrix.triple }}.txt
+            src-tauri/binaries/licencas/
+          if-no-files-found: error
+          retention-days: 14

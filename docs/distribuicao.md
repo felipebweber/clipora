@@ -69,16 +69,55 @@ Versões de referência na consulta: `tauri` 2.12.5, `tauri-cli` 2.12.4, `tauri-
 - Flatpak, Snap e AUR ficam fora da v1. O sandbox do Flatpak/Snap complica a execução de binários baixados.
 - Fontes: <https://v2.tauri.app/distribute/appimage/>, <https://v2.tauri.app/distribute/debian/>, <https://v2.tauri.app/distribute/rpm/>, <https://v2.tauri.app/distribute/pipelines/github/>
 
-### Matriz de build sugerida (CI)
-| Artefato | Runner | Target |
-|---|---|---|
-| Windows x64 (NSIS + MSI) | `windows-latest` | `x86_64-pc-windows-msvc` |
-| Windows arm64 (NSIS) | `windows-latest` (cruzado) ou `windows-11-arm` | `aarch64-pc-windows-msvc` |
-| macOS universal (DMG) | `macos-latest` | `universal-apple-darwin` |
-| Linux x64 (AppImage, deb, rpm) | `ubuntu-22.04` | `x86_64-unknown-linux-gnu` |
-| Linux arm64 (AppImage, deb, rpm) | `ubuntu-22.04-arm` | `aarch64-unknown-linux-gnu` |
+### CI: `.github/workflows/build.yml` (implementado em 2026-11-05)
+Validado com `actionlint` 1.7.12 + `shellcheck` 0.11.0: **sem avisos** **[verificado]**. Ainda **não executado** no GitHub, porque não há repositório remoto. Todas as actions estão fixadas por SHA de commit (tag no comentário) e têm pelo menos ~2 semanas de publicação; `permissions: contents: read`; `persist-credentials: false`.
 
-**[validar]**: a disponibilidade de runners arm64 depende do plano do GitHub e de o repositório ser público (a documentação do Tauri diz “Only available in public repos”). Ainda não há repositório remoto nem CI configurados.
+**Estágio 1, `ffmpeg`** (um job por alvo, com `actions/cache`; chave = hash de `compilar-ffmpeg.mjs`, `comum.mjs` e `binarios.lock`):
+
+| Alvo | Runner | Como |
+|---|---|---|
+| `aarch64-apple-darwin`, `universal-apple-darwin` | `macos-14` | clang nativo; universal = `lipo` |
+| `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` | `ubuntu-22.04` | compilação cruzada com llvm-mingw `20261020` (§4.4) |
+| `x86_64-unknown-linux-gnu` | `ubuntu-22.04` | nativo (glibc 2.35) |
+| `aarch64-unknown-linux-gnu` | `ubuntu-22.04-arm` | nativo |
+
+Em todos: `--exigir-gpg`, checagem de que o `configure` registrado tem `--disable-gpl`/`--disable-nonfree` e nenhum `--enable-gpl|nonfree|version3` (o teste negativo detecta corretamente), e, onde executável, `-L` LGPL e 0 codificadores. Sai como artefato `ffmpeg-<triple>`.
+
+**Estágio 2, `build`** (cache de pnpm e Rust):
+
+| Artefato | Runner | Target | `--bundles` | Testes |
+|---|---|---|---|---|
+| macOS arm64 | `macos-14` | `aarch64-apple-darwin` | app, dmg | sim |
+| macOS universal | `macos-14` | `universal-apple-darwin` | app, dmg | não (mesmo host do arm64) |
+| Windows x64 | `windows-2022` | `x86_64-pc-windows-msvc` | nsis, msi | sim |
+| Windows arm64 | `windows-11-arm` | `aarch64-pc-windows-msvc` | nsis | sim (nativo) |
+| Linux x64 | `ubuntu-22.04` | `x86_64-unknown-linux-gnu` | deb, rpm, appimage | sim |
+| Linux arm64 | `ubuntu-22.04-arm` | `aarch64-unknown-linux-gnu` | deb, rpm, appimage | sim |
+
+Passos do estágio 2:
+1. Baixa o FFmpeg do estágio 1 e restaura o bit de execução, que os artefatos perdem.
+2. No universal, copia o binário *fat* também com os nomes `-aarch64-`/`-x86_64-apple-darwin`, porque o `tauri-build` de cada fatia procura o sidecar com o próprio triple **[validar no primeiro run]**.
+3. `pnpm install --frozen-lockfile`.
+4. `pnpm binarios --target <triple> --exigir-gpg`.
+5. `pnpm typecheck`, `pnpm test` e `pnpm test:rust`.
+6. Gera os avisos de licença com `cargo-about` 0.9.2 e `gerar-licencas.mjs`.
+7. `pnpm tauri build --ci --target <triple> --bundles …` **sem assinatura**.
+8. Confere o pacote: no macOS, `Helpers/yt-dlp/yt-dlp --version`, `clipora-ffmpeg -version` e `lipo -info`; no Linux, `yt-dlp/yt-dlp` executável dentro do `.deb`.
+9. Gera `SHA256SUMS` e envia o artefato `clipora-<triple>` (pacotes, `SHA256SUMS`, `ffmpeg-build-info`, `licencas/`).
+
+**Teste local do caminho macOS arm64 [verificado em 2026-11-05]**: `pnpm tauri build --ci --target aarch64-apple-darwin --bundles app` (com `CARGO_TARGET_DIR` separado) gerou `Clipora.app` (140 MiB). A conferência do passo 8 passou: `Contents/Helpers/yt-dlp/yt-dlp --version` → `2026.10.26` (0,9 s); `Contents/MacOS/clipora-ffmpeg` → `8.1.3-clipora`, arm64; `Contents/Resources` só com `icon.icns`, sem duplicar o yt-dlp. Assinatura: ad-hoc (`TeamIdentifier=not set`), como esperado sem certificado.
+
+**Assinatura no CI: desativada.** Os passos existem, mas só rodam com variáveis do repositório:
+- `vars.CLIPORA_ASSINAR_MACOS == 'true'` usa os segredos `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_API_ISSUER`, `APPLE_API_KEY` e `APPLE_API_KEY_P8` (conteúdo da chave `.p8`, gravada em arquivo temporário para `APPLE_API_KEY_PATH`).
+- `vars.CLIPORA_ASSINAR_WINDOWS == 'true'` usa o modelo Azure Artifact Signing: `trusted-signing-cli` via `bundle.windows.signCommand` passado por `--config`, sem tocar no `tauri.conf.json`. Precisa dos segredos `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` e `AZURE_TENANT_ID` e das variáveis `CLIPORA_AZURE_ENDPOINT`, `CLIPORA_AZURE_CONTA` e `CLIPORA_AZURE_PERFIL`. Para um certificado OV, troque o `signCommand`.
+- Enquanto as variáveis não forem `'true'`, **nenhum segredo é lido**. Antes de ligar, falta a pré-assinatura do onedir (`scripts/assinar-yt-dlp.mjs`, §4.5 item 4); o Tauri não assina `Contents/Helpers` nem os `.pyd`.
+
+**[validar no primeiro run]**:
+- Runners arm64 (`ubuntu-22.04-arm`, `windows-11-arm`): grátis em repositórios **públicos**; em repositórios privados podem exigir plano pago ou *larger runners*.
+- Presença de Rust/rustup no `windows-11-arm`: a action `dtolnay/rust-toolchain` não instala rustup no Windows.
+- Sintaxe de `--bundles` separada por vírgula.
+- AppImage no arm64 (`APPIMAGE_EXTRACT_AND_RUN=1` e `NO_STRIP=true` já definidos).
+- Tempo total; o cache do FFmpeg evita ~1 min por alvo.
 
 ---
 
@@ -90,26 +129,28 @@ Versões de referência na consulta: `tauri` 2.12.5, `tauri-cli` 2.12.4, `tauri-
 - Destino no pacote: macOS `Contents/MacOS/`; Windows, a pasta de instalação; Linux `.deb`/`.rpm` `/usr/bin/`; AppImage `usr/bin/` dentro da imagem somente leitura **[verificado no código do bundler]**.
 - Fonte: <https://v2.tauri.app/develop/sidecar/>, <https://v2.tauri.app/plugin/shell/>
 
-**Estado atual (até a etapa 6).** O `tauri.conf.json` de Ferrugem tem `externalBin` com `binaries/clipora-yt-dlp`, `binaries/clipora-ffmpeg` e `binaries/clipora-ffprobe`. Por isso `pnpm binarios` grava por padrão o yt-dlp **onefile** como **arquivo** em `src-tauri/binaries/clipora-yt-dlp-<triple>[.exe]`. Um diretório nesse caminho quebra `tauri dev` e `tauri build`. O onedir fica à parte, em `src-tauri/binaries/onedir/` (`--formato onedir`).
-
-**Proposta de layout para a etapa 6.** É mudança em `tauri.conf.json` a pedir para Ferrugem. Com a decisão pelo onedir, só o FFmpeg fica em `externalBin`; o yt-dlp vai como diretório (§4.5):
+**Layout integrado (etapa 6, 2026-11-05, aplicado por Ferrugem).** Só o FFmpeg fica em `externalBin`. O yt-dlp onedir vai como diretório **estável, sem triple no nome**. A configuração está em arquivos de plataforma que o Tauri v2 mescla sozinho ao `tauri.conf.json`, então `tauri dev` e `tauri build` não precisam de flags:
 
 ```jsonc
-// src-tauri/tauri.conf.json (trecho proposto — NÃO aplicado)
-"bundle": {
-  "externalBin": ["binaries/clipora-ffmpeg", "binaries/clipora-ffprobe"]
-  // + yt-dlp por sistema, ver §4.5 (gerado em src-tauri/binaries/onedir/tauri.binarios.json)
-}
+// src-tauri/tauri.conf.json
+"bundle": { "externalBin": ["binaries/clipora-ffmpeg", "binaries/clipora-ffprobe"] }
+// src-tauri/tauri.macos.conf.json
+"bundle": { "macOS": { "files": { "Helpers/yt-dlp": "binaries/yt-dlp" } } }
+// src-tauri/tauri.windows.conf.json e src-tauri/tauri.linux.conf.json
+"bundle": { "resources": { "binaries/yt-dlp/": "yt-dlp/" } }
 ```
 
-| Target triple | yt-dlp onedir (asset oficial → diretório local) | FFmpeg/ffprobe |
+O `resources` fica fora do `tauri.conf.json` base porque, no macOS, duplicaria o diretório em `Contents/Resources`.
+
+| Target triple | yt-dlp onedir (asset oficial → `src-tauri/binaries/yt-dlp/`) | FFmpeg/ffprobe (`externalBin`) |
 |---|---|---|
-| `x86_64-pc-windows-msvc` | `yt-dlp_win.zip` → `binaries/onedir/clipora-yt-dlp-x86_64-pc-windows-msvc/yt-dlp.exe` | build próprio win64 (pendente) |
-| `aarch64-pc-windows-msvc` | `yt-dlp_win_arm64.zip` → `binaries/onedir/clipora-yt-dlp-aarch64-pc-windows-msvc/yt-dlp.exe` | build próprio winarm64 (pendente) |
-| `universal-apple-darwin` | `yt-dlp_macos.zip` (universal) → `binaries/onedir/clipora-yt-dlp-universal-apple-darwin/yt-dlp` | arm64 + x64 combinados com `lipo` |
-| `aarch64-apple-darwin` / `x86_64-apple-darwin` | `yt-dlp_macos.zip` (o mesmo zip universal) | build próprio por arquitetura |
-| `x86_64-unknown-linux-gnu` | `yt-dlp_linux.zip` → `binaries/onedir/clipora-yt-dlp-x86_64-unknown-linux-gnu/yt-dlp` | build próprio linux64 |
-| `aarch64-unknown-linux-gnu` | `yt-dlp_linux_aarch64.zip` → `binaries/onedir/clipora-yt-dlp-aarch64-unknown-linux-gnu/yt-dlp` | build próprio linuxarm64 |
+| `x86_64-pc-windows-msvc` | `yt-dlp_win.zip` (`yt-dlp.exe`) | build próprio, compilação cruzada com llvm-mingw (§4.4) |
+| `aarch64-pc-windows-msvc` | `yt-dlp_win_arm64.zip` (`yt-dlp_arm64.exe` → `yt-dlp.exe`) | idem, aarch64 |
+| `aarch64-apple-darwin` / `x86_64-apple-darwin` / `universal-apple-darwin` | `yt-dlp_macos.zip` (universal2; mesmo zip para os três) | build próprio; universal = `lipo` |
+| `x86_64-unknown-linux-gnu` | `yt-dlp_linux.zip` (`yt-dlp_linux` → `yt-dlp`) | build próprio nativo |
+| `aarch64-unknown-linux-gnu` | `yt-dlp_linux_aarch64.zip` (`yt-dlp_linux_aarch64` → `yt-dlp`) | build próprio nativo |
+
+O manifesto `clipora-yt-dlp.json` registra o triple. Se o alvo mudar (por exemplo, Windows arm64 compilado numa máquina x64), `pnpm binarios --target <triple>` troca o conteúdo de forma atômica.
 
 Dentro de cada zip, o executável oficial fica na raiz (`yt-dlp_macos`, `yt-dlp.exe`, `yt-dlp_arm64.exe`, `yt-dlp_linux`, `yt-dlp_linux_aarch64`), ao lado de `_internal/` **[verificado]**. O script o renomeia para o nome fixo `yt-dlp[.exe]`, e o PyInstaller onedir continua funcionando: a saída do `-v` mostra a variante `darwin_dir` **[verificado]**.
 
@@ -216,13 +257,23 @@ Opções avaliadas:
 ### 4.4 Scripts de obtenção (implementados em 2026-11-05)
 - `scripts/binarios.lock`: versões, URLs, SHA-256 e impressões digitais das chaves GPG. As chaves públicas fixadas ficam em `scripts/chaves/`.
 - `scripts/obter-binarios.mjs` (`pnpm binarios`): yt-dlp para o triple do host (`rustc -vV`, ou `--target`). Verifica o SHA-256 do `SHA2-256SUMS` contra o lock, a assinatura GPG (chaveiro temporário isolado, sem tocar no `~/.gnupg`; sem gpg → aviso claro; `--exigir-gpg` faz falhar) e o SHA-256 do asset contra o lock e contra o `SHA2-256SUMS`. É idempotente. O topo do arquivo documenta o que o núcleo deve configurar.
-  - `--formato onefile` (**padrão**, porque o `externalBin` atual o espera) → arquivo `src-tauri/binaries/clipora-yt-dlp-<triple>[.exe]`.
-  - `--formato onedir` → diretório `src-tauri/binaries/onedir/clipora-yt-dlp-<triple>/` com `yt-dlp[.exe]` (o executável oficial com nome fixo), `_internal/` e o manifesto `clipora-yt-dlp.json` (versão, asset, SHA-256 do zip e de **cada** arquivo). A idempotência confere todos os hashes do manifesto (~0,3 s); um arquivo adulterado provoca nova extração **[verificado]**. A troca é feita por renomeação (`.novo` → destino, anterior em `.antigo`).
-  - Os dois formatos coexistem. Cada execução grava uma sobreposição de configuração sugerida (`tauri.binarios.json`) ao lado do formato gerado.
+  - **Formato detectado sem flags** pela configuração do Tauri (`tauri.conf.json` + `tauri.<macos|windows|linux>.conf.json` do alvo): `"binaries/clipora-yt-dlp"` em `externalBin` → onefile; `"binaries/yt-dlp"` → onedir; as duas → ambos; nenhuma → onefile. `--formato onefile|onedir|ambos` força o formato. Com a configuração atual o resultado é **onedir** **[verificado: “formato(s) do yt-dlp: onedir (detectado na configuração do Tauri)”]**.
+  - onefile → arquivo `src-tauri/binaries/clipora-yt-dlp-<triple>[.exe]` (legado).
+  - onedir → diretório estável `src-tauri/binaries/yt-dlp/` com `yt-dlp[.exe]` (o executável oficial com nome fixo), `_internal/` e o manifesto `clipora-yt-dlp.json` (versão, asset, SHA-256 do zip e de **cada** arquivo). A idempotência confere todos os hashes do manifesto (~0,3 s); um arquivo adulterado provoca nova extração **[verificado]**. A troca é feita por renomeação (`.novo` → destino, anterior em `.antigo`).
+  - Os dois formatos coexistem. O layout antigo `binaries/onedir/clipora-yt-dlp-<triple>/` e o `tauri.binarios.json` são removidos automaticamente.
   - Resultados em 2026-11-05 (macOS arm64) **[verificado]**: onefile 1ª execução → baixou e gravou; 2ª → “já presente e íntegro… Nada a baixar”. Onedir 1ª → extraiu 134 arquivos; 2ª → pulou em 0,27 s. A extração é idêntica byte a byte à do `ditto` da Apple, e as assinaturas ad-hoc ficam intactas (`codesign -v`).
 - `scripts/zip.mjs`: extrator ZIP só com módulos nativos do Node (stored/deflate, CRC-32 conferido, sem ZIP64, criptografia nem links simbólicos). Rejeita caminhos absolutos ou com `..`; teste com `../fora.txt` → “ZIP com caminho inseguro” **[verificado]**. Evita depender de `unzip`/`tar`, que variam por sistema.
 - `scripts/comum.mjs`: utilitários (download com novas tentativas, hash, GPG).
-- `scripts/compilar-ffmpeg.mjs`: build mínimo LGPL (macOS arm64/x64/universal; Linux nativo; Windows pendente). É idempotente por carimbo gravado em `ffmpeg-build-info-<triple>.txt`.
+- `scripts/compilar-ffmpeg.mjs`: build mínimo LGPL para os 6 alvos (o mesmo `FLAGS_COMUNS`):
+  - **macOS** arm64/x64/universal, em host macOS.
+  - **Linux** x64/arm64: nativo na mesma arquitetura (no CI, Ubuntu 22.04 → glibc ≥ 2.35). **Não executado aqui**: o Docker não está rodando nesta máquina, e o primeiro teste será no CI.
+  - **Windows** x64/arm64: **compilação cruzada** em host Linux ou macOS com **llvm-mingw `20261020`** (clang + mingw-w64, UCRT). O toolchain é baixado e verificado pelo SHA-256 fixado em `binarios.lock` (`llvmMingw`; o digest é o que o GitHub publica, já que o projeto não assina releases); `CLIPORA_LLVM_MINGW=<dir>` usa outro. Flags extras: `--target-os=mingw32 --cross-prefix=<arch>-w64-mingw32- --enable-w32threads --extra-ldflags=-static` (+ `--disable-x86asm` em x64).
+    - Escolhi llvm-mingw em vez de MSYS2 no runner Windows: é o mesmo toolchain dos ambientes CLANG64/CLANGARM64 do MSYS2, sem a tradução de caminhos do MSYS, com um único runner Linux para as duas arquiteturas, e pode ser testado localmente.
+  - **Resultado Windows [verificado em 2026-11-05, compilado neste Mac]**: `clipora-ffmpeg-x86_64-pc-windows-msvc.exe` (4,2 MB, PE32+ x86-64), `clipora-ffprobe-…` (4,0 MB) e as versões aarch64 (PE32+ Aarch64, NEON ligado), em ~45 s cada.
+    - Importam **só DLLs do sistema**: `KERNEL32`, `bcrypt`, `SHELL32` e UCRT `api-ms-win-crt-*` (Windows 10+). Não importam `libwinpthread` nem `libc++`; `HAVE_W32THREADS 1`.
+    - **Não executados** (não há Windows aqui): rodar a matriz de remux da §4.3 numa máquina Windows **[validar]**.
+  - Idempotente: carimbo da configuração + SHA-256 registrados em `ffmpeg-build-info-<triple>.txt`, mais `-version` quando o binário roda no host. Assim funciona também para alvos cruzados.
+- `scripts/gerar-licencas.mjs`: gera `src-tauri/binaries/licencas/THIRD_PARTY_LICENSES.txt` e `licencas.json` por alvo (licencas.md §5).
 - `src-tauri/binaries/` está no `.gitignore`.
 
 Especificação original (mantida como referência):
@@ -232,26 +283,26 @@ Especificação original (mantida como referência):
 4. Grava `src-tauri/binaries/clipora-*-<triple>[.exe]` com permissão 755. Esse diretório deve ir para o `.gitignore`; pedir a Ferrugem.
 5. No Windows, assina os sidecars com o certificado do projeto antes do `tauri build`. **Não confirmei no código do bundler que o Tauri assine `externalBin` no Windows**; no macOS ele assina, de dentro para fora, junto com o `.app` **[verificado em `macos/app.rs`]**.
 
-### 4.5 Proposta: empacotar o yt-dlp onedir (para Ferrugem, etapa 6 — NÃO aplicada)
+### 4.5 Empacotamento do yt-dlp onedir (proposta aceita; integrada por Ferrugem na etapa 6)
 
-**Origem**: `pnpm binarios --formato onedir` → `src-tauri/binaries/onedir/clipora-yt-dlp-<triple>/{yt-dlp[.exe], _internal/, clipora-yt-dlp.json}`.
+**Origem**: `pnpm binarios` → `src-tauri/binaries/yt-dlp/{yt-dlp[.exe], _internal/, clipora-yt-dlp.json}`. O caminho é estável, sem triple, para não fixar a arquitetura na configuração. Isso também cobre o `universal-apple-darwin`: o Tauri o compila como aarch64 + x86_64, então o `TARGET` de compilação nunca é “universal”.
 
 **1. Por que não `externalBin`**: o `externalBin` espera um **arquivo** `<nome>-<triple>` e o copia com `copy_file` para `Contents/MacOS/`, a pasta de instalação ou `/usr/bin` (§4.1). Não serve para um diretório com `_internal/`. Ao migrar, **remover `binaries/clipora-yt-dlp` do `externalBin`**.
 
-**2. Configuração por sistema.** O script gera `src-tauri/binaries/onedir/tauri.binarios.json` para o triple atual. Ele pode ser usado como `tauri dev|build --config src-tauri/binaries/onedir/tauri.binarios.json` (a CLI v2 mescla JSON passado por `--config`) ou copiado para `tauri.conf.json`. Como o triple varia por arquitetura dentro do mesmo SO, um arquivo gerado por build é mais simples que `tauri.<plataforma>.conf.json`. **[validar]** se os caminhos relativos do `--config` são resolvidos a partir de `src-tauri/`, como os do `tauri.conf.json`.
+**2. Configuração por sistema**, em `tauri.macos.conf.json`, `tauri.windows.conf.json` e `tauri.linux.conf.json`, que o Tauri v2 mescla automaticamente (§4.1). Sem `--config`.
 
 | Sistema | Configuração | Destino no pacote | Observações |
 |---|---|---|---|
-| macOS | `bundle.macOS.files: {"Helpers/yt-dlp": "binaries/onedir/clipora-yt-dlp-<triple>"}` | `Clipora.app/Contents/Helpers/yt-dlp/yt-dlp` | O bundler copia diretórios em `macOS.files` (`copy_custom_files_to_bundle` → `copy_dir`) **[verificado no código]**. `Helpers/` é o lugar convencional para ferramentas auxiliares; `Contents/Resources` não deve conter código. O Tauri **não** assina esses arquivos (só `externalBin` e frameworks entram na lista de assinatura) **[verificado em `macos/app.rs`]**, então é preciso pré-assinar (item 4). |
-| Windows | `bundle.resources: {"binaries/onedir/clipora-yt-dlp-<triple>/": "yt-dlp/"}` | `<pasta de instalação>\yt-dlp\yt-dlp.exe` (`resource_dir()` = pasta do executável) | O NSIS assina recursos só com extensão `.exe`/`.dll` e ainda não assinados (`should_sign`) **[verificado]**. Os `.pyd` ficariam sem assinatura, então é preciso pré-assinar. |
-| Linux | o mesmo `bundle.resources` | `.deb`/`.rpm`: `/usr/lib/<productName>/yt-dlp/yt-dlp`; AppImage: `$APPDIR/usr/lib/<productName>/yt-dlp/yt-dlp` | Caminhos conforme a documentação de `resource_dir` no `tauri-utils` **[fonte: código]**. **[validar]** que o bit de execução se preserva no `.deb`/`.rpm`/AppImage. |
+| macOS (`tauri.macos.conf.json`) | `bundle.macOS.files: {"Helpers/yt-dlp": "binaries/yt-dlp"}` | `Clipora.app/Contents/Helpers/yt-dlp/yt-dlp` | O bundler copia diretórios em `macOS.files` (`copy_custom_files_to_bundle` → `copy_dir`) **[verificado no código]**. `Helpers/` é o lugar convencional para ferramentas auxiliares; `Contents/Resources` não deve conter código. O Tauri **não** assina esses arquivos (só `externalBin` e frameworks entram na lista de assinatura) **[verificado em `macos/app.rs`]**, então é preciso pré-assinar (item 4). |
+| Windows (`tauri.windows.conf.json`) | `bundle.resources: {"binaries/yt-dlp/": "yt-dlp/"}` | `<pasta de instalação>\yt-dlp\yt-dlp.exe` (`resource_dir()` = pasta do executável) | O NSIS assina recursos só com extensão `.exe`/`.dll` e ainda não assinados (`should_sign`) **[verificado]**. Os `.pyd` ficariam sem assinatura, então é preciso pré-assinar. |
+| Linux (`tauri.linux.conf.json`) | o mesmo `bundle.resources` | `.deb`/`.rpm`: `/usr/lib/<productName>/yt-dlp/yt-dlp`; AppImage: `$APPDIR/usr/lib/<productName>/yt-dlp/yt-dlp` | Caminhos conforme a documentação de `resource_dir` no `tauri-utils` **[fonte: código]**. **[validar]** que o bit de execução se preserva no `.deb`/`.rpm`/AppImage. |
 
 **3. Resolução do executável no Rust**, nesta ordem:
 1. **Cópia atualizada** (§6): ler `app_local_data_dir()/bin/yt-dlp/atual` e validar (§6.3); usar `…/yt-dlp/<versao>/yt-dlp[.exe]`.
 2. **Cópia embutida**:
    - macOS: `std::env::current_exe()?.parent()` (= `Contents/MacOS`) → `../Helpers/yt-dlp/yt-dlp`;
    - Windows/Linux: `app.path().resource_dir()?.join("yt-dlp").join(EXE)`.
-3. **Desenvolvimento** (`cfg!(debug_assertions)`, `tauri dev` não monta o `.app`): `env!("CARGO_MANIFEST_DIR")/binaries/onedir/clipora-yt-dlp-<TARGET>/yt-dlp[.exe]`, com `<TARGET>` exportado pelo `build.rs` (`println!("cargo:rustc-env=CLIPORA_TARGET={}", std::env::var("TARGET")?)`).
+3. **Desenvolvimento** (`cfg!(debug_assertions)`, `tauri dev` não monta o `.app`): `env!("CARGO_MANIFEST_DIR")/binaries/yt-dlp/yt-dlp[.exe]`, independente do triple.
 4. Esboço:
    ```rust
    const EXE: &str = if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" };
@@ -263,8 +314,7 @@ Especificação original (mantida como referência):
        let exe = dir.join(EXE);
        if exe.is_file() { return Some(exe); }
        if cfg!(debug_assertions) {
-           let dev = Path::new(env!("CARGO_MANIFEST_DIR"))
-               .join("binaries/onedir").join(concat!("clipora-yt-dlp-", env!("CLIPORA_TARGET"))).join(EXE);
+           let dev = Path::new(env!("CARGO_MANIFEST_DIR")).join("binaries/yt-dlp").join(EXE);
            if dev.is_file() { return Some(dev); }
        }
        None
@@ -409,15 +459,31 @@ Para cada artefato (Win x64, Win arm64, macOS arm64, macOS x64, Linux x64, Linux
 ---
 
 ## 8. Próximos passos do Estaleiro (após decisões)
-1. ~~Criar `scripts/binarios.lock`, a obtenção do yt-dlp e o build do FFmpeg mínimo~~ (feito em 2026-11-05, seção 4.4), incluindo o modo onedir e a correção VP9 do FFmpeg (§4.3). Falta o FFmpeg para Windows (MSYS2/clang no CI) e testar a fatia x86_64 do universal (Mac Intel ou Rosetta).
-2. Criar `.github/workflows/` com a matriz da seção 3 (depende da existência de um repositório remoto e de segredos).
-3. Pedir a Ferrugem as mudanças em `tauri.conf.json` (`externalBin` só com ffmpeg/ffprobe, `bundle.macOS.files`/`bundle.resources` do onedir conforme §4.5, `minimumSystemVersion`, assinatura) e a resolução e atualização do yt-dlp (§4.5 item 3 e §6.3). O `.gitignore` já ignora `src-tauri/binaries/`.
-4. Quando houver certificados: `scripts/assinar-yt-dlp.mjs` (pré-assinatura do onedir, §4.5 item 4) e os segredos do CI.
+1. ~~Lock, obtenção do yt-dlp e FFmpeg mínimo~~ (§4.4): feito, inclusive onedir, VP9 e FFmpeg Windows por llvm-mingw. Falta: executar o build Linux (só no CI, porque aqui não há Docker rodando) e a fatia x86_64 do universal (Mac Intel ou Rosetta).
+2. ~~`.github/workflows/build.yml`~~ (§3): feito e validado com actionlint. Falta o primeiro run num repositório remoto.
+3. ~~Layout onedir no `tauri.conf.json` e `tauri.<os>.conf.json`~~: feito por Ferrugem. Falta pedir `bundle.resources` para `binaries/licencas/` → `licencas/` (avisos no pacote; licencas.md §5) e `minimumSystemVersion`.
+4. Quando houver certificados: `scripts/assinar-yt-dlp.mjs` (pré-assinatura do onedir, §4.5 item 4), ligar as variáveis de assinatura do CI e testar a notarização.
 5. Opcional: levar a matriz de remux da §4.3 para `scripts/` como teste de regressão do FFmpeg no CI.
+6. Workflow de release (tag `v*` → GitHub Release com pacotes, `SHA256SUMS`, código-fonte do FFmpeg e do yt-dlp), depois da decisão 8.
 
 ---
 
 ## 9. Decisões pendentes do usuário
+
+### 9.0 O que só o usuário pode providenciar (lista consolidada, 2026-11-05)
+O CI e os scripts estão prontos para funcionar **sem** nada disto. Cada item libera uma parte:
+
+| # | Providenciar | Libera | Onde configurar |
+|---|---|---|---|
+| A | **Repositório remoto** no GitHub (público ou privado) | primeiro run do CI; runners arm64 grátis se for público | — |
+| B | **Conta Apple Developer** (US$ 99/ano), certificado **Developer ID Application** (.p12 + senha) e **chave da API do App Store Connect** (Issuer ID, Key ID, .p8) | assinatura + notarização no macOS | segredos `APPLE_*` + `vars.CLIPORA_ASSINAR_MACOS='true'` |
+| C | **Assinatura Windows**: Azure Artifact Signing (conta + perfil + app registrado no Entra ID) **ou** certificado OV em token/HSM **ou** SignPath (open source) | assinatura do instalador, do executável e do yt-dlp | segredos `AZURE_*` + variáveis `CLIPORA_AZURE_*` + `vars.CLIPORA_ASSINAR_WINDOWS='true'` |
+| D | **Licença do próprio Clipora** (e se o código será público) | decidir sobre `sequoia-openpgp` (LGPL, ligada estaticamente; licencas.md §4.1) e o campo `license` do `Cargo.toml`/`package.json` | — |
+| E | **Identifier definitivo** (domínio reverso próprio) | caminhos de dados e identidade na Apple | `tauri.conf.json` (Ferrugem) |
+| F | **Onde publicar** instaladores e código-fonte (FFmpeg/yt-dlp) | oferta de código-fonte exigida pela GPL/LGPL; workflow de release | — |
+| G | **Mac Intel ou Rosetta** para testar a fatia x86_64; máquinas **Windows** (x64/arm64) e **Linux** para o checklist da §7 | validação real dos pacotes | — |
+
+### 9.1 Decisões
 
 1. **Conta Apple Developer** (US$ 99/ano, pessoa física ou jurídica). Sem ela não há notarização, e no macOS o usuário precisa liberar o app manualmente. Se houver conta: Team ID, certificado Developer ID Application exportado em .p12 e chave da API do App Store Connect para o CI.
 2. **Assinatura no Windows**: (a) certificado OV de uma AC, com token ou HSM em nuvem (renovação ~anual, validade máx. 460 dias); (b) Azure Artifact Signing, se a pessoa ou empresa for elegível; (c) SignPath Foundation, se o projeto for open source; ou (d) distribuir sem assinatura e aceitar os avisos do SmartScreen e o bloqueio pelo Smart App Control.
@@ -429,4 +495,4 @@ Para cada artefato (Win x64, Win arm64, macOS arm64, macOS x64, Linux x64, Linux
 8. **Onde publicar** os instaladores e o código-fonte correspondente do FFmpeg/yt-dlp (por exemplo, GitHub Releases de um repositório do projeto). Isso define a URL da oferta de código-fonte exigida pelas licenças. Público ou privado?
 9. **Mac App Store / Microsoft Store**: fora da v1 (incompatível com o modelo de yt-dlp atualizável no macOS). Confirmar.
 10. **Linux**: só AppImage + `.deb`, ou também `.rpm`.
-11. ~~**yt-dlp onefile × onedir**~~: **decidido em 2026-11-05: onedir.** A proposta de empacotamento, resolução, assinatura e atualização está em §4.5 e §6. Falta Ferrugem aceitar ou ajustar a proposta e decidir em qual etapa migrar; até lá, o padrão do script continua *onefile* no caminho do sidecar.
+11. ~~**yt-dlp onefile × onedir**~~: **decidido em 2026-11-05: onedir.** A proposta de empacotamento, resolução, assinatura e atualização está em §4.5 e §6. Integrado por Ferrugem com o diretório estável `binaries/yt-dlp/` e `tauri.<os>.conf.json` (§4.1); `pnpm binarios` detecta o formato sozinho.
