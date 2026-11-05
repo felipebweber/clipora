@@ -30,3 +30,5 @@ pnpm build
 `pnpm build` compila o frontend; `pnpm tauri build` também gera o aplicativo desktop, sujeito aos requisitos da plataforma.
 
 O identificador `app.clipora.desktop` é provisório e depende de decisão do usuário antes da distribuição. Consulte [o contrato IPC previsto](docs/contrato-ipc.md); ele ainda não está implementado.
+
+Os testes Rust (`pnpm test:rust`) desativam `externalBin` somente na configuração temporária do processo de teste e não exigem sidecars. Para executar ou empacotar o aplicativo com a configuração normal, obtenha os três sidecars do alvo em `src-tauri/binaries/` conforme os scripts de distribuição.

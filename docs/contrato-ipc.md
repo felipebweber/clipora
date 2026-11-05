@@ -1,47 +1,114 @@
-# Contrato IPC previsto
+# Contrato IPC v2
 
-Rascunho para dados simulados da interface. Nenhum dos comandos ou eventos abaixo está implementado. Nomes e formatos poderão ser ajustados em conjunto antes da integração. Todos os caminhos são strings locais; `null` indica valor ausente. Argumentos de comandos usam camelCase.
+Contrato para integração; salvo indicação contrária, comandos futuros ainda não estão implementados. Comandos usam snake_case, argumentos e campos camelCase (`#[serde(rename_all = "camelCase")]`). Erros rejeitam a chamada com `ErroClipora`. Uniões usam discriminante `tipo`. O frontend é dono das mensagens em português por código; `mensagem` é fallback e `detalhe` é técnico e não exibido por padrão.
 
-## Comandos
+## Tipos TypeScript
 
-| Comando | Argumentos | Retorno |
-| --- | --- | --- |
-| `obter_previa` | `{ url: string }` | `{ url: string, titulo: string, imagemUrl: string \| null }` |
-| `iniciar_download` | `{ url: string }` | `{ downloadId: string }` |
-| `obter_pasta_destino` | nenhum | `{ caminho: string \| null }` |
-| `selecionar_pasta_destino` | nenhum | `{ caminho: string \| null }` (`null` se cancelado) |
-| `abrir_pasta_destino` | nenhum | `null` |
-| `verificar_ytdlp` | nenhum | `{ versaoAtual: string, versaoDisponivel: string \| null, atualizacaoDisponivel: boolean }` |
-| `atualizar_ytdlp` | nenhum | `null` após conclusão |
+```ts
+type CodigoErro = 'LINK_INVALIDO' | 'PLATAFORMA_NAO_SUPORTADA' | 'PREVIA_CANCELADA' | 'TEMPO_ESGOTADO' | 'SEM_CONEXAO' | 'LOGIN_NECESSARIO' | 'CONTEUDO_PRIVADO_OU_REMOVIDO' | 'LIMITE_DE_ACESSO' | 'CONTEUDO_NAO_SUPORTADO' | 'PREVIA_INDISPONIVEL' | 'PASTA_NAO_DEFINIDA' | 'PASTA_AUSENTE' | 'PASTA_SEM_PERMISSAO' | 'ESPACO_INSUFICIENTE' | 'FFMPEG_INDISPONIVEL' | 'ARQUIVO_INCOMPLETO' | 'DOWNLOAD_EM_ANDAMENTO' | 'DOWNLOAD_FALHOU' | 'ATUALIZACAO_EM_ANDAMENTO' | 'ATUALIZACAO_INTEGRIDADE' | 'ATUALIZACAO_NAO_SUPORTADA' | 'ATUALIZACAO_FALHOU' | 'ERRO_INTERNO';
+type ErroClipora = { codigo: CodigoErro; mensagem: string; detalhe?: string };
+type Plataforma = 'instagram' | 'tiktok';
+type Previa = { requisicaoId: number; urlOriginal: string; urlNormalizada: string; titulo: string | null; plataforma: Plataforma; duracaoSegundos: number | null; capaDataUrl: string | null };
+type EtapaDownload = 'preparando' | 'baixando_video' | 'baixando_audio' | 'unindo' | 'finalizando';
+type EventoDownload =
+  | { tipo: 'progresso'; etapa: EtapaDownload; percentual: number | null; bytesBaixados?: number; bytesTotais?: number }
+  | { tipo: 'concluido'; caminho: string; nomeArquivo: string; renomeado: boolean }
+  | { tipo: 'erro'; erro: ErroClipora };
+type EstadoDownload = { downloadId: string; percentual: number | null; etapa: EtapaDownload };
+type Estado = { download: EstadoDownload | null; atualizacaoEmAndamento: boolean };
+type PastaDestino = { caminho: string | null; estado: 'nao_definida' | 'valida' | 'ausente' | 'sem_permissao' };
+type VerificacaoYtdlp = { versaoAtual: string; versaoDisponivel: string | null; atualizacaoDisponivel: boolean; origem: 'empacotada' | 'atualizada'; erroVerificacao: ErroClipora | null };
+type EventoAtualizacao = { tipo: 'progresso'; etapa: string; percentual: number | null };
+// Channel<T> é importado de @tauri-apps/api/core.
+type Comandos = {
+  obter_previa: (args: { url: string; requisicaoId: number }) => Promise<Previa>;
+  iniciar_download: (args: { downloadId: string; url: string; onEvento: Channel<EventoDownload> }) => Promise<void>;
+  obter_estado: () => Promise<Estado>;
+  abrir_pasta_download: (args: { downloadId: string }) => Promise<void>;
+  obter_pasta_destino: () => Promise<PastaDestino>;
+  selecionar_pasta_destino: () => Promise<string | null>;
+  verificar_ytdlp: () => Promise<VerificacaoYtdlp>;
+  atualizar_ytdlp: (args: { versaoEsperada: string; onEvento: Channel<EventoAtualizacao> }) => Promise<{ versaoInstalada: string }>;
+};
+```
 
-A prévia deve ser associada à URL solicitada: o frontend descarta respostas que não correspondam ao campo atual. Apenas um download pode estar ativo. Selecionar pasta cancelada não inicia download. A atualização é explícita e não pode ocorrer durante download.
+## Tipos Rust
 
-## Eventos
+As assinaturas abaixo são a forma lógica do contrato; `State` e `AppHandle` são injetados pelo Tauri. `Option` serializa como `null`, exceto campos opcionais de erro e bytes, omitidos quando ausentes. Os enums de texto usam `#[serde(rename_all = "snake_case")]`; erros usam `SCREAMING_SNAKE_CASE`.
 
-| Evento | Payload |
-| --- | --- |
-| `download-progresso` | `{ downloadId: string, percentual: number \| null, etapa: string }` |
-| `download-concluido` | `{ downloadId: string, caminho: string }` |
-| `download-erro` | `{ downloadId: string, erro: ErroClipora }` |
-| `ytdlp-atualizacao-progresso` | `{ percentual: number \| null, etapa: string }` |
+```rust
+use serde::Serialize;
+use tauri::ipc::Channel;
+#[derive(Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum CodigoErro { LinkInvalido, PlataformaNaoSuportada, PreviaCancelada, TempoEsgotado, SemConexao, LoginNecessario, ConteudoPrivadoOuRemovido, LimiteDeAcesso, ConteudoNaoSuportado, PreviaIndisponivel, PastaNaoDefinida, PastaAusente, PastaSemPermissao, EspacoInsuficiente, FfmpegIndisponivel, ArquivoIncompleto, DownloadEmAndamento, DownloadFalhou, AtualizacaoEmAndamento, AtualizacaoIntegridade, AtualizacaoNaoSuportada, AtualizacaoFalhou, ErroInterno }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ErroClipora { codigo: CodigoErro, mensagem: String, #[serde(skip_serializing_if = "Option::is_none")] detalhe: Option<String> }
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+enum Plataforma { Instagram, Tiktok }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Previa { requisicao_id: u64, url_original: String, url_normalizada: String, titulo: Option<String>, plataforma: Plataforma, duracao_segundos: Option<f64>, capa_data_url: Option<String> }
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+enum EtapaDownload { Preparando, BaixandoVideo, BaixandoAudio, Unindo, Finalizando }
+#[derive(Serialize)]
+#[serde(tag = "tipo", rename_all = "snake_case", rename_all_fields = "camelCase")]
+enum EventoDownload {
+  Progresso { etapa: EtapaDownload, percentual: Option<f64>, #[serde(skip_serializing_if = "Option::is_none")] bytes_baixados: Option<u64>, #[serde(skip_serializing_if = "Option::is_none")] bytes_totais: Option<u64> },
+  Concluido { caminho: String, nome_arquivo: String, renomeado: bool },
+  Erro { erro: ErroClipora },
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EstadoDownload { download_id: String, percentual: Option<f64>, etapa: EtapaDownload }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Estado { download: Option<EstadoDownload>, atualizacao_em_andamento: bool }
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+enum EstadoPasta { NaoDefinida, Valida, Ausente, SemPermissao }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PastaDestino { caminho: Option<String>, estado: EstadoPasta }
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+enum OrigemYtdlp { Empacotada, Atualizada }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VerificacaoYtdlp { versao_atual: String, versao_disponivel: Option<String>, atualizacao_disponivel: bool, origem: OrigemYtdlp, erro_verificacao: Option<ErroClipora> }
+#[derive(Serialize)]
+#[serde(tag = "tipo", rename_all = "snake_case")]
+enum EventoAtualizacao { Progresso { etapa: String, percentual: Option<f64> } }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ResultadoAtualizacao { versao_instalada: String }
+// Assinaturas lógicas:
+async fn obter_previa(url: String, requisicao_id: u64) -> Result<Previa, ErroClipora>;
+async fn iniciar_download(download_id: String, url: String, on_evento: Channel<EventoDownload>) -> Result<(), ErroClipora>;
+fn obter_estado() -> Result<Estado, ErroClipora>;
+async fn abrir_pasta_download(download_id: String) -> Result<(), ErroClipora>;
+fn obter_pasta_destino() -> Result<PastaDestino, ErroClipora>;
+async fn selecionar_pasta_destino() -> Result<Option<String>, ErroClipora>;
+async fn verificar_ytdlp() -> Result<VerificacaoYtdlp, ErroClipora>;
+async fn atualizar_ytdlp(versao_esperada: String, on_evento: Channel<EventoAtualizacao>) -> Result<ResultadoAtualizacao, ErroClipora>;
+```
 
-Percentuais, quando conhecidos, variam de 0 a 100; `null` significa indeterminado. Conclusão e erro são terminais para o download identificado. A atualização comunica conclusão ou falha pelo retorno do comando.
+## Prévia e política de URL
 
-## Erros
+O frontend gera `requisicaoId` crescente e ignora `PREVIA_CANCELADA`. Nova prévia cancela e mata a árvore do processo anterior; prazo de 30 s retorna `TEMPO_ESGOTADO`. O backend ecoa a URL original, sua forma normalizada e o ID. Aceita HTTP(S), sem credenciais ou porta; HTTP é normalizado para HTTPS: `instagram.com` e `www.`/`m.` em `/reel/`, `/reels/`, `/p/`; `tiktok.com/@u/video/id`, `vm.tiktok.com`, `vt.tiktok.com` e `tiktok.com/t/`. Post `/p/` aceita apenas um vídeo; foto ou carrossel com vários itens retorna `CONTEUDO_NAO_SUPORTADO`. A validação Rust é autoritativa; frontend apenas pré-filtra. A miniatura é baixada no Rust com limite de tamanho e Content-Type `image/*`, retornada como data URL ou `null`; CSP não autoriza imagens HTTPS diretamente.
 
-Comandos rejeitam com `ErroClipora = { codigo: string, mensagem: string }`; eventos de erro usam a mesma estrutura. Mensagens são apropriadas para exibição em português.
+## Primeiro download
 
-| Código | Significado |
-| --- | --- |
-| `LINK_INVALIDO` | URL inválida ou plataforma não suportada. |
-| `CONTEUDO_INACESSIVEL` | Vídeo privado, removido, restrito ou inacessível. |
-| `REDE_INDISPONIVEL` | Falha de conexão ou acesso à rede. |
-| `PREVIA_INDISPONIVEL` | Não foi possível obter metadados. |
-| `PASTA_INDISPONIVEL` | Pasta ausente ou sem permissão de escrita. |
-| `DOWNLOAD_EM_ANDAMENTO` | Já existe um download ativo. |
-| `ATUALIZACAO_EM_ANDAMENTO` | Atualização impede a operação. |
-| `YTDLP_INDISPONIVEL` | Executável ausente ou não executável. |
-| `FFMPEG_INDISPONIVEL` | FFmpeg necessário não está disponível. |
-| `DOWNLOAD_FALHOU` | Falha ao obter ou processar vídeo. |
-| `ATUALIZACAO_FALHOU` | Falha na verificação ou atualização do yt-dlp. |
-| `ERRO_INTERNO` | Falha inesperada. |
+1. Frontend solicita `iniciar_download` com ID próprio e canal. Caso receba `PASTA_NAO_DEFINIDA`, `PASTA_AUSENTE` ou `PASTA_SEM_PERMISSAO`, chama `selecionar_pasta_destino`.
+2. Diálogo nativo aberto pelo Rust valida diretório e escrita real e persiste em `app_config_dir`. Cancelamento retorna `null` e mantém a pasta anterior; nesse caso não repetir o download. Se selecionada, repetir com o mesmo ID e canal.
+3. Eventos são ordenados no canal, com percentual global calculado no backend e limitado a aproximadamente 10/s. O evento terminal é `concluido` ou `erro`; conclusão exige saída zero, arquivo final existente e não vazio, sem `.part`. Saída zero sem arquivo válido (inexistente, vazio, `.part`, mensagem `already downloaded` ou caminho fora da pasta) retorna `ARQUIVO_INCOMPLETO`. Após recarga, `obter_estado` recupera o download ativo e estado da atualização.
+4. Backend sanitiza nomes para Windows, remove espaços finais e trata nomes reservados. Usa `Título [id].mp4`, depois `Título [id] (2).mp4` etc.; baixa em pasta temporária no mesmo volume e finaliza com reserva exclusiva sem sobrescrever. `renomeado` indica colisão. `abrir_pasta_download` revela exclusivamente arquivo produzido pelo backend, identificado por ID, sem aceitar caminho do frontend.
+
+## Atualização
+
+`verificar_ytdlp` é chamado uma vez por abertura; uma falha de consulta pode ser retornada em `erroVerificacao`. `atualizar_ytdlp` é iniciado explicitamente pelo usuário, sem `yt-dlp -U`: baixa release oficial em `app_local_data_dir()/bin`, verifica assinatura GPG do SHA2-256SUMS com chave fixada e SHA-256, executa `--version`, troca atomicamente e preserva/restaura a versão anterior em caso de falha. Prévia e download rejeitam durante atualização com `ATUALIZACAO_EM_ANDAMENTO`; atualizar durante download rejeita com `DOWNLOAD_EM_ANDAMENTO`. O canal informa progresso e o retorno ou rejeição informa resultado terminal.
+
+Mapear erros específicos antes dos genéricos; quando o extrator falhar, sugerir atualização do yt-dlp. A lista completa de códigos é `CodigoErro` acima.

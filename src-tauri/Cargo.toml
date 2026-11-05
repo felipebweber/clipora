@@ -1,8 +1,8 @@
 [package]
 name = "clipora"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Clipora"
+authors = ["Felipe Weber"]
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -22,6 +22,12 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+url = "2"
+tokio = { version = "1", features = ["process", "time", "sync", "io-util", "macros"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+futures-util = "0.3"
+base64 = "0.22"
+libc = "0.2"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
@@ -29,5 +35,7 @@ serde_json = "1"
 codegen-units = 1
 lto = true
 opt-level = 3
-panic = "abort"
 strip = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_Security"] }
