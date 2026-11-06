@@ -166,9 +166,9 @@ descrever('yt-dlp falso: prévia e metadados', () => {
   });
 
   it('URL de outro site: "Unsupported URL"', async () => {
-    const r = await previa('https://www.youtube.com/watch?v=x');
+    const r = await previa('https://vimeo.com/123456789');
     expect(r.codigo).toBe(1);
-    expect(r.stderr).toContain('ERROR: Unsupported URL: https://www.youtube.com/watch?v=x');
+    expect(r.stderr).toContain('ERROR: Unsupported URL: https://vimeo.com/123456789');
   });
 
   it('cenário por arquivo JSON sobrescreve campos', async () => {

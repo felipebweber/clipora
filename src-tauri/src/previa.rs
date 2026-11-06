@@ -35,12 +35,12 @@ impl ErroClipora {
     pub fn novo(codigo: &str, detalhe: Option<String>) -> Self {
         Self {
             codigo: codigo.into(),
-            mensagem: if codigo == "PREVIA_INDISPONIVEL" {
-                "Não foi possível obter a prévia. Tente atualizar o yt-dlp."
-            } else {
-                "Não foi possível concluir a operação."
-            }
-            .into(),
+            mensagem: match codigo {
+                "PREVIA_INDISPONIVEL"=>"Não foi possível obter a prévia. Tente atualizar o yt-dlp.",
+                "QUALIDADE_INDISPONIVEL"=>"Essa qualidade não está mais disponível. Atualize a prévia e escolha outra.",
+                "MOTOR_YOUTUBE_INDISPONIVEL"=>"O componente necessário para baixar do YouTube está indisponível ou é incompatível. Reinstale ou atualize o Clipora.",
+                _=>"Não foi possível concluir a operação.",
+            }.into(),
             detalhe,
         }
     }
@@ -181,21 +181,64 @@ async fn capa(url: &str) -> Option<String> {
     ))
 }
 
+#[cfg(test)]
 pub async fn obter(
+    url: String,
+    id: u64,
+    cancelado: watch::Receiver<bool>,
+    bin: &std::path::Path,
+    ffmpeg: &std::path::Path,
+) -> Result<Previa, ErroClipora> {
+    obter_com_motor(url, id, cancelado, bin, ffmpeg, None).await
+}
+pub async fn obter_com_motor(
+    url: String,
+    id: u64,
+    cancelado: watch::Receiver<bool>,
+    bin: &std::path::Path,
+    ffmpeg: &std::path::Path,
+    deno: Option<&std::path::Path>,
+) -> Result<Previa, ErroClipora> {
+    obter_com_prazo(
+        url,
+        id,
+        cancelado,
+        bin,
+        ffmpeg,
+        deno,
+        std::time::Duration::from_secs(30),
+    )
+    .await
+}
+async fn obter_com_prazo(
     url: String,
     id: u64,
     mut cancelado: watch::Receiver<bool>,
     bin: &std::path::Path,
     ffmpeg: &std::path::Path,
+    deno: Option<&std::path::Path>,
+    duracao: std::time::Duration,
 ) -> Result<Previa, ErroClipora> {
-    let prazo = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
+    let prazo = tokio::time::Instant::now() + duracao;
     let cancelado_processo = cancelado.clone();
     let tarefa = async {
         let (normalizada, plataforma) =
             crate::links::validar(&url).map_err(|c| ErroClipora::novo(c, None))?;
-        let saida = processos::executar(bin, ffmpeg, normalizada.as_str(), cancelado_processo)
+        let saida = if plataforma == Plataforma::Youtube {
+            let deno = deno.ok_or_else(|| ErroClipora::novo("MOTOR_YOUTUBE_INDISPONIVEL", None))?;
+            crate::motor_youtube::verificar_motor(deno).await?;
+            processos::metadados_youtube(
+                bin,
+                ffmpeg,
+                normalizada.as_str(),
+                deno,
+                cancelado_processo,
+            )
             .await
-            .map_err(|c| ErroClipora::novo(c, None))?;
+        } else {
+            processos::executar(bin, ffmpeg, normalizada.as_str(), cancelado_processo).await
+        }
+        .map_err(|c| ErroClipora::novo(c, None))?;
         if !saida.sucesso {
             let detalhe = String::from_utf8_lossy(&saida.stderr).to_string();
             return Err(ErroClipora::novo(
@@ -205,6 +248,18 @@ pub async fn obter(
         }
         let valor: serde_json::Value = serde_json::from_slice(&saida.stdout)
             .map_err(|e| ErroClipora::novo("PREVIA_INDISPONIVEL", Some(e.to_string())))?;
+        let qualidades_youtube = if plataforma == Plataforma::Youtube {
+            let id = normalizada
+                .query_pairs()
+                .find(|(k, _)| k == "v")
+                .map(|(_, v)| v.into_owned())
+                .ok_or_else(|| ErroClipora::novo("LINK_INVALIDO", None))?;
+            Some(crate::youtube::alturas(&crate::youtube::analisar(
+                &valor, &id,
+            )?))
+        } else {
+            None
+        };
         let item = if plataforma == Plataforma::Instagram && normalizada.path().starts_with("/p/") {
             video_unico(&valor).map_err(|c| ErroClipora::novo(c, None))?
         } else {
@@ -229,14 +284,54 @@ pub async fn obter(
             plataforma,
             duracao_segundos: dados.duration,
             capa_data_url: imagem,
-            qualidades_youtube: None,
+            qualidades_youtube,
         })
     };
-    tokio::select! { biased; _ = cancelado.changed() => Err(ErroClipora::novo("PREVIA_CANCELADA", None)), r = tarefa => r }
+    tokio::select! { biased; _ = cancelado.changed() => Err(ErroClipora::novo("PREVIA_CANCELADA", None)), r = tokio::time::timeout_at(prazo,tarefa) => r.map_err(|_|ErroClipora::novo("TEMPO_ESGOTADO",None))? }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn youtube_prazo_total_inclui_verificacao_do_motor_e_extracao() {
+        use sha2::{Digest, Sha256};
+        use std::os::unix::fs::PermissionsExt;
+        let d = tempfile::tempdir().unwrap();
+        let deno = crate::motor_youtube::fixture_motor(&d.path().join("deno"));
+        std::fs::write(&deno, b"#!/bin/sh\nsleep 0.12\nprintf 'deno 2.7.0\n'\n").unwrap();
+        let manifesto = deno.parent().unwrap().join("clipora-deno.json");
+        let mut m: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&manifesto).unwrap()).unwrap();
+        m["sha256Executavel"] = serde_json::json!(format!(
+            "{:x}",
+            Sha256::digest(std::fs::read(&deno).unwrap())
+        ));
+        std::fs::write(manifesto, serde_json::to_vec(&m).unwrap()).unwrap();
+        let yt = d.path().join("yt-lento");
+        let dados: serde_json::Value =
+            serde_json::from_str(include_str!("../../tests/fixtures/youtube/normal.json")).unwrap();
+        let json = serde_json::to_string(&dados.to_string()).unwrap();
+        std::fs::write(
+            &yt,
+            format!("#!/usr/bin/env node\nsetTimeout(()=>process.stdout.write({json}),120);\n"),
+        )
+        .unwrap();
+        std::fs::set_permissions(&yt, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let (_tx, rx) = watch::channel(false);
+        let erro = obter_com_prazo(
+            "https://youtu.be/YE7VzlLtp-4".into(),
+            1,
+            rx,
+            &yt,
+            std::path::Path::new("/ffmpeg-nao-usado"),
+            Some(&deno),
+            std::time::Duration::from_millis(150),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(erro.codigo, "TEMPO_ESGOTADO");
+    }
     #[tokio::test]
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     #[ignore = "teste manual de rede com sidecars empacotados para o alvo atual"]

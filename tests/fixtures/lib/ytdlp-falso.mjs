@@ -33,7 +33,7 @@ const SEM_VALOR = new Set([
   '-c', '--continue', '--no-continue', '--part', '--no-part', '--mtime', '--no-mtime', '--no-cache-dir',
   '--no-plugin-dirs', '--abort-on-error', '--no-abort-on-error', '--version', '--no-exec', '-k',
   '--keep-video', '--no-keep-video', '--no-embed-thumbnail', '--no-write-thumbnail', '--no-mark-watched',
-  '--console-title', '--no-progress-delta',
+  '--console-title', '--no-progress-delta', '--no-cookies', '--no-cookies-from-browser', '--no-remote-components', '--no-js-runtimes',
 ]);
 // Proibidas pelo contrato/roteiro (VT-07, VT-08, contrato v2 "sem yt-dlp -U").
 const PROIBIDAS = new Set([
@@ -149,6 +149,7 @@ function identificar(url) {
   }
   const host = u.hostname;
   const partes = u.pathname.split('/').filter(Boolean);
+  if (['youtube.com','www.youtube.com','m.youtube.com','youtu.be'].includes(host)) { return {extrator:'Youtube',site:'youtube',host,id:host==='youtu.be'?partes[0]:u.searchParams.get('v'),tipoLink:'watch'}; }
   if (/(^|\.)instagram\.com$/.test(host)) {
     return { extrator: 'Instagram', site: 'instagram', host, id: partes[1] ?? 'C0000000000', tipoLink: partes[0] };
   }
@@ -274,13 +275,14 @@ function executarFfmpeg(caminho, args) {
 
 async function baixarParte({ saida, cenario, parte, destino, info, op, intervaloMs, ehPrimeira }) {
   const passos = 4;
-  const total = parte.filesize;
+  const total = parte.filesize ?? (parte.vcodec === 'none' ? 65536 : 262144);
   const totalConhecido = cenario.download.totalConhecido !== false;
   const partArq = `${destino}.part`;
   mkdirSync(dirname(partArq), { recursive: true });
   writeFileSync(partArq, '');
   saida.info(`[download] Destination: ${destino}`);
   const bloco = Buffer.alloc(total / passos, parte.vcodec !== 'none' ? 0x56 : 0x41);
+  if (parte.vcodec !== 'none') Buffer.from([0,0,0,24,102,116,121,112,105,115,111,109]).copy(bloco);
   const inicio = Date.now();
   const falhaEm = cenario.erro?.fase === 'download' && ehPrimeira ? cenario.erro.em ?? 0.5 : null;
   for (let passo = 0; passo <= passos; passo++) {
@@ -353,6 +355,15 @@ async function baixarVideo({ saida, cenario, op, info, intervaloMs }) {
   registrar({ programa: 'yt-dlp', evento: 'ffmpeg', ...ffmpeg });
   const pedidoFormato = op.valores['--format'];
   let partes = cenario.download.uniao === false ? [{ format_id: 'b', ext: 'mp4', vcodec: 'h264', acodec: 'aac', filesize: 327680 }] : info.requested_formats;
+  if (info.extractor === 'Youtube') {
+    // Replica o parser do yt-dlp: IDs de formato são strings e exigem aspas.
+    // Não aceite o antigo formato_id=numérico sem aspas, que compara tipos e falha no yt-dlp real.
+    const ids=[...(pedidoFormato ?? '').matchAll(/\[format_id="([A-Za-z0-9_-]+)"\]/g)].map((m)=>m[1]);
+    partes=ids.map((id)=>info.formats.find((f)=>f.format_id===id));
+    if (!ids.length || partes.some((f)=>!f)) { saida.erro('ERROR: Requested format is not available'); return 1; }
+    const altura=Number(/\[height=(\d+)\]/.exec(pedidoFormato)?.[1]);
+    if (partes[0].height!==altura) { saida.erro('ERROR: Requested format is not available'); return 1; }
+  }
   let unir = partes.length > 1;
   let separadoSemUniao = false;
   if (unir && !ffmpeg.disponivel) {

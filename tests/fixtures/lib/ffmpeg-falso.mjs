@@ -38,6 +38,7 @@ async function executar(programa, modo, argv) {
       process.stderr.write(`${semPrefixo(argv.at(-1) ?? '')}: Invalid data found when processing input\n`);
       return 1;
     }
+    if (process.env.CLIPORA_FFPROBE_JSON) {process.stdout.write(readFileSync(process.env.CLIPORA_FFPROBE_JSON));return 0;}
     process.stdout.write(`${JSON.stringify({
       streams: [
         { index: 0, codec_type: 'video', codec_name: 'h264', width: 1080, height: 1920 },

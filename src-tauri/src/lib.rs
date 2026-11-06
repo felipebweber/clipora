@@ -4,6 +4,7 @@ mod historico;
 mod instalacao;
 pub mod integridade;
 mod links;
+mod motor_youtube;
 mod pasta;
 mod previa;
 mod processos;
@@ -156,6 +157,7 @@ async fn iniciar_download(
     cache: State<'_, binarios::CacheYtdlp>,
     download_id: String,
     url: String,
+    altura_youtube: Option<u32>,
     on_evento: tauri::ipc::Channel<download::Evento>,
 ) -> Result<(), previa::ErroClipora> {
     {
@@ -176,7 +178,9 @@ async fn iniciar_download(
             Some("ID de download inválido".into()),
         ));
     }
-    let (normalizada, _) = links::validar(&url).map_err(|c| previa::ErroClipora::novo(c, None))?;
+    let (normalizada, plataforma) =
+        links::validar(&url).map_err(|c| previa::ErroClipora::novo(c, None))?;
+    download::validar_altura(plataforma, altura_youtube)?;
     let pasta = config_pasta(&app)?.obter();
     let codigo = match pasta.estado {
         pasta::EstadoPasta::NaoDefinida => Some("PASTA_NAO_DEFINIDA"),
@@ -200,8 +204,16 @@ async fn iniciar_download(
         .map_err(|e| previa::ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e)))?;
     let ffmpeg = binarios::resolver(&app, "clipora-ffmpeg")
         .map_err(|e| previa::ErroClipora::novo("FFMPEG_INDISPONIVEL", Some(e)))?;
-    binarios::resolver(&app, "clipora-ffprobe")
+    let ffprobe = binarios::resolver(&app, "clipora-ffprobe")
         .map_err(|e| previa::ErroClipora::novo("FFMPEG_INDISPONIVEL", Some(e)))?;
+    let deno = if plataforma == links::Plataforma::Youtube {
+        Some(
+            binarios::resolver_motor(&app)
+                .map_err(|e| previa::ErroClipora::novo("MOTOR_YOUTUBE_INDISPONIVEL", Some(e)))?,
+        )
+    } else {
+        None
+    };
     let destino = destino
         .canonicalize()
         .map_err(|e| previa::ErroClipora::novo("PASTA_AUSENTE", Some(e.to_string())))?;
@@ -217,6 +229,7 @@ async fn iniciar_download(
     }
     dados.ativo = Some(download::EstadoDownload {
         download_id: download_id.clone(),
+        altura_youtube,
         percentual: None,
         etapa: "preparando".into(),
         previa: dados
@@ -236,7 +249,13 @@ async fn iniciar_download(
         download_id,
         url,
         destino,
-        (bin, ffmpeg),
+        download::FerramentasDownload {
+            yt_dlp: bin,
+            ffmpeg,
+            ffprobe,
+            deno,
+        },
+        altura_youtube,
     ));
     dados.tarefa = Some(tarefa.inner().abort_handle());
     Ok(())
@@ -414,7 +433,7 @@ async fn obter_previa(
     let cancelado = estado
         .iniciar(requisicao_id)
         .map_err(|c| previa::ErroClipora::novo(c, None))?;
-    links::validar(&url).map_err(|c| previa::ErroClipora::novo(c, None))?;
+    let (_, plataforma) = links::validar(&url).map_err(|c| previa::ErroClipora::novo(c, None))?;
     let bin = cache
         .resolver(&app)
         .await
@@ -422,7 +441,23 @@ async fn obter_previa(
         .map_err(|e| previa::ErroClipora::novo("YTDLP_INDISPONIVEL", Some(e)))?;
     let ffmpeg = binarios::resolver(&app, "clipora-ffmpeg")
         .map_err(|e| previa::ErroClipora::novo("FFMPEG_INDISPONIVEL", Some(e)))?;
-    let resultado = previa::obter(url, requisicao_id, cancelado, &bin, &ffmpeg).await;
+    let deno = if plataforma == links::Plataforma::Youtube {
+        Some(
+            binarios::resolver_motor(&app)
+                .map_err(|e| previa::ErroClipora::novo("MOTOR_YOUTUBE_INDISPONIVEL", Some(e)))?,
+        )
+    } else {
+        None
+    };
+    let resultado = previa::obter_com_motor(
+        url,
+        requisicao_id,
+        cancelado,
+        &bin,
+        &ffmpeg,
+        deno.as_deref(),
+    )
+    .await;
     if let Ok(ref previa) = resultado
         && let Ok(mut dados) = controle.0.lock()
     {

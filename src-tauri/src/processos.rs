@@ -164,8 +164,29 @@ pub async fn executar(
 async fn executar_args(
     bin: &Path,
     args: Vec<std::ffi::OsString>,
-    mut cancelado: watch::Receiver<bool>,
+    cancelado: watch::Receiver<bool>,
 ) -> Result<Resultado, &'static str> {
+    executar_limitado(
+        bin,
+        args,
+        cancelado,
+        std::time::Duration::from_secs(30),
+        8 * 1024 * 1024,
+    )
+    .await
+}
+
+pub(crate) async fn executar_limitado(
+    bin: &Path,
+    args: Vec<std::ffi::OsString>,
+    mut cancelado: watch::Receiver<bool>,
+    prazo: std::time::Duration,
+    limite: usize,
+) -> Result<Resultado, &'static str> {
+    use tokio::io::AsyncReadExt;
+    if *cancelado.borrow() {
+        return Err("PREVIA_CANCELADA");
+    }
     let mut cmd = Command::new(bin);
     cmd.args(args)
         .stdin(Stdio::null())
@@ -176,7 +197,7 @@ async fn executar_args(
     cmd.process_group(0);
     #[cfg(windows)]
     cmd.creation_flags(0x08000000);
-    let child = cmd.spawn().map_err(|e| {
+    let mut filho = cmd.spawn().map_err(|e| {
         if matches!(
             e.kind(),
             std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied
@@ -187,20 +208,89 @@ async fn executar_args(
         }
     })?;
     #[cfg(unix)]
-    let _grupo = Grupo(child.id().ok_or("ERRO_INTERNO")?);
+    let _grupo = Grupo(filho.id().ok_or("ERRO_INTERNO")?);
     #[cfg(windows)]
-    let _grupo = GrupoWindows::novo(&child)?;
-    let output = tokio::select! {
-        biased;
-        _ = cancelado.changed() => return Err("PREVIA_CANCELADA"),
-        r = tokio::time::timeout(std::time::Duration::from_secs(30), child.wait_with_output()) => r.map_err(|_| "TEMPO_ESGOTADO")?.map_err(|_| "PREVIA_INDISPONIVEL")?,
+    let _grupo = GrupoWindows::novo(&filho)?;
+    async fn ler(
+        r: impl tokio::io::AsyncRead + Unpin,
+        limite: usize,
+    ) -> Result<Vec<u8>, &'static str> {
+        let mut bytes = Vec::new();
+        r.take(limite as u64 + 1)
+            .read_to_end(&mut bytes)
+            .await
+            .map_err(|_| "PREVIA_INDISPONIVEL")?;
+        if bytes.len() > limite {
+            return Err("PREVIA_INDISPONIVEL");
+        }
+        Ok(bytes)
+    }
+    let stdout = filho.stdout.take().ok_or("ERRO_INTERNO")?;
+    let stderr = filho.stderr.take().ok_or("ERRO_INTERNO")?;
+    let trabalho = async {
+        let (stdout, stderr, status) =
+            tokio::try_join!(ler(stdout, limite), ler(stderr, limite), async {
+                filho.wait().await.map_err(|_| "PREVIA_INDISPONIVEL")
+            })?;
+        Ok(Resultado {
+            stdout,
+            stderr,
+            sucesso: status.success(),
+        })
     };
-    Ok(Resultado {
-        stdout: output.stdout,
-        stderr: output.stderr,
-        sucesso: output.status.success(),
-    })
+    tokio::select! {biased; _=cancelado.changed()=>Err("PREVIA_CANCELADA"),r=tokio::time::timeout(prazo,trabalho)=>r.map_err(|_|"TEMPO_ESGOTADO")?}
 }
+
+pub(crate) fn isolamento_youtube(deno: &Path) -> Vec<std::ffi::OsString> {
+    [
+        "--no-plugin-dirs",
+        "--no-cache-dir",
+        "--no-cookies",
+        "--no-cookies-from-browser",
+        "--no-remote-components",
+        "--no-js-runtimes",
+        "--js-runtimes",
+    ]
+    .into_iter()
+    .map(Into::into)
+    .chain([std::ffi::OsString::from(format!("deno:{}", deno.display()))])
+    .collect()
+}
+
+pub(crate) async fn metadados_youtube(
+    bin: &Path,
+    ffmpeg: &Path,
+    url: &str,
+    deno: &Path,
+    cancelado: watch::Receiver<bool>,
+) -> Result<Resultado, &'static str> {
+    let mut args: Vec<std::ffi::OsString> = [
+        "--ignore-config",
+        "--no-update",
+        "--no-playlist",
+        "--ffmpeg-location",
+    ]
+    .into_iter()
+    .map(Into::into)
+    .collect();
+    args.push(ffmpeg.as_os_str().into());
+    args.extend(isolamento_youtube(deno));
+    args.extend([
+        "--dump-single-json".into(),
+        "--skip-download".into(),
+        "--".into(),
+        url.into(),
+    ]);
+    executar_limitado(
+        bin,
+        args,
+        cancelado,
+        std::time::Duration::from_secs(30),
+        8 * 1024 * 1024,
+    )
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

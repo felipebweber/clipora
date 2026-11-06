@@ -399,7 +399,8 @@ mod tests {
             "http-regressao".into(),
             original.into(),
             destino,
-            (bin.join("clipora-yt-dlp"), bin.join("clipora-ffmpeg")),
+            FerramentasDownload::legadas(&bin.join("clipora-yt-dlp"), &bin.join("clipora-ffmpeg")),
+            None,
         )
         .await;
         assert!(matches!(
@@ -603,6 +604,7 @@ mod tests {
     fn estado_de_download_expõe_previa_ou_null_para_reidratar_a_tela() {
         let estado = EstadoDownload {
             download_id: "d-1".into(),
+            altura_youtube: None,
             percentual: Some(12.0),
             etapa: "baixando_video".into(),
             previa: None,
@@ -616,6 +618,7 @@ mod tests {
     fn resultado_terminal_tem_discriminante_e_id_para_a_ui_reidratada() {
         let concluido = ResultadoTerminal::Concluido {
             download_id: "d-7".into(),
+            altura_youtube: None,
             caminho: "/tmp/v.mp4".into(),
             nome_arquivo: "v.mp4".into(),
             renomeado: false,
@@ -626,6 +629,7 @@ mod tests {
         assert_eq!(valor["nomeArquivo"], "v.mp4");
         let erro = ResultadoTerminal::Erro {
             download_id: "d-8".into(),
+            altura_youtube: None,
             erro: ErroClipora::novo("DOWNLOAD_FALHOU", None),
         };
         let valor = serde_json::to_value(erro).unwrap();
@@ -662,7 +666,13 @@ mod tests {
                 "aceitacao-real".into(),
                 url.into(),
                 raiz,
-                (bin.clone(), ffmpeg.clone()),
+                FerramentasDownload {
+                    yt_dlp: bin.clone(),
+                    ffmpeg: ffmpeg.clone(),
+                    ffprobe: ffprobe.clone(),
+                    deno: None,
+                },
+                None,
             )
             .await;
             let resultado = match controle.lock().unwrap().ultimo_resultado.clone() {
@@ -844,6 +854,7 @@ mod tests {
         assert!(!c.0.lock().unwrap().atualizacao);
         c.0.lock().unwrap().ativo = Some(EstadoDownload {
             download_id: "id".into(),
+            altura_youtube: None,
             percentual: None,
             etapa: "baixando_video".into(),
             previa: None,
@@ -1164,6 +1175,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 #[serde(rename_all = "camelCase")]
 pub struct EstadoDownload {
     pub download_id: String,
+    pub altura_youtube: Option<u32>,
     pub percentual: Option<f64>,
     pub etapa: String,
     pub previa: Option<crate::previa::Previa>,
@@ -1184,12 +1196,14 @@ pub struct Estado {
 pub enum ResultadoTerminal {
     Concluido {
         download_id: String,
+        altura_youtube: Option<u32>,
         caminho: String,
         nome_arquivo: String,
         renomeado: bool,
     },
     Erro {
         download_id: String,
+        altura_youtube: Option<u32>,
         erro: ErroClipora,
     },
 }
@@ -1367,11 +1381,22 @@ fn etapa(controle: &Arc<Mutex<Dados>>, canal: &Channel<Evento>, nome: &str, pct:
     });
 }
 
+#[cfg(test)]
 fn concluir(
     controle: &Arc<Mutex<Dados>>,
     historico: &crate::historico::Repositorio,
     id: &str,
     url: &str,
+    resultado: &Result<(PathBuf, bool), ErroClipora>,
+) -> ResultadoTerminal {
+    concluir_com_altura(controle, historico, id, url, None, resultado)
+}
+fn concluir_com_altura(
+    controle: &Arc<Mutex<Dados>>,
+    historico: &crate::historico::Repositorio,
+    id: &str,
+    url: &str,
+    altura_youtube: Option<u32>,
     resultado: &Result<(PathBuf, bool), ErroClipora>,
 ) -> ResultadoTerminal {
     // Canonicaliza somente o pai: aceita aliases legítimos sem seguir substituição
@@ -1392,6 +1417,7 @@ fn concluir(
     let terminal = match resultado {
         Ok((caminho, renomeado)) => ResultadoTerminal::Concluido {
             download_id: id.into(),
+            altura_youtube,
             caminho: caminho.to_string_lossy().into_owned(),
             nome_arquivo: caminho
                 .file_name()
@@ -1402,6 +1428,7 @@ fn concluir(
         },
         Err(erro) => ResultadoTerminal::Erro {
             download_id: id.into(),
+            altura_youtube,
             erro: erro.clone(),
         },
     };
@@ -1466,6 +1493,7 @@ mod historico_tests {
         let controle = Arc::new(Mutex::new(Dados::default()));
         controle.lock().unwrap().ativo = Some(EstadoDownload {
             download_id: "previa-original".into(),
+            altura_youtube: None,
             percentual: None,
             etapa: "finalizando".into(),
             previa: Some(crate::previa::Previa {
@@ -1568,6 +1596,559 @@ mod historico_tests {
     }
 }
 
+pub struct FerramentasDownload {
+    pub yt_dlp: PathBuf,
+    pub ffmpeg: PathBuf,
+    pub ffprobe: PathBuf,
+    pub deno: Option<PathBuf>,
+}
+impl FerramentasDownload {
+    #[cfg(test)]
+    fn legadas(bin: &Path, ffmpeg: &Path) -> Self {
+        Self {
+            yt_dlp: bin.into(),
+            ffmpeg: ffmpeg.into(),
+            ffprobe: ffmpeg
+                .parent()
+                .unwrap_or(Path::new("."))
+                .join("clipora-ffprobe"),
+            deno: None,
+        }
+    }
+}
+pub fn validar_altura(
+    plataforma: crate::links::Plataforma,
+    altura: Option<u32>,
+) -> Result<(), ErroClipora> {
+    if altura.is_some_and(|h| h == 0 || plataforma != crate::links::Plataforma::Youtube) {
+        return Err(err(
+            "QUALIDADE_INDISPONIVEL",
+            "Altura inválida para a plataforma",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod youtube_runtime_tests {
+    use super::*;
+    const URL: &str = "https://youtu.be/YE7VzlLtp-4";
+    fn preparar(raiz: &Path, meta: &str, probe: &str, cenario: &str) -> FerramentasDownload {
+        let bin = raiz.join("bin");
+        let status = std::process::Command::new("node")
+            .arg(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../tests/fixtures/preparar-bin.mjs"),
+            )
+            .arg(&bin)
+            .output()
+            .unwrap();
+        assert!(status.status.success());
+        let mut metadados: serde_json::Value = serde_json::from_str(meta).unwrap();
+        metadados["thumbnail"] = serde_json::Value::Null;
+        let configuracao = raiz.join("cenario.json");
+        fs::write(
+            &configuracao,
+            serde_json::to_vec(&serde_json::json!({"base":cenario,"metadados":metadados})).unwrap(),
+        )
+        .unwrap();
+        let prova = raiz.join("probe.json");
+        fs::write(&prova, probe).unwrap();
+        fs::write(bin.join("clipora-falso.json"),serde_json::to_vec(&serde_json::json!({"CLIPORA_FALSO_CENARIO_ARQUIVO":configuracao,"CLIPORA_FALSO_REGISTRO":raiz.join("processos.jsonl"),"CLIPORA_FFPROBE_JSON":prova,"CLIPORA_FALSO_INTERVALO_MS":0})).unwrap()).unwrap();
+        FerramentasDownload {
+            yt_dlp: bin.join("clipora-yt-dlp"),
+            ffmpeg: bin.join("clipora-ffmpeg"),
+            ffprobe: bin.join("clipora-ffprobe"),
+            deno: Some(crate::motor_youtube::fixture_motor(&bin.join("deno"))),
+        }
+    }
+    const META: &str = include_str!("../../tests/fixtures/youtube/normal.json");
+    const PROBE: &str = r#"{"streams":[{"codec_type":"video","codec_name":"h264","width":1280,"height":720},{"codec_type":"audio","codec_name":"aac"}],"format":{"format_name":"mov,mp4,m4a,3gp,3g2,mj2"}}"#;
+    #[test]
+    fn youtube_ipc_rejeita_altura_estranha() {
+        use crate::links::Plataforma::*;
+        for (plataforma, altura) in [
+            (Youtube, Some(0)),
+            (Instagram, Some(720)),
+            (Tiktok, Some(720)),
+        ] {
+            assert_eq!(
+                validar_altura(plataforma, altura).unwrap_err().codigo,
+                "QUALIDADE_INDISPONIVEL"
+            );
+        }
+        for p in [Youtube, Instagram, Tiktok] {
+            validar_altura(p, None).unwrap();
+        }
+        validar_altura(Youtube, Some(720)).unwrap();
+    }
+    #[tokio::test]
+    async fn youtube_previa_retorna_alturas_e_recusa_short_live_por_alias() {
+        for (nome, esperado) in [
+            ("normal", None),
+            ("short", Some("CONTEUDO_NAO_SUPORTADO")),
+            ("live", Some("CONTEUDO_NAO_SUPORTADO")),
+        ] {
+            let d = tempfile::tempdir().unwrap();
+            let meta = fs::read_to_string(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join(format!("../tests/fixtures/youtube/{nome}.json")),
+            )
+            .unwrap();
+            let f = preparar(d.path(), &meta, PROBE, "sucesso");
+            let (_tx, rx) = tokio::sync::watch::channel(false);
+            let r = crate::previa::obter_com_motor(
+                URL.into(),
+                1,
+                rx,
+                &f.yt_dlp,
+                &f.ffmpeg,
+                f.deno.as_deref(),
+            )
+            .await;
+            if let Some(codigo) = esperado {
+                assert_eq!(r.unwrap_err().codigo, codigo);
+            } else {
+                let p = r.unwrap();
+                assert_eq!(p.qualidades_youtube, Some(vec![1080, 720]));
+                assert_eq!(
+                    p.url_normalizada,
+                    "https://www.youtube.com/watch?v=YE7VzlLtp-4"
+                );
+            }
+        }
+    }
+    #[tokio::test]
+    async fn youtube_cancelamento_durante_metadados_encerra_grupo_e_temporarios() {
+        let d = tempfile::tempdir().unwrap();
+        let destino = d.path().join("videos");
+        fs::create_dir(&destino).unwrap();
+        let f = preparar(d.path(), META, PROBE, "com-filho");
+        let controle = Controle::default();
+        let c = controle.0.clone();
+        let h = Arc::new(crate::historico::Repositorio::novo(
+            d.path().join("historico.json"),
+        ));
+        let tarefa = tokio::spawn(executar(
+            c,
+            h.clone(),
+            Channel::new(|_| Ok(())),
+            "cancelado".into(),
+            URL.into(),
+            destino.clone(),
+            f,
+            Some(720),
+        ));
+        controle.0.lock().unwrap().tarefa = Some(tarefa.abort_handle());
+        let log = d.path().join("processos.jsonl");
+        let limite = std::time::Instant::now() + std::time::Duration::from_secs(4);
+        let filho = loop {
+            let texto = fs::read_to_string(&log).unwrap_or_default();
+            if let Some(pid) = texto
+                .lines()
+                .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+                .find_map(|v| v["filhoPid"].as_u64())
+            {
+                break pid;
+            }
+            assert!(std::time::Instant::now() < limite, "extração não iniciou");
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        };
+        controle.encerrar();
+        assert!(tarefa.await.unwrap_err().is_cancelled());
+        assert_eq!(fs::read_dir(&destino).unwrap().count(), 0);
+        assert!(h.listar().unwrap().is_empty());
+        let limite = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            let status = std::process::Command::new("ps")
+                .args(["-p", &filho.to_string(), "-o", "stat="])
+                .output()
+                .unwrap();
+            let texto = String::from_utf8_lossy(&status.stdout);
+            if texto.trim().is_empty() || texto.contains('Z') {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < limite,
+                "filho continua executando: {texto}"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    }
+    #[test]
+    fn youtube_recuperacao_eco_altura_sem_previa() {
+        for altura in [None, Some(720)] {
+            let ativo = EstadoDownload {
+                download_id: "capturado".into(),
+                altura_youtube: altura,
+                percentual: None,
+                etapa: "preparando".into(),
+                previa: None,
+            };
+            let v = serde_json::to_value(ativo).unwrap();
+            assert_eq!(v["alturaYoutube"], serde_json::json!(altura));
+            let d = tempfile::tempdir().unwrap();
+            let c = Arc::new(Mutex::new(Dados::default()));
+            let h = crate::historico::Repositorio::novo(d.path().join("historico.json"));
+            let terminal = concluir_com_altura(
+                &c,
+                &h,
+                "capturado",
+                URL,
+                altura,
+                &Err(err("DOWNLOAD_FALHOU", "teste")),
+            );
+            let v = serde_json::to_value(terminal).unwrap();
+            assert_eq!(v["alturaYoutube"], serde_json::json!(altura));
+        }
+    }
+    #[tokio::test]
+    async fn youtube_automatico_confere_altura_efetiva_sem_trocar_null_e_preserva_colisao() {
+        let d = tempfile::tempdir().unwrap();
+        let destino = d.path().join("videos");
+        fs::create_dir(&destino).unwrap();
+        let mut probe: serde_json::Value = serde_json::from_str(PROBE).unwrap();
+        probe["streams"][0]["height"] = serde_json::json!(1080);
+        let controle = Arc::new(Mutex::new(Dados::default()));
+        let h = Arc::new(crate::historico::Repositorio::novo(
+            d.path().join("historico.json"),
+        ));
+        for n in 0..2 {
+            let f = preparar(d.path(), META, &probe.to_string(), "sucesso");
+            executar(
+                controle.clone(),
+                h.clone(),
+                Channel::new(|_| Ok(())),
+                format!("auto{n}"),
+                URL.into(),
+                destino.clone(),
+                f,
+                None,
+            )
+            .await;
+            let resultado = controle.lock().unwrap().ultimo_resultado.clone().unwrap();
+            assert!(matches!(
+                resultado,
+                ResultadoTerminal::Concluido {
+                    altura_youtube: None,
+                    ..
+                }
+            ));
+        }
+        let itens = h.listar().unwrap();
+        assert_eq!(itens.len(), 2);
+        assert!(itens.iter().all(|i| i.disponivel));
+        assert_ne!(itens[0].caminho, itens[1].caminho);
+        let texto = fs::read_to_string(d.path().join("processos.jsonl")).unwrap();
+        let chamadas: Vec<serde_json::Value> = texto
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .filter(|v: &serde_json::Value| v["programa"] == "yt-dlp" && v["evento"] == "inicio")
+            .collect();
+        for chamada in chamadas
+            .iter()
+            .filter(|c| c["argv"].as_array().unwrap().iter().any(|v| v == "-f"))
+        {
+            assert!(
+                chamada["argv"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|v| v.as_str().is_some_and(|s| s.contains("[height=1080]")))
+            );
+        }
+    }
+    #[tokio::test]
+    #[ignore = "rede e recursos atuais: teste real da integração Rust YouTube; rodar explicitamente pelo Timoneiro"]
+    async fn youtube_integracao_real_duas_alturas_e_short_alias() {
+        let raiz = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
+        let ferramenta = || FerramentasDownload {
+            yt_dlp: raiz
+                .join("yt-dlp")
+                .join(format!("yt-dlp{}", std::env::consts::EXE_SUFFIX)),
+            ffmpeg: raiz.join(format!(
+                "clipora-ffmpeg-{}{}",
+                env!("CLIPORA_TARGET"),
+                std::env::consts::EXE_SUFFIX
+            )),
+            ffprobe: raiz.join(format!(
+                "clipora-ffprobe-{}{}",
+                env!("CLIPORA_TARGET"),
+                std::env::consts::EXE_SUFFIX
+            )),
+            deno: Some(
+                raiz.join("deno")
+                    .join(format!("clipora-deno{}", std::env::consts::EXE_SUFFIX)),
+            ),
+        };
+        let url = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
+        let f = ferramenta();
+        let (_tx, rx) = tokio::sync::watch::channel(false);
+        let previa = crate::previa::obter_com_motor(
+            url.into(),
+            1,
+            rx,
+            &f.yt_dlp,
+            &f.ffmpeg,
+            f.deno.as_deref(),
+        )
+        .await
+        .expect("prévia real sem autenticação");
+        let alturas = previa
+            .qualidades_youtube
+            .as_ref()
+            .expect("catálogo YouTube real");
+        assert!(
+            alturas.contains(&240) && alturas.contains(&144),
+            "resoluções do preflight não disponíveis: {alturas:?}"
+        );
+        let temporario = tempfile::tempdir().unwrap();
+        let destino = temporario.path().canonicalize().unwrap().join("videos");
+        fs::create_dir(&destino).unwrap();
+        let c = Arc::new(Mutex::new(Dados::default()));
+        let h = Arc::new(crate::historico::Repositorio::novo(
+            temporario.path().join("historico.json"),
+        ));
+        for altura in [240, 144] {
+            let id = format!("real-{altura}");
+            c.lock().unwrap().ativo = Some(EstadoDownload {
+                download_id: id.clone(),
+                altura_youtube: Some(altura),
+                percentual: None,
+                etapa: "preparando".into(),
+                previa: Some(previa.clone()),
+            });
+            executar(
+                c.clone(),
+                h.clone(),
+                Channel::new(|_| Ok(())),
+                id,
+                url.into(),
+                destino.clone(),
+                ferramenta(),
+                Some(altura),
+            )
+            .await;
+            let terminal = c.lock().unwrap().ultimo_resultado.clone().unwrap();
+            eprintln!("Integração Rust altura {altura}: {terminal:?}");
+            match terminal {
+                ResultadoTerminal::Concluido {
+                    altura_youtube,
+                    caminho,
+                    ..
+                } => {
+                    assert_eq!(altura_youtube, Some(altura));
+                    assert!(Path::new(&caminho).is_file());
+                }
+                ResultadoTerminal::Erro { erro, .. } => panic!("download real falhou: {erro:?}"),
+            }
+        }
+        assert_eq!(h.listar().unwrap().len(), 2);
+        let quantidade = fs::read_dir(&destino).unwrap().count();
+        for short in [
+            "https://www.youtube.com/watch?v=tjjjtzRLHvA",
+            "https://youtu.be/tjjjtzRLHvA",
+        ] {
+            let f = ferramenta();
+            let (_tx, rx) = tokio::sync::watch::channel(false);
+            let erro = crate::previa::obter_com_motor(
+                short.into(),
+                2,
+                rx,
+                &f.yt_dlp,
+                &f.ffmpeg,
+                f.deno.as_deref(),
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(erro.codigo, "CONTEUDO_NAO_SUPORTADO");
+            executar(
+                c.clone(),
+                h.clone(),
+                Channel::new(|_| Ok(())),
+                "real-short".into(),
+                short.into(),
+                destino.clone(),
+                ferramenta(),
+                None,
+            )
+            .await;
+            assert!(
+                matches!(c.lock().unwrap().ultimo_resultado,Some(ResultadoTerminal::Erro{ref erro,..})if erro.codigo=="CONTEUDO_NAO_SUPORTADO")
+            );
+            assert_eq!(h.listar().unwrap().len(), 2);
+            assert_eq!(fs::read_dir(&destino).unwrap().count(), quantidade);
+        }
+    }
+    #[tokio::test]
+    async fn youtube_revalida_catalogo_antes_de_baixar() {
+        let d = tempfile::tempdir().unwrap();
+        let destino = d.path().join("videos");
+        fs::create_dir(&destino).unwrap();
+        let mut meta: serde_json::Value = serde_json::from_str(META).unwrap();
+        meta["formats"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|f| f["height"] != 720);
+        let ferramentas = preparar(d.path(), &meta.to_string(), PROBE, "sucesso");
+        let c = Arc::new(Mutex::new(Dados::default()));
+        let historico = Arc::new(crate::historico::Repositorio::novo(
+            d.path().join("historico.json"),
+        ));
+        executar(
+            c.clone(),
+            historico.clone(),
+            Channel::new(|_| Ok(())),
+            "revalidacao".into(),
+            URL.into(),
+            destino.clone(),
+            ferramentas,
+            Some(720),
+        )
+        .await;
+        let terminal = c.lock().unwrap().ultimo_resultado.clone().unwrap();
+        assert!(
+            matches!(&terminal,ResultadoTerminal::Erro{erro,..} if erro.codigo=="QUALIDADE_INDISPONIVEL")
+        );
+        assert_eq!(
+            serde_json::to_value(terminal).unwrap()["alturaYoutube"],
+            720
+        );
+        assert!(historico.listar().unwrap().is_empty());
+        assert!(c.lock().unwrap().arquivos.is_empty());
+        assert_eq!(fs::read_dir(&destino).unwrap().count(), 0);
+        let texto = fs::read_to_string(d.path().join("processos.jsonl")).unwrap();
+        let chamadas: Vec<serde_json::Value> = texto
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .filter(|v: &serde_json::Value| v["programa"] == "yt-dlp" && v["evento"] == "inicio")
+            .collect();
+        assert_eq!(chamadas.len(), 1);
+        assert!(
+            chamadas[0]["argv"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|a| a == "--dump-single-json")
+        );
+    }
+    #[tokio::test]
+    async fn youtube_saida_confere_altura_e_audio_e_argv_isolado() {
+        for modo in [
+            "valido",
+            "altura",
+            "audio",
+            "video-duplo",
+            "codec",
+            "container",
+        ] {
+            let d = tempfile::tempdir().unwrap();
+            let destino = d.path().join("videos");
+            fs::create_dir(&destino).unwrap();
+            let mut probe: serde_json::Value = serde_json::from_str(PROBE).unwrap();
+            match modo {
+                "altura" => probe["streams"][0]["height"] = serde_json::json!(1080),
+                "audio" => {
+                    probe["streams"].as_array_mut().unwrap().pop();
+                }
+                "video-duplo" => {
+                    let v = probe["streams"][0].clone();
+                    probe["streams"].as_array_mut().unwrap().push(v);
+                }
+                "vp9" | "av1" => probe["streams"][0]["codec_name"] = serde_json::json!(modo),
+                "codec" => probe["streams"][0]["codec_name"] = serde_json::json!("hevc"),
+                "container" => probe["format"]["format_name"] = serde_json::json!("matroska"),
+                _ => (),
+            }
+            let probe_texto = match modo {
+                "json" => "{invalido".into(),
+                "limite" => " ".repeat(1024 * 1024 + 1),
+                _ => probe.to_string(),
+            };
+            let f = preparar(d.path(), META, &probe_texto, "sucesso");
+            let c = Arc::new(Mutex::new(Dados::default()));
+            let r = executar_com_ferramentas(
+                &c,
+                &Channel::new(|_| Ok(())),
+                URL,
+                &destino,
+                &f,
+                Some(720),
+                None,
+            )
+            .await;
+            if !matches!(modo, "valido" | "vp9" | "av1") {
+                assert!(r.is_err(), "{modo}");
+                assert_eq!(fs::read_dir(&destino).unwrap().count(), 0);
+                continue;
+            }
+            assert!(r.unwrap().0.is_file());
+            let linhas = fs::read_to_string(d.path().join("processos.jsonl")).unwrap();
+            let logs: Vec<serde_json::Value> = linhas
+                .lines()
+                .map(|l| serde_json::from_str(l).unwrap())
+                .collect();
+            let inicios: Vec<_> = logs
+                .iter()
+                .filter(|l| l["programa"] == "yt-dlp" && l["evento"] == "inicio")
+                .collect();
+            assert_eq!(inicios.len(), 2);
+            for l in &inicios {
+                let args = l["argv"].as_array().unwrap();
+                for flag in [
+                    "--no-plugin-dirs",
+                    "--no-cache-dir",
+                    "--no-cookies",
+                    "--no-cookies-from-browser",
+                    "--no-remote-components",
+                    "--no-js-runtimes",
+                ] {
+                    assert!(args.iter().any(|v| v == flag));
+                }
+                assert!(
+                    args.iter().any(|v| v.as_str()
+                        == Some(&format!("deno:{}", f.deno.as_ref().unwrap().display())))
+                );
+            }
+            let argv = inicios[1]["argv"].as_array().unwrap();
+            let indice = argv.iter().position(|v| v == "-f").unwrap();
+            let seletor = argv[indice + 1].as_str().unwrap();
+            assert!(seletor.contains("[height=720]"));
+            assert!(!seletor.contains('/'));
+            assert!(logs.iter().any(|l| l["programa"] == "ffprobe"));
+        }
+    }
+    #[tokio::test]
+    async fn youtube_motor_ausente_nao_afeta_instagram_tiktok() {
+        for url in [
+            URL,
+            "https://instagram.com/reel/abc",
+            "https://tiktok.com/@p/video/123",
+        ] {
+            let d = tempfile::tempdir().unwrap();
+            let mut f = preparar(d.path(), META, PROBE, "sucesso");
+            f.deno = None;
+            let r = executar_com_ferramentas(
+                &Arc::new(Mutex::new(Dados::default())),
+                &Channel::new(|_| Ok(())),
+                url,
+                d.path(),
+                &f,
+                None,
+                None,
+            )
+            .await;
+            if url == URL {
+                assert_eq!(r.unwrap_err().codigo, "MOTOR_YOUTUBE_INDISPONIVEL");
+            } else {
+                assert!(r.is_ok());
+            }
+        }
+    }
+}
+
+// Argumentos explícitos mantêm a escolha capturada independente da prévia mutável.
+#[allow(clippy::too_many_arguments)]
 pub async fn executar(
     controle: Arc<Mutex<Dados>>,
     historico: Arc<crate::historico::Repositorio>,
@@ -1575,21 +2156,21 @@ pub async fn executar(
     id: String,
     url: String,
     pasta: PathBuf,
-    ferramentas: (PathBuf, PathBuf),
+    ferramentas: FerramentasDownload,
+    altura_youtube: Option<u32>,
 ) {
-    let (bin, ffmpeg) = ferramentas;
-    let resultado = executar_interno(
+    let resultado = executar_com_ferramentas(
         &controle,
         &canal,
         &url,
         &pasta,
-        &bin,
-        &ffmpeg,
+        &ferramentas,
+        altura_youtube,
         #[cfg(test)]
         None,
     )
     .await;
-    concluir(&controle, &historico, &id, &url, &resultado);
+    concluir_com_altura(&controle, &historico, &id, &url, altura_youtube, &resultado);
     match resultado {
         Ok((caminho, renomeado)) => {
             let nome_arquivo = caminho
@@ -1608,6 +2189,7 @@ pub async fn executar(
         }
     }
 }
+#[cfg(test)]
 async fn executar_interno(
     controle: &Arc<Mutex<Dados>>,
     canal: &Channel<Evento>,
@@ -1615,14 +2197,37 @@ async fn executar_interno(
     destino: &Path,
     bin: &Path,
     ffmpeg: &Path,
+    cenario: Option<&str>,
+) -> Result<(PathBuf, bool), ErroClipora> {
+    executar_com_ferramentas(
+        controle,
+        canal,
+        url,
+        destino,
+        &FerramentasDownload::legadas(bin, ffmpeg),
+        None,
+        cenario,
+    )
+    .await
+}
+async fn executar_com_ferramentas(
+    controle: &Arc<Mutex<Dados>>,
+    canal: &Channel<Evento>,
+    url: &str,
+    destino: &Path,
+    ferramentas: &FerramentasDownload,
+    altura_youtube: Option<u32>,
     #[cfg(test)] cenario: Option<&str>,
 ) -> Result<(PathBuf, bool), ErroClipora> {
+    let bin = &ferramentas.yt_dlp;
+    let ffmpeg = &ferramentas.ffmpeg;
     use std::process::Stdio;
     use tokio::process::Command;
     // O endereço colado fica disponível para o histórico; processos externos
     // recebem exclusivamente a forma validada, incluindo o upgrade para HTTPS.
-    let (normalizada, _) =
-        crate::links::validar(url).map_err(|codigo| ErroClipora::novo(codigo, None))?;
+    let (normalizada, plataforma) =
+        crate::links::validar(url).map_err(|c| ErroClipora::novo(c, None))?;
+    validar_altura(plataforma, altura_youtube)?;
     let url = normalizada.as_str();
     etapa(controle, canal, "preparando", None);
     if !ffmpeg.is_file() {
@@ -1657,10 +2262,49 @@ async fn executar_interno(
         }
         dados.temporario = Some(temp.path().to_path_buf());
     }
+    let escolha = if plataforma == crate::links::Plataforma::Youtube {
+        let deno = ferramentas
+            .deno
+            .as_deref()
+            .ok_or_else(|| err("MOTOR_YOUTUBE_INDISPONIVEL", "Motor não resolvido"))?;
+        crate::motor_youtube::verificar_motor(deno).await?;
+        let (_tx, rx) = tokio::sync::watch::channel(false);
+        let saida = crate::processos::metadados_youtube(bin, ffmpeg, url, deno, rx)
+            .await
+            .map_err(|c| err(c, "Metadados da tentativa"))?;
+        if !saida.sucesso {
+            let detalhe = String::from_utf8_lossy(&saida.stderr).into_owned();
+            return Err(err(crate::processos::classificar_erro(&detalhe), detalhe));
+        }
+        let dados: serde_json::Value = serde_json::from_slice(&saida.stdout)
+            .map_err(|e| err("CONTEUDO_NAO_SUPORTADO", e.to_string()))?;
+        let id = normalizada
+            .query_pairs()
+            .find(|(k, _)| k == "v")
+            .map(|(_, v)| v.into_owned())
+            .ok_or_else(|| err("LINK_INVALIDO", "ID ausente"))?;
+        Some(crate::youtube::escolher(
+            &crate::youtube::analisar(&dados, &id)?,
+            altura_youtube,
+        )?)
+    } else {
+        None
+    };
+    let seletor = escolha
+        .as_ref()
+        .map(|e| e.seletor.as_str())
+        .unwrap_or("bv*+ba/b");
     let modelo = temp.path().join("%(id)s.%(ext)s");
     let mut comando = Command::new(bin);
+    if let Some(deno) = ferramentas
+        .deno
+        .as_deref()
+        .filter(|_| plataforma == crate::links::Plataforma::Youtube)
+    {
+        comando.args(crate::processos::isolamento_youtube(deno));
+    }
     comando.args(["--ignore-config", "--no-update", "--no-playlist", "--ffmpeg-location"]).arg(ffmpeg)
-        .args(["-f", "bv*+ba/b", "--merge-output-format", "mp4", "--remux-video", "mp4", "--newline", "--progress", "--progress-template", "download:download:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress._percent_str)s:%(info.vcodec)s:%(info.acodec)s", "--progress-template", "postprocess:postprocess:%(progress.status)s", "--print", "after_move:CLIPORA_RESULT:%(filepath)j\t%(title)j\t%(id)j\t%(description)j\t%(uploader_id)j\t%(uploader)j\t%(channel)j", "-o"]).arg(modelo).arg("--").arg(url)
+        .args(["-f", seletor, "--merge-output-format", "mp4", "--remux-video", "mp4", "--newline", "--progress", "--progress-template", "download:download:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress._percent_str)s:%(info.vcodec)s:%(info.acodec)s", "--progress-template", "postprocess:postprocess:%(progress.status)s", "--print", "after_move:CLIPORA_RESULT:%(filepath)j\t%(title)j\t%(id)j\t%(description)j\t%(uploader_id)j\t%(uploader)j\t%(channel)j", "-o"]).arg(modelo).arg("--").arg(url)
         .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
     #[cfg(test)]
     if let Some(cenario) = cenario {
@@ -1781,7 +2425,13 @@ async fn executar_interno(
         .await
         .map_err(|e| err("DOWNLOAD_FALHOU", e.to_string()))?;
     if !status.success() {
-        let codigo = if detalhe.to_lowercase().contains("ffmpeg not found")
+        let codigo = if escolha.is_some()
+            && detalhe
+                .to_lowercase()
+                .contains("requested format is not available")
+        {
+            "QUALIDADE_INDISPONIVEL"
+        } else if detalhe.to_lowercase().contains("ffmpeg not found")
             || detalhe.to_lowercase().contains("won't be merged")
         {
             "FFMPEG_INDISPONIVEL"
@@ -1813,6 +2463,19 @@ async fn executar_interno(
     let id = campo_json_string(&valores[2])
         .and_then(|s| texto_nome(Some(&s)))
         .ok_or_else(|| err("ARQUIVO_INCOMPLETO", "id ausente no after_move"))?;
+    if escolha.is_some()
+        && !fs::symlink_metadata(&caminho).is_ok_and(|m| m.is_file() && !m.file_type().is_symlink())
+    {
+        return Err(err("ARQUIVO_INCOMPLETO", "Arquivo final não é regular"));
+    }
+    if plataforma == crate::links::Plataforma::Youtube
+        && normalizada
+            .query_pairs()
+            .find(|(k, _)| k == "v")
+            .is_none_or(|(_, valor)| valor != id)
+    {
+        return Err(err("ARQUIVO_INCOMPLETO", "ID final divergente da URL"));
+    }
     let caminho = PathBuf::from(caminho)
         .canonicalize()
         .map_err(|e| err("ARQUIVO_INCOMPLETO", e.to_string()))?;
@@ -1830,9 +2493,75 @@ async fn executar_interno(
     {
         return Err(err("ARQUIVO_INCOMPLETO", "arquivo inválido ou parcial"));
     }
+    if let Some(escolha) = escolha {
+        conferir_saida_youtube(&ferramentas.ffprobe, &caminho, escolha.altura).await?;
+    }
     etapa(controle, canal, "finalizando", Some(95.0));
     let (_, plataforma) = crate::links::validar(url)
         .map_err(|codigo| err(codigo, "URL inválida ao formar o nome"))?;
     finalizar(&caminho, destino, &nome_base(&metadados, &id, plataforma))
         .map_err(|e| err("DOWNLOAD_FALHOU", e.to_string()))
+}
+
+async fn conferir_saida_youtube(
+    ffprobe: &Path,
+    caminho: &Path,
+    altura: u32,
+) -> Result<(), ErroClipora> {
+    let args = vec![
+        "-v".into(),
+        "error".into(),
+        "-print_format".into(),
+        "json".into(),
+        "-show_streams".into(),
+        "-show_format".into(),
+        caminho.as_os_str().into(),
+    ];
+    let (_tx, rx) = tokio::sync::watch::channel(false);
+    let saida = crate::processos::executar_limitado(
+        ffprobe,
+        args,
+        rx,
+        std::time::Duration::from_secs(15),
+        1024 * 1024,
+    )
+    .await
+    .map_err(|c| err("ARQUIVO_INCOMPLETO", c))?;
+    if !saida.sucesso {
+        return Err(err("ARQUIVO_INCOMPLETO", "FFprobe recusou o arquivo"));
+    }
+    let dados: serde_json::Value = serde_json::from_slice(&saida.stdout)
+        .map_err(|e| err("ARQUIVO_INCOMPLETO", e.to_string()))?;
+    let streams = dados["streams"]
+        .as_array()
+        .ok_or_else(|| err("ARQUIVO_INCOMPLETO", "Streams ausentes"))?;
+    let videos: Vec<_> = streams
+        .iter()
+        .filter(|s| s["codec_type"] == "video")
+        .collect();
+    let mp4 = dados["format"]["format_name"]
+        .as_str()
+        .is_some_and(|s| s.split(',').any(|f| f == "mp4"));
+    if !mp4
+        || videos.len() != 1
+        || !streams
+            .iter()
+            .any(|s| s["codec_type"] == "audio" && s["codec_name"] == "aac")
+    {
+        return Err(err(
+            "ARQUIVO_INCOMPLETO",
+            "MP4 deve ter um vídeo e áudio AAC",
+        ));
+    }
+    let v = videos[0];
+    if !matches!(v["codec_name"].as_str(), Some("h264" | "vp9" | "av1"))
+        || v["height"].as_u64() != Some(altura as u64)
+        || v["width"].as_u64().is_none_or(|w| w == 0)
+    {
+        return Err(err(
+            "ARQUIVO_INCOMPLETO",
+            "Dimensão ou codec divergente da escolha",
+        ));
+    }
+    Ok(())
 }

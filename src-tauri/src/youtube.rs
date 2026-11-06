@@ -196,10 +196,10 @@ pub fn escolher(
     // A altura também vai no filtro para recusar mudanças antes da transferência.
     let seletor = match &video.audio {
         Some(audio) => format!(
-            "bestvideo[format_id={}][height={}]+bestaudio[format_id={}]",
+            "bestvideo[format_id=\"{}\"][height={}]+bestaudio[format_id=\"{}\"]",
             video.id, video.altura, audio
         ),
-        None => format!("best[format_id={}][height={}]", video.id, video.altura),
+        None => format!("best[format_id=\"{}\"][height={}]", video.id, video.altura),
     };
     Ok(EscolhaYoutube {
         altura: video.altura,
@@ -343,6 +343,10 @@ mod tests {
         let a = analisar(&fixture("formatos"), ID).unwrap();
         let e = escolher(&a, Some(720)).unwrap();
         assert_eq!(e.altura, 720);
+        assert_eq!(
+            e.seletor,
+            "bestvideo[format_id=\"302\"][height=720]+bestaudio[format_id=\"140\"]"
+        );
         assert!(e.seletor.contains("302"));
         assert!(!e.seletor.contains("137"));
         assert!(!e.seletor.contains('/'));
@@ -419,7 +423,7 @@ mod tests {
         let mut d = fixture("normal");
         d["formats"][1]["format_id"] = json!("all");
         let e = escolher(&analisar(&d, ID).unwrap(), None).unwrap();
-        assert!(e.seletor.contains("[format_id=all]"));
+        assert!(e.seletor.contains("[format_id=\"all\"]"));
         assert_ne!(e.seletor, "all");
         let mut d = fixture("normal");
         d["formats"][1]["format_id"] = d["formats"][0]["format_id"].clone();

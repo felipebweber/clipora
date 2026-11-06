@@ -142,7 +142,46 @@ fn assinatura_cache(exe: &Path, manifesto: &Path, versao: &str) -> Option<Assina
     })
 }
 
+fn motor_em(raiz: &Path) -> Result<PathBuf, String> {
+    let nome = if cfg!(windows) {
+        "clipora-deno.exe"
+    } else {
+        "clipora-deno"
+    };
+    // Canonicalizar o diretório permite aliases legítimos sem seguir symlink no executável.
+    let raiz = raiz.canonicalize().map_err(|e| e.to_string())?;
+    let caminho = raiz.join(nome);
+    if std::fs::symlink_metadata(&caminho).is_err() {
+        return Err("Motor YouTube não encontrado".into());
+    }
+    Ok(caminho)
+}
+pub fn resolver_motor(app: &AppHandle) -> Result<PathBuf, String> {
+    #[cfg(debug_assertions)]
+    if let Some(dir) = std::env::var_os("CLIPORA_BIN_DIR") {
+        return motor_em(&PathBuf::from(dir).join("deno"));
+    }
+    let empacotado = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?
+        .join("deno");
+    #[cfg(debug_assertions)]
+    if std::fs::symlink_metadata(empacotado.join(if cfg!(windows) {
+        "clipora-deno.exe"
+    } else {
+        "clipora-deno"
+    }))
+    .is_err()
+    {
+        return motor_em(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries/deno"));
+    }
+    motor_em(&empacotado)
+}
 pub fn resolver(app: &AppHandle, nome: &str) -> Result<PathBuf, String> {
+    if nome == "clipora-deno" {
+        return resolver_motor(app);
+    }
     let executavel = if cfg!(windows) {
         format!("{nome}.exe")
     } else {
