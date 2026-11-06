@@ -61,4 +61,10 @@
 - [x] Estaleiro documenta histórico local, privacidade, abrir vídeo, duplicidade e limpeza sem apagar arquivos; não amplia compatibilidade declarada.
 - [x] Timoneiro roda frontend typecheck/test/build; Rust test/clippy/fmt; actionlint e sintaxe dos scripts, guardando logs.
 - [x] Timoneiro valida a UI por testes React e o backend com downloads públicos reais, reabertura do repositório, consulta equivalente, ID persistido, arquivo movido e limpeza sem apagar. Smoke nativo confirmou abertura, histórico vazio e configurações. CUA bloqueou a sequência interativa: fluxos completos na janela e navegador permanecem não verificados; registrar essa limitação sem atribuir ao pacote final o smoke do candidato.
-- [ ] Commit local explícito dos arquivos entregues, build do commit em worktree isolado, conferência do pacote e atualização do handoff. Nenhum push.
+- [x] Commit local explícito dos arquivos entregues, build do commit em worktree isolado, conferência do pacote e atualização do handoff. Nenhum push.
+
+## Resultado registrado
+
+Código em `73718ff`: 291 testes frontend, 61 Rust na suíte padrão (6 ignorados), typecheck/build/clippy/fmt e checks de scripts passaram sob verificação própria. O teste manual de downloads públicos foi executado separadamente com os binários reais: Instagram/TikTok com vídeo+áudio, JSON reaberto, resolução por ID sem memória, equivalência, arquivo movido e limpar preservando o vídeo. Revisões independentes aprovadas após regressões corrigidas.
+
+O candidato abriu na janela nativa, mostrou histórico vazio e configurações; CUA ficou bloqueado e invalidou a instância durante o seletor. Fluxos completos na janela final, player/Finder, leitor de tela e outros sistemas permanecem explicitamente não verificados em `docs/verificacao.md`. A entrega não publica nem declara a v1 multiplataforma concluída.
