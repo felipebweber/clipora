@@ -1222,6 +1222,11 @@ struct Fontes<'a> {
     exe: &'a str,
 }
 
+/// A primeira execução de um yt-dlp recém-extraído passa pela varredura do sistema
+/// (Gatekeeper/XProtect no macOS: 13,4 s medidos em 2026-11-06 com 0,28 s de CPU;
+/// antivírus no Windows). Execuções seguintes levam ~0,2 s.
+const PRAZO_VERSAO_CANDIDATO: std::time::Duration = std::time::Duration::from_secs(60);
+
 type VerificadorCompatibilidade = std::sync::Arc<
     dyn Fn(
             PathBuf,
@@ -1365,7 +1370,7 @@ async fn atualizar_com(
             .map(Into::into)
             .collect(),
         rx,
-        std::time::Duration::from_secs(10),
+        PRAZO_VERSAO_CANDIDATO,
         1024 * 1024,
     )
     .await
