@@ -34,6 +34,7 @@ import {
   principal,
   temFlag,
 } from './comum.mjs';
+import { validarInsumosDenoAvisos } from './licencas/deno/validar-insumos.mjs';
 
 const DIR_TEXTOS = join(DIR_SCRIPTS, 'licencas');
 const DIR_SAIDA = join(DIR_BINARIOS, 'licencas');
@@ -101,6 +102,82 @@ async function secaoYtDlp(lock, triple) {
     'GNU GENERAL PUBLIC LICENSE, versão 3',
     linha,
     await lerTexto(join(DIR_TEXTOS, 'GPL-3.0.txt')),
+  ].join('\n');
+  return { resumo, texto };
+}
+
+// ── Deno (runtime JavaScript empacotado) ─────────────────────────────────────────────────────
+async function secaoDeno(lock, triple) {
+  const deno = lock.deno;
+  const alvos = triple === 'universal-apple-darwin'
+    ? ['aarch64-apple-darwin', 'x86_64-apple-darwin']
+    : [triple];
+  const fontes = alvos.map((alvo) => deno.alvos[alvo]);
+  if (fontes.some((fonte) => !fonte)) throw new ErroBinarios(`Deno sem origem licenciada no lock para ${triple}.`);
+  const repo = `https://github.com/denoland/deno/tree/v${deno.versao}`;
+  const aviso = deno.avisosTerceiros;
+  if (!aviso) throw new ErroBinarios('Avisos de licença Deno não estão fixados em scripts/binarios.lock.');
+  const lerFixo = (key) => {
+    const caminho = join(RAIZ, aviso[key]);
+    if (!existsSync(caminho)) throw new ErroBinarios(`${relative(RAIZ, caminho)} ausente; os avisos Deno são insumo obrigatório do pacote.`);
+    return readFile(caminho);
+  };
+  const [license, cargo, cargoSources, v8, sources, denoSource, denoSourceSources, typescriptApache] = await Promise.all([
+    lerFixo('licenseFile'), lerFixo('cargoNoticeFile'), lerFixo('cargoSourcesFile'), lerFixo('v8NoticeFile'),
+    lerFixo('v8SourcesFile'), lerFixo('denoSourceNoticeFile'), lerFixo('denoSourceSourcesFile'), lerFixo('typescriptLicenseFile'),
+  ]);
+  let cobertura;
+  try {
+    cobertura = validarInsumosDenoAvisos(lock, { license, cargo, cargoSources, v8, sources, denoSource, denoSourceSources, typescriptApache });
+  } catch (error) {
+    throw new ErroBinarios(`Avisos Deno inválidos: ${error.message}`);
+  }
+  const resumo = {
+    id: 'deno',
+    nome: 'Deno JavaScript runtime',
+    versao: deno.versao,
+    licenca: deno.licenca,
+    papel: 'Executa o suporte JavaScript local do yt-dlp para vídeos do YouTube.',
+    binario: fontes.map((fonte) => fonte.url).join(' + '),
+    codigoFonte: repo,
+    avisosTerceiros: {
+      cratesRust: aviso.cargoNoticeSha256,
+      v8ThirdParty: aviso.v8.noticeSha256,
+      cratesNoGrafo: cobertura.cargoPackages,
+      arquivosFonteV8: cobertura.v8SourceFiles,
+      textosV8Distintos: cobertura.v8DistinctTexts,
+      avisosFonteRuntime: cobertura.denoSourceFiles,
+      typescript: cobertura.typescriptVersion,
+    },
+    projeto: 'https://github.com/denoland/deno',
+  };
+  const texto = [
+    LINHA,
+    `Deno ${deno.versao} — runtime JavaScript empacotado`,
+    LINHA,
+    `Licença: ${deno.licenca}. Binário oficial: ${JSON.stringify(resumo.binario)}`,
+    `SHA-256 dos ZIPs oficiais: ${JSON.stringify(fontes.map((fonte) => fonte.sha256))}`,
+    `Código-fonte correspondente: ${repo}`,
+    `Arquivo de licença oficial LICENSE.md (SHA-256 ${aviso.licenca.sha256}; fonte ${aviso.licenca.origem}):`,
+    '',
+    license.toString('utf8').trimEnd(),
+    '',
+    `Avisos de crates transitivas (${cobertura.cargoPackages} pacotes no grafo; ${aviso.cargoAbout.versao}; Cargo.lock SHA-256 ${aviso.cargoLockSha256}; fonte ${aviso.cargoSourceUrl}):`,
+    '',
+    cargo.toString('utf8').trimEnd(),
+    '',
+    `Avisos V8 e bibliotecas em third_party (${cobertura.v8SourceFiles} arquivos coletados; ${cobertura.v8DistinctTexts} textos distintos; Rusty V8 v145.0.0 ${aviso.v8.rustyv8Commit}; V8 ${aviso.v8.v8Commit}):`,
+    `Fontes e checksums: ${aviso.v8.rustyv8SourceUrl} (SHA-256 ${aviso.v8.rustyv8SourceSha256}); ${aviso.v8.v8SourceUrl} (SHA-256 ${aviso.v8.v8SourceSha256}).`,
+    'A coleta deduplica textos idênticos e preserva caminhos/checksums dos avisos de origem. Inclui também entradas de teste/build e dependências condicionais. A varredura por nomes de arquivos não demonstra quais componentes foram ligados em cada alvo e pode não capturar avisos com nomes não convencionais; não é apresentada como declaração de completude jurídica do upstream.',
+    '',
+    v8.toString('utf8').trimEnd(),
+    '',
+    `Avisos da fonte Deno fora de testes (${cobertura.denoSourceFiles} arquivos; TypeScript embutido ${cobertura.typescriptVersion}):`,
+    `Source archive Deno v${deno.versao}: ${aviso.denoSource.sourceArchiveUrl} (SHA-256 ${aviso.denoSource.sourceArchiveSha256}); Cargo.lock SHA-256 ${aviso.cargoLockSha256}.`,
+    `Snapshot TypeScript ${aviso.denoSource.typescriptFile} SHA-256 ${aviso.denoSource.typescriptFileSha256}; licença Apache-2.0 ${aviso.denoSource.typescriptLicenseUrl} SHA-256 ${aviso.denoSource.typescriptLicenseSha256}.`,
+    'A coleta inclui avisos de Node/Undici e WebGPU, TypeScript compilado no snapshot e outros arquivos License/Copying/Notice/Patents sob CLI, runtime, extensões e bibliotecas; caminhos de teste e benchmark foram excluídos. A coleta por nome não encontra avisos inline sem arquivo próprio ou nomes não convencionais; o inventário registra os limites observados e não declara completude jurídica absoluta.',
+    '',
+    denoSource.toString('utf8').trimEnd(),
   ].join('\n');
   return { resumo, texto };
 }
@@ -215,6 +292,7 @@ principal(async () => {
   log(`gerando avisos de licença para ${triple}`);
 
   const yt = await secaoYtDlp(lock, triple);
+  const deno = await secaoDeno(lock, triple);
   const ff = await secaoFfmpeg(lock, triple);
   const crates = await secaoCrates(triple);
   const npm = await secaoNpm();
@@ -226,18 +304,18 @@ principal(async () => {
     'O Clipora executa o yt-dlp e o FFmpeg como programas separados. Este arquivo reúne as licenças e',
     'os avisos exigidos de todos os componentes de terceiros distribuídos com o aplicativo.',
     '',
-    'Conteúdo: 1. yt-dlp  2. FFmpeg  3. Crates Rust  4. Pacotes npm',
+    'Conteúdo: 1. yt-dlp  2. Deno e avisos de terceiros  3. FFmpeg  4. Crates Rust do Clipora  5. Pacotes npm',
     '',
   ].join('\n');
   await mkdir(DIR_SAIDA, { recursive: true });
   const arqTxt = join(DIR_SAIDA, 'THIRD_PARTY_LICENSES.txt');
-  await writeFile(arqTxt, `${[cabecalho, yt.texto, '', ff.texto, '', crates.texto, '', npm.texto].join('\n')}\n`);
+  await writeFile(arqTxt, `${[cabecalho, yt.texto, '', deno.texto, '', ff.texto, '', crates.texto, '', npm.texto].join('\n')}\n`);
   const arqJson = join(DIR_SAIDA, 'licencas.json');
   const json = {
     formato: 1,
     app: { nome: 'Clipora', versao: pkg.version },
     alvo: triple,
-    componentes: [yt.resumo, ff.resumo],
+    componentes: [yt.resumo, deno.resumo, ff.resumo],
     crates: crates.resumo,
     npm: npm.resumo,
     arquivoCompleto: 'THIRD_PARTY_LICENSES.txt',

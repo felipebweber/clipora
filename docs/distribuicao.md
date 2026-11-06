@@ -20,6 +20,7 @@ Legenda de confiabilidade usada abaixo:
 | Alvos | Windows 10 22H2+/11 (x64, arm64); macOS 11+ (binário universal arm64+x64); Linux x64 e arm64 com WebKitGTK 4.1 (base Ubuntu 22.04 / Debian 12). Sem Windows 32 bits nem Linux armv7 na v1. |
 | Pacotes | Windows: instalador NSIS (`-setup.exe`) como principal, MSI opcional. macOS: `.app` dentro de `.dmg`. Linux: AppImage + `.deb` (e `.rpm` opcional). |
 | yt-dlp embutido | **Decidido (2026-11-05): build *onedir* oficial** (`yt-dlp_macos.zip`, `yt-dlp_win.zip`, `yt-dlp_win_arm64.zip`, `yt-dlp_linux.zip`, `yt-dlp_linux_aarch64.zip`; há onedir oficial para os 6 alvos), com versão fixa, verificação de SHA-256 e da assinatura GPG de `SHA2-256SUMS`, extraído em diretório. O *onefile* fica só como opção (`--formato onefile`): custa ~14 s em toda execução no macOS (§4.2). |
+| Motor JavaScript para YouTube | Deno **2.7.0**, recurso executável `deno/clipora-deno[.exe]` com manifesto adjacente; ZIP oficial por alvo com SHA-256 fixado em `scripts/binarios.lock`; macOS universal combina os assets arm64 e x64 oficiais com `lipo`. Exigido somente nos fluxos YouTube. |
 | FFmpeg embutido | Build **próprio, mínimo e LGPL** (apenas remux, sem `--enable-gpl`), compilado a partir do tarball oficial assinado do ffmpeg.org, para os 6 alvos. Inclui `ffmpeg` e `ffprobe`. |
 | Nomes no pacote | FFmpeg como sidecars `clipora-ffmpeg` e `clipora-ffprobe` (evitam colisão com `/usr/bin/ffmpeg` no `.deb`/`.rpm`). yt-dlp como diretório `yt-dlp/` com executável fixo `yt-dlp[.exe]` em `Contents/Resources/yt-dlp/` no macOS e `resource_dir()/yt-dlp/` nos demais sistemas. Avisos de licença em `Contents/Resources/licencas/`/`resource_dir()/licencas/`. |
 | yt-dlp atualizável | Diretório versionado `app_local_data_dir()/bin/yt-dlp/<versao>/` com ponteiro `atual` trocado atomicamente (fora do pacote assinado), baixado pelo próprio app via HTTPS com verificação GPG + SHA-256; versão anterior preservada. Não usar `yt-dlp -U`. Ver §6. |
@@ -96,14 +97,17 @@ Em todos: `--exigir-gpg`, checagem de que o `configure` registrado tem `--disabl
 
 Passos do estágio 2:
 1. Baixa o FFmpeg do estágio 1 e restaura o bit de execução, que os artefatos perdem.
-2. No universal, copia o binário *fat* também com os nomes `-aarch64-`/`-x86_64-apple-darwin`, porque o `tauri-build` de cada fatia procura o sidecar com o próprio triple **[validar no primeiro run]**.
+2. No universal, copia o binário *fat* do FFmpeg também com os nomes `-aarch64-`/`-x86_64-apple-darwin`, porque o `tauri-build` de cada fatia procura o sidecar com o próprio triple **[validar no primeiro run]**.
 3. `pnpm install --frozen-lockfile`.
 4. `pnpm binarios --target <triple> --exigir-gpg`.
-5. Usa Rust **1.99.1**, fixado em `rust-toolchain.toml`; o workflow instala apenas o target indicado pela matriz. Localmente, o arquivo não força a instalação de todos os targets.
-6. Gera os avisos de licença com `cargo-about` 0.9.2 e `gerar-licencas.mjs`.
-7. `pnpm tauri build --ci --target <triple> --bundles …` **sem assinatura**.
-8. `node scripts/conferir-pacote.mjs --target "$TRIPLE"` extrai e verifica todos os formatos gerados: estrutura e lista permitida, manifesto e hashes do yt-dlp, recursos de licença e FFmpeg; confere arquitetura do app, yt-dlp, FFmpeg e FFprobe para cada alvo, e executa os binários quando o runner consegue executar o alvo. No universal exige arm64+x86_64. Também confere o registro de build FFmpeg contra a versão, origem, hash e flags LGPL de `binarios.lock`.
-9. Gera `SHA256SUMS` e envia somente instaladores e somas em artefatos `clipora-<triple>`. O job de atestação baixa apenas esses artefatos, mantém diretório por alvo (sem mesclar nomes coincidentes) e atesta instaladores e arquivos de somas.
+5. `node scripts/obter-deno.mjs --target <triple>` verifica o ZIP oficial Deno 2.7.0 pelo SHA-256 fixo, extrai só o executável regular esperado e grava `binaries/deno/clipora-deno[.exe]` junto de `clipora-deno.json`. Os arquivos `binaries/clipora-deno-<triple>` são cache de aquisição e não entram no pacote.
+6. Usa Rust **1.99.1**, fixado em `rust-toolchain.toml`; o workflow instala apenas o target indicado pela matriz. Localmente, o arquivo não força a instalação de todos os targets.
+7. Gera os avisos de licença com `cargo-about` 0.9.2 e `gerar-licencas.mjs`. Para Deno 2.7.0, o gerador valida os textos vendorizados de MIT, crates Cargo (todos os seis alvos), V8/`third_party`, Node/Undici/WebGPU e TypeScript embutido contra hashes em `scripts/binarios.lock`; falha se um aviso obrigatório faltar ou mudar. A coleta deduplica textos iguais e preserva associação/proveniência. O inventário registra que a coleta por nomes de arquivos não prova o grafo exato ligado por alvo nem cobre avisos inline sem arquivo próprio.
+8. `pnpm tauri build --ci --target <triple> --bundles …` **sem assinatura**.
+9. `node scripts/conferir-pacote.mjs --target "$TRIPLE"` extrai e verifica todos os formatos gerados: estrutura e lista permitida, manifestos e hashes de yt-dlp e Deno, recursos de licença e FFmpeg; confere arquitetura do app e dos binários de runtime e executa yt-dlp, Deno e FFmpeg quando o runner consegue executar o alvo. Exige exatamente o executável Deno e seu manifesto na pasta de recursos `deno/`, sem duplicata em `externalBin`. No universal exige arm64+x86_64. Também confere o registro de build FFmpeg contra a versão, origem, hash e flags LGPL de `binarios.lock`.
+10. Gera `SHA256SUMS` e envia somente instaladores e somas em artefatos `clipora-<triple>`. O job de atestação baixa apenas esses artefatos, mantém diretório por alvo (sem mesclar nomes coincidentes) e atesta instaladores e arquivos de somas.
+
+**Compatibilidade estática do Deno 2.7.0 [verificada nos executáveis oficiais em 2026-11-06]:** ZIP e hash foram conferidos para os seis alvos. `otool -l` mostra macOS arm64 `minos 11.0` e Intel `LC_VERSION_MIN_MACOSX 10.12`; portanto o Deno não eleva o mínimo de macOS 11. `objdump -p` mostra PE x64 com subsystem 6.0 e arm64 6.2, abaixo do mínimo de produto Windows 10 22H2. `objdump -T` mostra referências até GLIBC_2.27 nos ELFs x64 e arm64, abaixo da base Linux documentada de glibc 2.35. No macOS arm64, a cópia de recurso assinada com somente `com.apple.security.cs.allow-jit=true` executou `deno run` e o smoke local do solver EJS N/SIG; evidências ficam em `.maestri/youtube-preflight/assinatura-jit-minimo-resumo.json` e `ejs-smoke-assinado-jit-resumo.json`. A análise dos outros alvos é estática e não comprova execução nem pacote instalado em Windows/Linux.
 
 **Evidência histórica (layout anterior) [verificada em 2026-11-05]**: um build local anterior gerou o yt-dlp em `Contents/Helpers`. Ferrugem moveu o recurso para `Contents/Resources/yt-dlp/` e reuniu os recursos na configuração base desde então. Esse build anterior não verifica o layout atual; a conferência do pacote atual depende do comando acima em macOS arm64.
 
@@ -133,17 +137,20 @@ Fontes primárias consultadas em 2026-11-05: [runners hospedados pelo GitHub](ht
 - Destino no pacote: macOS `Contents/MacOS/`; Windows, a pasta de instalação; Linux `.deb`/`.rpm` `/usr/bin/`; AppImage `usr/bin/` dentro da imagem somente leitura **[verificado no código do bundler]**.
 - Fonte: <https://v2.tauri.app/develop/sidecar/>, <https://v2.tauri.app/plugin/shell/>
 
-**Layout integrado (etapa 6, 2026-11-05, aplicado por Ferrugem).** Só o FFmpeg fica em `externalBin`. O yt-dlp onedir vai como diretório **estável, sem triple no nome**. A configuração está em arquivos de plataforma que o Tauri v2 mescla sozinho ao `tauri.conf.json`, então `tauri dev` e `tauri build` não precisam de flags:
+**Layout integrado (etapa 6 e tarefa do runtime Deno).** Só FFmpeg/FFprobe ficam em `externalBin`. yt-dlp onedir e o executável Deno com manifesto ficam como recursos **estáveis, sem triple no nome**. A configuração fica no `tauri.conf.json` base:
 
 ```jsonc
 // src-tauri/tauri.conf.json
 "bundle": { "externalBin": ["binaries/clipora-ffmpeg", "binaries/clipora-ffprobe"] }
-// src-tauri/tauri.conf.json (configuração base, todos os sistemas)
+// src-tauri/tauri.conf.json (recursos em todos os sistemas)
 "bundle": { "resources": {
   "binaries/yt-dlp/": "yt-dlp/",
+  "binaries/deno/": "deno/",
   "binaries/licencas/": "licencas/"
 } }
 ```
+
+O recurso `deno/` contém exatamente `clipora-deno[.exe]` e `clipora-deno.json`; a cópia de aquisição `binaries/clipora-deno-<triple>` fica fora da configuração de pacote. O Rust resolve o executável pelo caminho de recurso absoluto, sem `PATH` nem `externalBin`. O manifesto registra `formato: 1`, versão, triple, SHA-256 do executável e origem/hash dos ZIPs; o universal registra as duas fontes separadamente. No macOS, o Deno é assinado antes do bundle com `com.apple.security.cs.allow-jit=true`, único entitlement necessário ao JIT do runtime. O Tauri não re-assina Deno como `externalBin`, e o manifesto corresponde aos bytes finais do recurso.
 
 O yt-dlp e os avisos são recursos do app. No macOS ficam em `Contents/Resources/yt-dlp/` e `Contents/Resources/licencas/`; no Windows/Linux ficam sob `resource_dir()`. O FFmpeg/FFprobe seguem como `externalBin` em `Contents/MacOS` ou nos destinos próprios de cada pacote.
 

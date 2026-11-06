@@ -6,13 +6,13 @@
 //
 // Para cada pacote encontrado, obtém a árvore REAL de arquivos instalados e confere:
 //   - obrigatórios: executável do app, clipora-ffmpeg[.exe], clipora-ffprobe[.exe],
-//     yt-dlp/yt-dlp[.exe] + manifesto, licencas/THIRD_PARTY_LICENSES.txt e licencas.json;
+//     clipora-deno[.exe] + manifesto, yt-dlp/yt-dlp[.exe] + manifesto e avisos de licença;
 //   - LISTA PERMITIDA nas pastas do próprio app (binários e recursos): qualquer extra falha
 //     (onefile clipora-yt-dlp-<triple>, ffmpeg-build-info solto, .antigo/.novo, Helpers/ …);
 //   - yt-dlp/: exatamente os arquivos do manifesto (estado assinado, se houver), com SHA-256;
 //   - executa (quando o host roda o alvo) yt-dlp --version e clipora-ffmpeg -version;
-//   - macOS: lipo -info no universal (app, ffmpeg, ffprobe, yt-dlp com arm64 + x86_64) e
-//     LSMinimumSystemVersion do app ≥ minos dos sidecars (LC_BUILD_VERSION).
+//   - macOS: lipo -info no universal (app e sidecars com arm64 + x86_64) e
+//     LSMinimumSystemVersion do app ≥ mínimos dos sidecars (LC_BUILD_VERSION/LC_VERSION_MIN_MACOSX).
 // Como obtém a árvore: .app direto; .deb `dpkg-deb -x`; .rpm `rpm2cpio | cpio`; AppImage
 // `--appimage-extract`; MSI `msiexec /a` (instalação administrativa); NSIS instalação silenciosa
 // `/S /D=<dir>` num diretório temporário. O .dmg contém o mesmo .app (conferido `hdiutil verify`).
@@ -82,6 +82,78 @@ export function validarInfoFfmpeg(texto, triple, lock) {
     if (/\s--enable-(?:gpl|nonfree|version3)(?:=|\s|$)/.test(linha)) erros.push('configure contém flag GPL/nonfree/version3 proibida');
   }
   return erros;
+}
+
+export function validarManifestoDeno(manifesto, executavel, triple, lock) {
+  const erros = [];
+  const deno = lock.deno;
+  if (manifesto?.formato !== 1) erros.push('formato de manifesto Deno inválido');
+  if (manifesto?.versao !== deno?.versao) erros.push('versão Deno divergente do lock');
+  if (manifesto?.triple !== triple) erros.push('triple divergente');
+  if (manifesto?.sha256Executavel !== createHash('sha256').update(executavel).digest('hex')) erros.push('SHA-256 do executável divergente');
+
+  const alvos = triple === 'universal-apple-darwin'
+    ? ['aarch64-apple-darwin', 'x86_64-apple-darwin']
+    : [triple];
+  const fontesEsperadas = alvos.map((alvo) => deno?.alvos?.[alvo]);
+  if (fontesEsperadas.some((a) => !a)) {
+    erros.push(`origem Deno ausente no lock para ${triple}`);
+    return erros;
+  }
+  const origemEsperada = alvos.length === 1 ? fontesEsperadas[0].url : fontesEsperadas.map((a) => a.url);
+  const hashEsperado = alvos.length === 1 ? fontesEsperadas[0].sha256 : fontesEsperadas.map((a) => a.sha256);
+  if (JSON.stringify(manifesto?.origemZip) !== JSON.stringify(origemEsperada)) erros.push('origem ZIP Deno divergente do lock');
+  if (JSON.stringify(manifesto?.sha256Zip) !== JSON.stringify(hashEsperado)) erros.push('SHA-256 do ZIP Deno divergente do lock');
+  return erros;
+}
+
+export function versaoDenoPermitida(stdout, versaoBase, triple) {
+  const linha = String(stdout).split(/\r?\n/, 1)[0] ?? '';
+  const escapada = String(versaoBase).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const identificador = '[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*';
+  const alvos = [
+    'aarch64-apple-darwin', 'x86_64-apple-darwin',
+    'x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc',
+    'x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu',
+  ].join('|');
+  const regex = new RegExp(`^deno (${escapada}(?:\\+${identificador})?)(?: \\((?:stable|canary), release, (?:${alvos})\\))?$`);
+  return regex.exec(linha)?.[1] ?? null;
+}
+
+function conferirDeno(dirDeno, ext, triple, rotulo, lock) {
+  const exe = join(dirDeno, `clipora-deno${ext}`);
+  const manifesto = join(dirDeno, 'clipora-deno.json');
+  const esperado = [`clipora-deno${ext}`, 'clipora-deno.json'].sort();
+  const atuais = existsSync(dirDeno) ? readdirSync(dirDeno).sort() : [];
+  if (JSON.stringify(atuais) !== JSON.stringify(esperado)) {
+    falhar(`${rotulo}: deno/ deve conter exatamente ${esperado.join(', ')}; contém ${atuais.join(', ') || '(nada)'}`);
+  }
+  if (!existsSync(exe)) {
+    falhar(`${rotulo}: executável de recurso deno/clipora-deno${ext} ausente`);
+    return;
+  }
+  if (!existsSync(manifesto)) {
+    falhar(`${rotulo}: recurso deno/clipora-deno.json ausente`);
+    return;
+  }
+  let dados;
+  try {
+    dados = JSON.parse(readFileSync(manifesto, 'utf8'));
+  } catch (e) {
+    falhar(`${rotulo}: manifesto Deno inválido: ${e.message}`);
+    return;
+  }
+  const bytes = readFileSync(exe);
+  const erros = validarManifestoDeno(dados, bytes, triple, lock);
+  if (erros.length) falhar(`${rotulo}: manifesto Deno inválido: ${erros.join('; ')}`);
+  else ok(`${rotulo}: manifesto Deno v${dados.versao}, origem e SHA-256 conferidos`);
+  conferirArquitetura(exe, triple, `${rotulo}: clipora-deno`);
+  if (hostRoda(triple)) {
+    const v = spawnSync(exe, ['--version'], { encoding: 'utf8', timeout: 15_000 });
+    const versao = versaoDenoPermitida(v.stdout ?? '', lock.deno.versao, triple);
+    if (v.status === 0 && versao) ok(`${rotulo}: Deno --version = ${versao}`);
+    else falhar(`${rotulo}: Deno --version falhou/inesperada (${v.status}): ${v.stdout}${v.stderr}`);
+  }
 }
 
 export function arquiteturaPe(bytes) {
@@ -198,10 +270,11 @@ async function conferirApp(app, triple, versaoYt) {
   const bins = ['clipora', 'clipora-ffmpeg', 'clipora-ffprobe'];
   const faltaBin = conferirPermitidos(join(c, 'MacOS'), bins, `${rotulo}/MacOS`);
   if (faltaBin.length) falhar(`${rotulo}: faltam em MacOS/: ${faltaBin.join(', ')}`);
-  const faltaRes = conferirPermitidos(join(c, 'Resources'), ['icon.icns', 'yt-dlp', 'licencas'], `${rotulo}/Resources`);
+  const faltaRes = conferirPermitidos(join(c, 'Resources'), ['icon.icns', 'yt-dlp', 'deno', 'licencas'], `${rotulo}/Resources`);
   if (faltaRes.length) falhar(`${rotulo}: faltam em Resources/: ${faltaRes.join(', ')}`);
   if (!faltaBin.length) ok(`${rotulo}: MacOS/ = ${bins.join(', ')}`);
   await conferirYtDlp(join(c, 'Resources', 'yt-dlp'), '', versaoYt, triple, rotulo);
+  conferirDeno(join(c, 'Resources', 'deno'), '', triple, rotulo, globalThis.__cliporaLock);
   conferirLicencas(join(c, 'Resources', 'licencas'), rotulo);
 
   conferirArquitetura(join(c, 'MacOS', 'clipora'), triple, `${rotulo}: clipora`);
@@ -211,10 +284,18 @@ async function conferirApp(app, triple, versaoYt) {
   const plist = join(c, 'Info.plist');
   const lsmin = spawnSync('/usr/libexec/PlistBuddy', ['-c', 'Print :LSMinimumSystemVersion', plist], { encoding: 'utf8' });
   const minosSidecar = Math.max(
-    ...['clipora-ffmpeg', 'clipora-ffprobe']
-      .map((b) => join(c, 'MacOS', b))
+    ...[
+      join(c, 'MacOS', 'clipora-ffmpeg'),
+      join(c, 'MacOS', 'clipora-ffprobe'),
+      join(c, 'Resources', 'deno', 'clipora-deno'),
+    ]
       .filter(existsSync)
-      .flatMap((p) => [...rodar('otool', ['-l', p]).matchAll(/minos (\d+(?:\.\d+)*)/g)].map((x) => versaoNum(x[1]))),
+      .flatMap((p) => {
+        const loadCommands = rodar('otool', ['-l', p]);
+        const buildVersion = [...loadCommands.matchAll(/minos (\d+(?:\.\d+)*)/g)].map((x) => x[1]);
+        const legacyVersion = [...loadCommands.matchAll(/cmd LC_VERSION_MIN_MACOSX[\s\S]*?\n\s*version (\d+(?:\.\d+)*)/g)].map((x) => x[1]);
+        return [...buildVersion, ...legacyVersion].map(versaoNum);
+      }),
   );
   if (lsmin.status !== 0) falhar(`${rotulo}: Info.plist sem LSMinimumSystemVersion (pedir bundle.macOS.minimumSystemVersion "11.0" a Ferrugem; C1)`);
   else if (versaoNum(lsmin.stdout.trim()) < minosSidecar) falhar(`${rotulo}: LSMinimumSystemVersion ${lsmin.stdout.trim()} < minos dos sidecars`);
@@ -240,7 +321,7 @@ async function conferirArvoreInstalada({ raiz, dirBin, dirRes, ext, triple, vers
   if (faltaObrig.length) falhar(`${rotulo}: faltam em ${dirBin}/: ${faltaObrig.join(', ')}`);
   else ok(`${rotulo}: ${dirBin}/ tem ${bins.join(', ')}`);
   if (dirRes !== dirBin) {
-    const faltaRes = conferirPermitidos(join(raiz, dirRes), resPermitidos ?? ['yt-dlp', 'licencas'], `${rotulo}:${dirRes}`);
+    const faltaRes = conferirPermitidos(join(raiz, dirRes), resPermitidos ?? ['yt-dlp', 'deno', 'licencas'], `${rotulo}:${dirRes}`);
     if (faltaRes.length) falhar(`${rotulo}: faltam em ${dirRes}/: ${faltaRes.join(', ')}`);
   }
   await conferirYtDlp(join(raiz, dirRes, 'yt-dlp'), ext, versaoYt, triple, rotulo);
@@ -252,6 +333,7 @@ async function conferirArvoreInstalada({ raiz, dirBin, dirRes, ext, triple, vers
     conferirArquitetura(p, triple, `${rotulo}: ${n}`);
   }
   conferirFfmpeg(baseBin, ext, triple, rotulo, globalThis.__cliporaLock);
+  conferirDeno(join(baseRes, 'deno'), ext, triple, rotulo, globalThis.__cliporaLock);
 }
 
 async function conferirLinux(bundle, triple, versaoYt, nomeProduto) {
@@ -320,7 +402,7 @@ async function conferirWindows(bundle, triple, versaoYt) {
         ext: '.exe',
         triple,
         versaoYt,
-        binsPermitidos: ['clipora.exe', 'clipora-ffmpeg.exe', 'clipora-ffprobe.exe', 'yt-dlp', 'licencas', ...(p.nsis ? ['uninstall.exe'] : [])],
+        binsPermitidos: ['clipora.exe', 'clipora-ffmpeg.exe', 'clipora-ffprobe.exe', 'yt-dlp', 'deno', 'licencas', ...(p.nsis ? ['uninstall.exe'] : [])],
       });
       if (p.nsis) spawnSync(join(p.raiz, 'uninstall.exe'), ['/S']);
     }

@@ -236,6 +236,9 @@ jobs:
       - name: yt-dlp verificado (SHA-256 + GPG; formato detectado na configuração do Tauri)
         run: pnpm binarios --target "$TRIPLE" --exigir-gpg
 
+      - name: Recurso Deno verificado e assinado com allow-jit (Deno 2.7.0)
+        run: node scripts/obter-deno.mjs --target "$TRIPLE"
+
       - name: Testes do frontend
         if: matrix.testes
         run: |
@@ -244,7 +247,7 @@ jobs:
 
       - name: Testes do conferidor de pacotes
         if: matrix.testes
-        run: node --test scripts/test-conferir-pacote.mjs
+        run: node --test scripts/test-conferir-pacote.mjs scripts/test-deno.mjs scripts/test-deno-licencas.mjs
 
       - name: Testes do Rust
         if: matrix.testes
@@ -284,6 +287,12 @@ jobs:
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: node scripts/assinar-yt-dlp.mjs --identidade "$APPLE_SIGNING_IDENTITY" --importar-certificado
+
+      - name: Pré-assinar Deno e atualizar seu manifesto (macOS)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true'
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: node scripts/obter-deno.mjs --target "$TRIPLE" --assinar-instalado --assinar-com "$APPLE_SIGNING_IDENTITY" --entitlements scripts/deno.entitlements.plist
 
       - name: tauri build (assinado e notarizado, macOS)
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true'

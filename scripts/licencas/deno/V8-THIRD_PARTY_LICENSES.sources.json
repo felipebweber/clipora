@@ -1,0 +1,2596 @@
+{
+  "format": 1,
+  "rustyV8Commit": "e6a88b35dd3d7f2849a0df33a71d338701c55316",
+  "v8Commit": "8defb67673c5483ae56258a2de01b07e947dc921",
+  "licenseLikeFileCount": 504,
+  "distinctTextCount": 305,
+  "textSha256": "05b05e4b1e8a1513d58ba7935d6dca89ff6a1f759105f3fa8c4a245cf70d1bae",
+  "gitlinks": [
+    {
+      "commit": "1597226b825a16493de66c1732171efe89b271d9",
+      "path": "third_party/abseil-cpp"
+    },
+    {
+      "commit": "beeeef91cf6fef89a4d4ba5e95d47ca64ccb3a44",
+      "path": "third_party/dragonbox/src"
+    },
+    {
+      "commit": "cb1d42aaa1e14b09e1452cfdef373d051b8c02a4",
+      "path": "third_party/fast_float/src"
+    },
+    {
+      "commit": "3d2de1816307bac63c16a297e8c4dc501b4076df",
+      "path": "third_party/fp16/src"
+    },
+    {
+      "commit": "84379d1c73de9681b54fbe1c035a23c7bd5d272d",
+      "path": "third_party/highway/src"
+    },
+    {
+      "commit": "a86a32e67b8d1384b33f8fa48c83a6079b86f8cd",
+      "path": "third_party/icu"
+    },
+    {
+      "commit": "c3027d884967773057bf74b957e3fea87e5df4d7",
+      "path": "third_party/jinja2"
+    },
+    {
+      "commit": "7ab65651aed6802d2599dcb7a73b1f82d5179d05",
+      "path": "third_party/libc++/src"
+    },
+    {
+      "commit": "8f11bb1d4438d0239d0dfc1bd9456a9f31629dda",
+      "path": "third_party/libc++abi/src"
+    },
+    {
+      "commit": "a726f5347e1e423d59f5c2d434b6a29265c43051",
+      "path": "third_party/libunwind/src"
+    },
+    {
+      "commit": "259b6a7101beea301d6dfb96445f03f7d2e13754",
+      "path": "third_party/llvm-libc/src"
+    },
+    {
+      "commit": "4256084ae14175d38a3ff7d739dca83ae49ccec6",
+      "path": "third_party/markupsafe"
+    },
+    {
+      "commit": "b2155fca494c5b6266d42f9129ae3a7b85482c95",
+      "path": "third_party/partition_alloc"
+    },
+    {
+      "commit": "c39a70c914bbac46c52bddb7ee136e04fdf1e687",
+      "path": "third_party/rust"
+    },
+    {
+      "commit": "75bea7342fdac6b57f7e3099ddf4dc84d77384f6",
+      "path": "third_party/simdutf"
+    },
+    {
+      "commit": "8defb67673c5483ae56258a2de01b07e947dc921",
+      "path": "v8"
+    }
+  ],
+  "files": [
+    {
+      "path": "v8/LICENSE",
+      "sha256": "6ab33af8774a0f396ee3aeeb761e3229057682d6f9fa7f572e390c2cb3a6e509",
+      "textSha256": "307e09cfcde249000c77574e0f34df451afb48e62d2673f93cc2d417670cebb5"
+    },
+    {
+      "path": "v8/LICENSE.fdlibm",
+      "sha256": "e7115e18444dae09d17f361ddc365fb1d342640fe500796209c63f7c80dfae10",
+      "textSha256": "29ba8b7f64365cf509eabb8729fa8419d53221ab5fe44e8236be244078f82ce8"
+    },
+    {
+      "path": "v8/LICENSE.strongtalk",
+      "sha256": "6a585a9f466654abc8fc0829d56b1bc987e3a073d31faa03bba37d33640a23cd",
+      "textSha256": "ac1914ae7cdd15ebe0ca668d9c6d591a7d12b8fb2a521ad62454d27db829470c"
+    },
+    {
+      "path": "v8/LICENSE.v8",
+      "sha256": "4af93c12062c58058378de2397dc1c92bbff9ddfb1d583a01c84127557ce97ca",
+      "textSha256": "d94b380e51facbf323d9311a0ddde3b1327610ee8ec21a050288123246f9b1ca"
+    },
+    {
+      "path": "v8/src/compiler/turboshaft/copying-phase.cc",
+      "sha256": "8050804c21e9547da764741ae0aa9b8a3fb8df1f7a24c8ba5f94e7fa7e3564d9",
+      "textSha256": "c43c1cdcd55bd986a59e79cca36b8c29d7deeb1a493135296f63799fd8c15e16"
+    },
+    {
+      "path": "v8/src/compiler/turboshaft/copying-phase.h",
+      "sha256": "9c8d9eb23dc042068f69f21f02711590c35d72549d05ef8a228a253ffa854fb3",
+      "textSha256": "6e43181c70e63a2def0326a876a2f0e53fa698697011d0daad3ab81d668ba4b2"
+    },
+    {
+      "path": "v8/test/js-perf-test/SixSpeed/LICENSE.sixspeed",
+      "sha256": "f915aef5cdb93903ae8850c4a1efb638ee1195b1380b6e446a583c1d0eef3ff7",
+      "textSha256": "127e15b862ffb8af302bc52a76d53572ac36ab5f0141741c725c4efa2eccd9a2"
+    },
+    {
+      "path": "v8/test/mjsunit/third_party/object-keys/LICENSE",
+      "sha256": "b5e27ca8c92bf5748046345e3c5621a97542abd931ad5870b2057c4e20e2ece8",
+      "textSha256": "dbbb87788f1aea283033afe01f783c31e833fac522ec0057597d737ad2d434e0"
+    },
+    {
+      "path": "v8/test/mjsunit/third_party/regexp-pcre/LICENSE",
+      "sha256": "f55e9e4ba1ce2ae3b0f21577d9dfd3cea376123cb69e444b891f2f0fc1f9069a",
+      "textSha256": "d74226fa963d308c054cb3477863d925abd8d9f825a59bda6e18232f0f5fbbcb"
+    },
+    {
+      "path": "v8/test/wasm-js/third_party/LICENSE.testharness",
+      "sha256": "5a7b465d39b5e018bc40cc34162176269f7c476989cb4dbcf0ec0b81701545a7",
+      "textSha256": "01cc8fc70585522f65cc6f105df96f818529c9e7012878055e5ff0e9b07183e4"
+    },
+    {
+      "path": "v8/third_party/colorama/LICENSE",
+      "sha256": "15137d6c822e3ab097093a33c3a39a9df699f373f6438867ad534ff60762a947",
+      "textSha256": "77f8a85bf994bd02d124fdd6afb44768c4fd6f361844f992cc1c81f4f6bba74f"
+    },
+    {
+      "path": "v8/third_party/fp16/LICENSE",
+      "sha256": "c91377adafa2f498211a4fe017788e20c38892124673860f068f2919c289193d",
+      "textSha256": "3b051abf9567a504d5bfdec142af0147fc78b30d2315947c0c7c676a05c60e65"
+    },
+    {
+      "path": "v8/third_party/glibc/LICENSE",
+      "sha256": "b634ab5640e258563c536e658cad87080553df6f34f62269a21d554844e58bfe",
+      "textSha256": "f08de4e71249f6c829480dc4716eb2618fbf091926d5563d05466afb02d93285"
+    },
+    {
+      "path": "v8/third_party/googletest/README.chromium",
+      "sha256": "7e71284c1bb0fd4fd2d30749a20ebfea67ab3a4bc7ccfca477c7a0d300690c6e",
+      "textSha256": "66ea32d5e8036e67ff8df6a9d80c37a360660b930f45180f77713433588211f7"
+    },
+    {
+      "path": "v8/third_party/highway/LICENSE",
+      "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1",
+      "textSha256": "283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b"
+    },
+    {
+      "path": "v8/third_party/highway/README.chromium",
+      "sha256": "18471659d77acf7e8a569f4b606d2c31d857a97c891afffba3221141be81c800",
+      "textSha256": "e3a09b6bdfafdff4b3566accdf5fdfaee81d3f00e9518be53fa47a597f635c16"
+    },
+    {
+      "path": "v8/third_party/inspector_protocol/LICENSE",
+      "sha256": "450ebb9e9e50c2809d9ca581931fc8946d8d5aa0c8c35aae9ac471342fe4a88e",
+      "textSha256": "7df109bbd85e4e54541968cb60e5df338286c59a56988a4a810ad2420e08c521"
+    },
+    {
+      "path": "v8/third_party/jsoncpp/LICENSE",
+      "sha256": "76c45ece83a26117f86f4e349e7df118708e061e87225328fb478ce1e8b3eb86",
+      "textSha256": "22440e583dba573422fb7b00f307c1bbc5fb3518a8ba68980af9c5018cbe6295"
+    },
+    {
+      "path": "v8/third_party/jsoncpp/README.chromium",
+      "sha256": "68f9fd1ee29840f024258415a3399e35c42322274c800700ae83dda971af3793",
+      "textSha256": "1a3f01dfa674ed86489751c98f6397f5f3b9d14698afaf06a29544e1a123d3a4"
+    },
+    {
+      "path": "v8/third_party/rapidhash-v8/LICENSE",
+      "sha256": "db672df7faf793fbe28b8074fdd10822363e1525816b45c9627754885de842b0",
+      "textSha256": "b8e376aed40d481f1a001c20883918c18dae72ba307c8abe4188189deca52316"
+    },
+    {
+      "path": "v8/third_party/rapidhash-v8/README.chromium",
+      "sha256": "55fdfa94991eded67597c73be1fc1757ff64c9d6839d4312aead6468c92fe732",
+      "textSha256": "d072f10b46e691d2341719f088412cacd38f9e8b9549bc8274a5f6df2e248c38"
+    },
+    {
+      "path": "v8/third_party/re2/LICENSE",
+      "sha256": "6040cda75d90b1738292a631d89934c411ef7ffd543c4d6a1b7edfc8edf29449",
+      "textSha256": "f18a9780672d1593a7ecc47c5c7757f87352f408a9b3629729fb9e90a97cd46f"
+    },
+    {
+      "path": "v8/third_party/siphash/LICENSE",
+      "sha256": "36ffd9dc085d529a7e60e1276d73ae5a030b020313e6c5408593a6ae2af39673",
+      "textSha256": "5537d4d10b76b81b6e8dfd8b644480a4b1efa332fbb0cdb61126c5be781ef7b4"
+    },
+    {
+      "path": "v8/third_party/utf8-decoder/LICENSE",
+      "sha256": "3f712e5fbdfdbd5ee7d9b8c8152580220df55de47f4eba2f26c95c4de19ad096",
+      "textSha256": "8d045c5f6fb6fddb06e4ab97c2b15d520e5b36b7106366bf3fd4a3b4cd564847"
+    },
+    {
+      "path": "v8/third_party/v8/builtins/LICENSE",
+      "sha256": "b9a6d9320b8f2693e8d41e496ce56caadacaddcca9be2a64a61749278f425cf2",
+      "textSha256": "f4f69651cfee181ff060ad4ce219dd3a08f7c4dc9115efe321c89af1a93ab499"
+    },
+    {
+      "path": "v8/third_party/v8/codegen/LICENSE",
+      "sha256": "17e4f539024be2749ee729d1e2f01d24cef12ece8c9bf18e91a4349be29c80bf",
+      "textSha256": "3b051abf9567a504d5bfdec142af0147fc78b30d2315947c0c7c676a05c60e65"
+    },
+    {
+      "path": "v8/third_party/valgrind/LICENSE",
+      "sha256": "ebf25b8ce59c9e8883acd1ca75b6fc121937ca034f666c4077d2be739d2e1622",
+      "textSha256": "6856ef7999fd470f6adee999386fbe84d39abe654e4d12365118e7d34cd6029b"
+    },
+    {
+      "path": "v8/third_party/vtune/LICENSE",
+      "sha256": "02aea3ade0c02470335987f7d93ffaed877bcefc8414a416e2e548665bb0bfd0",
+      "textSha256": "16a8b0b1bd3fe247fedd7aaa5c91cef05007de03dbae908fec59a691ba25da7e"
+    },
+    {
+      "path": "v8/third_party/wasm-api/LICENSE",
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "textSha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+    },
+    {
+      "path": "third_party/abseil-cpp/LICENSE",
+      "sha256": "c79a7fea0e3cac04cd43f20e7b648e5a0ff8fa5344e644b0ee09ca1162b62747",
+      "textSha256": "771e6c9f11721b0937412fe85df813fd2c1ff089a033d3a168f3c1609421ca08"
+    },
+    {
+      "path": "third_party/abseil-cpp/README.chromium",
+      "sha256": "793bf03725b99d02972b7ede86231bb9365cd108c052a95acdee60474a3aa0c8",
+      "textSha256": "dad5731059214a9a6e567b89188ef062fa0c393d1b0d86cb88e7bcdfadd2dd18"
+    },
+    {
+      "path": "third_party/dragonbox/src/LICENSE-Apache2-LLVM",
+      "sha256": "9e45e856bedccee9f67254082ca11851d954de2fed7448c4bed19ad9aab99a91",
+      "textSha256": "b3ab415c17131cf0d318be123506ddafe4965c7b01b09d08cc8150c53e8a0bc9"
+    },
+    {
+      "path": "third_party/dragonbox/src/LICENSE-Boost",
+      "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
+      "textSha256": "8d8291caf1cee26d23acf3eb67c9f9a2d58f1c681b16a4fbe8cbfb9e3c0b5a9b"
+    },
+    {
+      "path": "third_party/dragonbox/src/subproject/3rdparty/shaded_plots/license.txt",
+      "sha256": "4940bc5686a12692b9f95bb3af225592994fd1bc910e212f975cc73ab3799d2c",
+      "textSha256": "5c8fd2df9f120c20c1481d23e635ac8b0cc24945f7a43bf85677129f6d638d9d"
+    },
+    {
+      "path": "third_party/fast_float/src/LICENSE-APACHE",
+      "sha256": "097a889aa954d04e088b790b10a4014d6189561d0a6013935a73ce3d4ddaaf06",
+      "textSha256": "24026a58b672b69ed9efe5d6f53c4a777b3238c97f1bbe68e9cea0b7807b6391"
+    },
+    {
+      "path": "third_party/fast_float/src/LICENSE-BOOST",
+      "sha256": "8d8291caf1cee26d23acf3eb67c9f9a2d58f1c681b16a4fbe8cbfb9e3c0b5a9b",
+      "textSha256": "8d8291caf1cee26d23acf3eb67c9f9a2d58f1c681b16a4fbe8cbfb9e3c0b5a9b"
+    },
+    {
+      "path": "third_party/fast_float/src/LICENSE-MIT",
+      "sha256": "e562f3f974ced7e69dd1db77b820b36bcf8f30377f1aa105723fba449c53c4e6",
+      "textSha256": "f969086056bf8d196df89d0c08a1f10027794b9e98571b556764311c2fd36224"
+    },
+    {
+      "path": "third_party/fp16/src/LICENSE",
+      "sha256": "17e4f539024be2749ee729d1e2f01d24cef12ece8c9bf18e91a4349be29c80bf",
+      "textSha256": "3b051abf9567a504d5bfdec142af0147fc78b30d2315947c0c7c676a05c60e65"
+    },
+    {
+      "path": "third_party/highway/src/LICENSE",
+      "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1",
+      "textSha256": "283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b"
+    },
+    {
+      "path": "third_party/highway/src/LICENSE-BSD3",
+      "sha256": "d25e82e26acd42ca3ccc9993622631163425b869b9e16284226d534cff6470f2",
+      "textSha256": "d25e82e26acd42ca3ccc9993622631163425b869b9e16284226d534cff6470f2"
+    },
+    {
+      "path": "third_party/icu/LICENSE",
+      "sha256": "451167c55c0fa447cc2d5632714f5e3c567fe4f1e1badefab2c1333852198aca",
+      "textSha256": "030e19dbf421de750705d8b49880caf34d0d9509aee28229f3d4fa5b76f2b61d"
+    },
+    {
+      "path": "third_party/icu/license.html",
+      "sha256": "c62d7697c03979f5056d28b338fafc7a1152820f7b379adf4a9d88cd37160f96",
+      "textSha256": "8ae745703aeff3072bc4f4ab2d046c14ccd9bf9f98cfa4e0105c8bae09c52236"
+    },
+    {
+      "path": "third_party/icu/README.chromium",
+      "sha256": "1b3dc4f5a79d499783c09d12d516f63100d5e88078bca6228281017f40e0a43f",
+      "textSha256": "eb7e422ba4db8141cbdd0b9db9b8ac36862b39555d981e8b0b02eb2ec8949df5"
+    },
+    {
+      "path": "third_party/icu/scripts/LICENSE",
+      "sha256": "845022e0c1db1abb41a6ba4cd3c4b674ec290f3359d9d3c78ae558d4c0ed9308",
+      "textSha256": "3dbd2c90050b652d63656481c3e5871c52261575292db77d4ea63419f187a55b"
+    },
+    {
+      "path": "third_party/jinja2/LICENSE.rst",
+      "sha256": "3b49dcee4105eb37bac10faf1be260408fe85d252b8e9df2e0979fc1e094437b",
+      "textSha256": "3b2c267861922f4a51cdbbb70eb8395a1dfa2dc5fd5bbc6329630b4dc05e9fc2"
+    },
+    {
+      "path": "third_party/jinja2/README.chromium",
+      "sha256": "64d3168a98afa6b4dbb9213791022c126169dd248ed09e08b3a80b4c421d22a7",
+      "textSha256": "47c3b9b93c0edecf5f38d7135c39f173af321fba9dd661478dcf0509d824962d"
+    },
+    {
+      "path": "third_party/libc++/src/LICENSE.TXT",
+      "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b",
+      "textSha256": "9dc39e557a5399be6fdaef806b32fb027eadf125e24e12cd4f1aaf3bf2b07784"
+    },
+    {
+      "path": "third_party/libc++abi/src/LICENSE.TXT",
+      "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c",
+      "textSha256": "054cac72f704c092f3b4f5b4b4c04a3ed11f3305ef11a6dd79014d2f418d3ac2"
+    },
+    {
+      "path": "third_party/libunwind/src/LICENSE.TXT",
+      "sha256": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d",
+      "textSha256": "d26712ae3358c01f8b81c266b1b42b0fe21ba2514016ca573a44acb418609322"
+    },
+    {
+      "path": "third_party/llvm-libc/src/LICENSE.TXT",
+      "sha256": "ebcd9bbf783a73d05c53ba4d586b8d5813dcdf3bbec50265860ccc885e606f47",
+      "textSha256": "442df1664dcd9b2c6f4e7f8952b909b6c494b0efb8dac9e654d17b95fea853cd"
+    },
+    {
+      "path": "third_party/markupsafe/LICENSE",
+      "sha256": "0bbe88228fd63d20ec097f64e58d5a0a465123ae139140a18d406c60b48824b5",
+      "textSha256": "16000a277135b07a659b36b9f4dfeaa4113296ff25ec65c9d58815c9b2f36955"
+    },
+    {
+      "path": "third_party/markupsafe/README.chromium",
+      "sha256": "7146dafeafbfc822c602fc220ca6e056e7516730b54134949563dc3557a9226a",
+      "textSha256": "4a6dee2a1f6ab741dedb4c8734da58bc7bf840fe92e3b8fe84ae0063d5bced87"
+    },
+    {
+      "path": "third_party/partition_alloc/src/partition_alloc/third_party/apple_apsl/LICENSE",
+      "sha256": "b23e682fda7310afe43505ed6041919ccff8f9e0c6799ebd7542cbcef11102e3",
+      "textSha256": "04d16a115ef397d2c5f0b1809f605dac3105146c5857255cb97704d79fe3985c"
+    },
+    {
+      "path": "third_party/partition_alloc/src/partition_alloc/third_party/apple_apsl/README.chromium",
+      "sha256": "ee82868a98861e747f798df807e400f02318d019e0afaaf165d465a6526be83b",
+      "textSha256": "3f203a5841b88ac5ab27c56f12cf017cd8e1fbb044787f908f028ff1bf424ecb"
+    },
+    {
+      "path": "third_party/rust/adler2/v2/README.chromium",
+      "sha256": "4f72bab7d68255034e44dc1919a7ac1860e6aa0a291dc16e2d4cb73a16678d47",
+      "textSha256": "ffd08247cffa6573c5d62ec6589d0a804fbce052e21297c04b81128af556a198"
+    },
+    {
+      "path": "third_party/rust/anstyle/v1/README.chromium",
+      "sha256": "a145c8427d323d48b1103625e2a14080a3ba0530c3d1bd4f50f2909fabb4bcb2",
+      "textSha256": "96de8617fb228e459ad7e625058084fc5d903b5543d7e0f222d37aacbc8e7958"
+    },
+    {
+      "path": "third_party/rust/antlr4rust/v0_5/README.chromium",
+      "sha256": "0e49efbe469b3b713835d147a4632a9023dd4421e6b32a6711fcdc91fb8bc355",
+      "textSha256": "73fbdb9a2d78bff86158e18e3f0b314830c3c481d59c1688cf27faf853be3154"
+    },
+    {
+      "path": "third_party/rust/anyhow/v1/README.chromium",
+      "sha256": "882804c7b91f2519118e279facf430dd0ec1f9b2e1bafd87002557cb03835579",
+      "textSha256": "674bdf477b44e59f4baa990fcb6900380ec284a1917338cbf4d4b48a28e2cf36"
+    },
+    {
+      "path": "third_party/rust/array_init/v2/README.chromium",
+      "sha256": "1cde6ddd8d582350c9cba8a80b60f2c7dfa133889962b8117263e5fb9496b342",
+      "textSha256": "d2089a8d0c98e9b34fe58f8454f48d55ae68388a2ae2c598c766faaa83f422a8"
+    },
+    {
+      "path": "third_party/rust/arrayvec/v0_7/README.chromium",
+      "sha256": "55eadbfd54c2e1cb12662d5f02e93ae8ddd2364baf15326a8c8423ad5f68f29b",
+      "textSha256": "2a9af8b06bdc8831e3a1f0d8d80bb4fcde42b0df67040b28d27a5bce9f3a8923"
+    },
+    {
+      "path": "third_party/rust/autocfg/v1/README.chromium",
+      "sha256": "0ef25a99fb63c5eeda1dfbd863587c4c59e2dd73b8c9249c0c996d0270e615d1",
+      "textSha256": "9c4283ee88645b2c04ff7f97a420ba2a75c31e41b976abd515ba44e5a84a22f2"
+    },
+    {
+      "path": "third_party/rust/base64/v0_22/README.chromium",
+      "sha256": "912e9b3ecbc8a924e087b32fd9ce47e9d23961b7c23732d76d9829d7515dc4c5",
+      "textSha256": "5e8d4ed8cc54475fe445a408a9aa3ad85187b97171e582bb49a02a2514771371"
+    },
+    {
+      "path": "third_party/rust/better_any/v0_2/README.chromium",
+      "sha256": "d77e12b3788423d86136092b04a7a4078282ebfa7af99d3853fe37276ac2c473",
+      "textSha256": "43ec044bdb9c16a271ecc20a8d394966e25243e646df3fae92663c740b90b0e0"
+    },
+    {
+      "path": "third_party/rust/bit_set/v0_8/README.chromium",
+      "sha256": "eaea0c469477ea51908e46e99cc3664572efc9d5677e39bdd744b244341a5231",
+      "textSha256": "093e6d8d710cacde75e2177ef821f468204e7d406da5e89925725d42137a514d"
+    },
+    {
+      "path": "third_party/rust/bit_vec/v0_8/README.chromium",
+      "sha256": "46ef96b0c4ef4b4fcd50092b611c5be0e1548cd61bb7eb5339975e1d4defd52a",
+      "textSha256": "e201c06e3d077df0659247d5e525da7debcb6f0d1d219ff5a5d07af838c5ca6f"
+    },
+    {
+      "path": "third_party/rust/bitflags/v1/README.chromium",
+      "sha256": "2d0be4a93607627ecc61e03cddb9ceff3e3b2895ebe80fb21e187308f94fc0ac",
+      "textSha256": "43de3200244f0060afd561ab04f49f1104e7d690764d175f84ea5608a923e71e"
+    },
+    {
+      "path": "third_party/rust/bitflags/v2/README.chromium",
+      "sha256": "bc07b0d260a3ab48b9596057d284df0e93a45b85dbba6c3f9d6836968c2c9467",
+      "textSha256": "06bbacc328fab0c8009b05b6e32184a1ef089a6fb10f23902f9d9080f82dd120"
+    },
+    {
+      "path": "third_party/rust/bytemuck/v1/README.chromium",
+      "sha256": "a723bd00842f85c8927450abc204b64719b45cce6c0d586944377f9b95aa241f",
+      "textSha256": "3ba42ae4347669d3d36243958ecf77314bfdbe9bcee4f9ec572f86cf875e270b"
+    },
+    {
+      "path": "third_party/rust/bytemuck_derive/v1/README.chromium",
+      "sha256": "16ec1d98baa9ce547c3b19dae5b033a2df83dbddd88c0f59ebbadcca2d5e81d9",
+      "textSha256": "1d36ada18608b6a0991404ff0949afb8d1347e1eb85fd0bab7be581835d9cba5"
+    },
+    {
+      "path": "third_party/rust/byteorder/v1/README.chromium",
+      "sha256": "f5cfbc9294453c7fd9b57298971285ff7daa93d2c0f07104880570f90981b9ab",
+      "textSha256": "6bdb2610b483d442dc7439bd3c4963ce5b9b0fb6490b7061afd374f76c990db9"
+    },
+    {
+      "path": "third_party/rust/byteorder_lite/v0_1/README.chromium",
+      "sha256": "c45d643f48665b4987605dc7b65abeaf31699eee444407bf20cd68e78856321d",
+      "textSha256": "10beacf39035454d4e6766e2475660239b2958638604cce15f922a82ecf65467"
+    },
+    {
+      "path": "third_party/rust/bytes/v1/README.chromium",
+      "sha256": "6a29f47d214f6341f29efac2eebd6f412fb959010563df1c6436077aa447c467",
+      "textSha256": "10b02384720bc631940c80d9ba8dcc47246c2033180e3832ed032476ea0b36a6"
+    },
+    {
+      "path": "third_party/rust/calendrical_calculations/v0_2/README.chromium",
+      "sha256": "297f00ae35aa2916133883612ae20226ecd46618e5de1ed683733446ec1f87bb",
+      "textSha256": "323182d5e8e3a678b7352e63b4a69bbb29e3ea37517521f5214b3f3fb6e4f611"
+    },
+    {
+      "path": "third_party/rust/cfg_if/v1/README.chromium",
+      "sha256": "d7c471789cee913f99e7e830498edb7e93113ed9a10455a5e54bdd2e3065f919",
+      "textSha256": "45522c6a55c12838573d05fea2ec3676470fde90313266ac5044448766b079be"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/adler2-v2/LICENSE-0BSD",
+      "sha256": "861399f8c21c042b110517e76dc6b63a2b334276c8cf17412fc3c8908ca8dc17",
+      "textSha256": "a21c914647d33e48cb4d213dfb0749dbb45491514da9d3a8ffc4763cf456217d"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/adler2-v2/LICENSE-APACHE",
+      "sha256": "8ada45cd9f843acf64e4722ae262c622a2b3b3007c7310ef36ac1061a30f6adb",
+      "textSha256": "1bc86297d03201537284dc3f7bc105c8ab7b053b3372d96ab935bc54acc7a430"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/adler2-v2/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/anstyle-v1/LICENSE-APACHE",
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "textSha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/anstyle-v1/LICENSE-MIT",
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "textSha256": "4498464c2864825d7bb4c83e2ac4e9dbb533d49964fbf218c24f8d44ee4e87a9"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/antlr4rust-v0_5/LICENSE.txt",
+      "sha256": "3e1f197b6b221b918470078665608303aeebb27c1f54cd8241873b35f3affa62",
+      "textSha256": "3e1f197b6b221b918470078665608303aeebb27c1f54cd8241873b35f3affa62"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/anyhow-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/anyhow-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/array-init-v2/LICENSE-APACHE",
+      "sha256": "c8d9a0d15dd76ca3bf277b6bf6da56799e266eac60bdc321a97ebc6d76d5153c",
+      "textSha256": "8fb379cfb3c386e8ada362e122c61f390e1f79112a3f897525fab0ecd5960ccf"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/array-init-v2/LICENSE-MIT",
+      "sha256": "e27fb2953c088c71285a4f2f54a0ac53323460ee7c2b1b838d563bd2687a38af",
+      "textSha256": "31719325f6115432adba5f732f0f9137f2d74083745a7362d2b9da48f9ad12d5"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/arrayvec-v0_7/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/arrayvec-v0_7/LICENSE-MIT",
+      "sha256": "4da95ec4ecb65b738d470b7d762894ad9c97da93e6cbfb18b570fc2c96f4b871",
+      "textSha256": "92c666480f818e051a4c16f0d8d29d1cc47fc5abaa6e89c681e5024dd6291e7c"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/autocfg-v1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/autocfg-v1/LICENSE-MIT",
+      "sha256": "27995d58ad5c1145c1a8cd86244ce844886958a35eb2b78c6b772748669999ac",
+      "textSha256": "99afaa30c17801207692138b8a7d9f7522b52711dabb4cde25855dadc950e4c8"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/base64-v0_22/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/base64-v0_22/LICENSE-MIT",
+      "sha256": "0dd882e53de11566d50f8e8e2d5a651bcf3fabee4987d70f306233cf39094ba7",
+      "textSha256": "6a8da4c78c729176907b068222cc6e8e612b09c7345628c98cbceb22c0f06979"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bit-set-v0_8/LICENSE-APACHE",
+      "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90",
+      "textSha256": "7e1b38c60796dd9949d6f26bd124e353a4a709b70e90810e2608f30195454da0"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bit-set-v0_8/LICENSE-MIT",
+      "sha256": "f51ac2c59a222f7476ce507ca879960e2b64ea64bb2786eefdbeb7b0b538d1b7",
+      "textSha256": "4c4e6eed8b86b56fa8f22056ff64bbaae60df3fd0a0101a289729b4477bae1d4"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bit-vec-v0_8/LICENSE-APACHE",
+      "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90",
+      "textSha256": "7e1b38c60796dd9949d6f26bd124e353a4a709b70e90810e2608f30195454da0"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bit-vec-v0_8/LICENSE-MIT",
+      "sha256": "f51ac2c59a222f7476ce507ca879960e2b64ea64bb2786eefdbeb7b0b538d1b7",
+      "textSha256": "4c4e6eed8b86b56fa8f22056ff64bbaae60df3fd0a0101a289729b4477bae1d4"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bitflags-v1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bitflags-v1/LICENSE-MIT",
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+      "textSha256": "14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bitflags-v2/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bitflags-v2/LICENSE-MIT",
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+      "textSha256": "14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bytemuck_derive-v1/LICENSE-APACHE",
+      "sha256": "e3ba223bb1423f0aad8c3dfce0fe3148db48926d41e6fbc3afbbf5ff9e1c89cb",
+      "textSha256": "0e3cbff251c122b9dc79d8193e04f631640c3dbaa90faaae9a439ebf8cda96cb"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bytemuck_derive-v1/LICENSE-MIT",
+      "sha256": "9df9ba60a11af705f2e451b53762686e615d86f76b169cf075c3237730dbd7e2",
+      "textSha256": "dfbd1c2a36dcf9af64e31f070485c57a51961a2767ed0a48541ec065a9c3a5f1"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bytemuck_derive-v1/LICENSE-ZLIB",
+      "sha256": "84b34dd7608f7fb9b17bd588a6bf392bf7de504e2716f024a77d89f1b145a151",
+      "textSha256": "943f36fd309fb5ea67a82f577433f4ed3bc877e5b00f9b874e2f8b7f72bf0bdc"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bytemuck-v1/LICENSE-APACHE",
+      "sha256": "e3ba223bb1423f0aad8c3dfce0fe3148db48926d41e6fbc3afbbf5ff9e1c89cb",
+      "textSha256": "0e3cbff251c122b9dc79d8193e04f631640c3dbaa90faaae9a439ebf8cda96cb"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bytemuck-v1/LICENSE-MIT",
+      "sha256": "9df9ba60a11af705f2e451b53762686e615d86f76b169cf075c3237730dbd7e2",
+      "textSha256": "dfbd1c2a36dcf9af64e31f070485c57a51961a2767ed0a48541ec065a9c3a5f1"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bytemuck-v1/LICENSE-ZLIB",
+      "sha256": "84b34dd7608f7fb9b17bd588a6bf392bf7de504e2716f024a77d89f1b145a151",
+      "textSha256": "943f36fd309fb5ea67a82f577433f4ed3bc877e5b00f9b874e2f8b7f72bf0bdc"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/byteorder-lite-v0_1/LICENSE-MIT",
+      "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f",
+      "textSha256": "154c1af2b38e25e5c18613dfe352eed29b0863cb39e494007822cdeb39150ac5"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/byteorder-v1/COPYING",
+      "sha256": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f",
+      "textSha256": "65314a6c96683f76f7495709bb0ddecb4eaa6fa244b28f23c4812ef8e5524066"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/byteorder-v1/LICENSE-MIT",
+      "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f",
+      "textSha256": "154c1af2b38e25e5c18613dfe352eed29b0863cb39e494007822cdeb39150ac5"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/bytes-v1/LICENSE",
+      "sha256": "45f522cacecb1023856e46df79ca625dfc550c94910078bd8aec6e02880b3d42",
+      "textSha256": "51f778ffff2c0705f0392f4202c932c7c93124850ced31abb7eef1e937da42c4"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/calendrical_calculations-v0_2/LICENSE",
+      "sha256": "192ea857d1bff2b87c174de36cbae5c173234726c6b8eceab9790a535d7dbc95",
+      "textSha256": "cda80c1c31f98ce9dfb04b9b981d8e7b25bfa3f874f93359107b94fae2957fc0"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/cfg-if-v1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/cfg-if-v1/LICENSE-MIT",
+      "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397",
+      "textSha256": "84e1bbfebd74e4196cfa0ea5cf58e677aa24b47c6661adbb19fb07920d089d1d"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/clap_builder-v4/LICENSE-APACHE",
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "textSha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/clap_builder-v4/LICENSE-MIT",
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "textSha256": "4498464c2864825d7bb4c83e2ac4e9dbb533d49964fbf218c24f8d44ee4e87a9"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/clap_lex-v0_7/LICENSE-APACHE",
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "textSha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/clap_lex-v0_7/LICENSE-MIT",
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "textSha256": "4498464c2864825d7bb4c83e2ac4e9dbb533d49964fbf218c24f8d44ee4e87a9"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/clap-v4/LICENSE-APACHE",
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "textSha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/clap-v4/LICENSE-MIT",
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "textSha256": "4498464c2864825d7bb4c83e2ac4e9dbb533d49964fbf218c24f8d44ee4e87a9"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/codespan-reporting-v0_13/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "textSha256": "283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/core_maths-v0_1/LICENSE",
+      "sha256": "9ebf8c4cc0b735ca13a766451f7b8097db3185975ceb2ba94b5abf439156a91f",
+      "textSha256": "9ebf8c4cc0b735ca13a766451f7b8097db3185975ceb2ba94b5abf439156a91f"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/crc32fast-v1/LICENSE-APACHE",
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "textSha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/crc32fast-v1/LICENSE-MIT",
+      "sha256": "61d383b05b87d78f94d2937e2580cce47226d17823c0430fbcad09596537efcf",
+      "textSha256": "9599127e421e16595d107a20935532cdb97ff570fbb0b06ed3aa67b04d0185a2"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/cxx-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/cxx-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/cxxbridge-cmd-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/cxxbridge-cmd-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/cxxbridge-flags-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/cxxbridge-flags-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/cxxbridge-macro-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/cxxbridge-macro-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/derivre-v0_3/LICENSE",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "textSha256": "ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/diplomat_core-v0_14/LICENSE-APACHE",
+      "sha256": "639c20c7f14fb122750d5ad1a6cfb116d9bf8d103e709ee40949e5a12a731666",
+      "textSha256": "c090569e0e0744dab987a27cb3fa2c889957e4673d0a12fb4b8c90dbbeb4f3b0"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/diplomat_core-v0_14/LICENSE-MIT",
+      "sha256": "3337fe6e4a3830ad87c23cb9d6d750f9a1e5c45efc08de9c76c1a207fc6966c4",
+      "textSha256": "4fe20dd8b26dd168494cbfaf5f5b833276cba1ab8f209463efd0ff87cd6b5ccc"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/diplomat-runtime-v0_14/LICENSE-APACHE",
+      "sha256": "639c20c7f14fb122750d5ad1a6cfb116d9bf8d103e709ee40949e5a12a731666",
+      "textSha256": "c090569e0e0744dab987a27cb3fa2c889957e4673d0a12fb4b8c90dbbeb4f3b0"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/diplomat-runtime-v0_14/LICENSE-MIT",
+      "sha256": "3337fe6e4a3830ad87c23cb9d6d750f9a1e5c45efc08de9c76c1a207fc6966c4",
+      "textSha256": "4fe20dd8b26dd168494cbfaf5f5b833276cba1ab8f209463efd0ff87cd6b5ccc"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/diplomat-v0_14/LICENSE-APACHE",
+      "sha256": "639c20c7f14fb122750d5ad1a6cfb116d9bf8d103e709ee40949e5a12a731666",
+      "textSha256": "c090569e0e0744dab987a27cb3fa2c889957e4673d0a12fb4b8c90dbbeb4f3b0"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/diplomat-v0_14/LICENSE-MIT",
+      "sha256": "3337fe6e4a3830ad87c23cb9d6d750f9a1e5c45efc08de9c76c1a207fc6966c4",
+      "textSha256": "4fe20dd8b26dd168494cbfaf5f5b833276cba1ab8f209463efd0ff87cd6b5ccc"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/displaydoc-v0_2/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/displaydoc-v0_2/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/either-v1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/either-v1/LICENSE-MIT",
+      "sha256": "7576269ea71f767b99297934c0b2367532690f8c4badc695edf8e04ab6a1e545",
+      "textSha256": "fdd1c2117bcf8157d1d013d0953c0a7e6e5fab73df9e36773cd77634428568eb"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/encoding_rs-v0_8/LICENSE-APACHE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "textSha256": "283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/encoding_rs-v0_8/LICENSE-MIT",
+      "sha256": "3fa4ca83dcc9237839b1bdeb2e6d16bdfb5ec0c5ce42b24694d8bbf0dcbef72c",
+      "textSha256": "7dc2f64024477c92b147ae4a93bbcef90031b33ba0de6a84bd570d59e6c0688b"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/encoding_rs-v0_8/LICENSE-WHATWG",
+      "sha256": "838118388fe5c2e7f1dbbaeed13e1c7f3ebf88be91319c7c1d77c18e987d1a50",
+      "textSha256": "b1d6d97b0476a82862312e776bd4f2b902fb6c53e46f28166ccd2f63b17d4f8a"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/equivalent-v1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/equivalent-v1/LICENSE-MIT",
+      "sha256": "7365cc8878a1d7ce155a58c4ca09c3d7a6be413efa5334a80ea842912b669349",
+      "textSha256": "4428cd87371acbd49f9f6380125492cd1e89df621d2fd7f55e30a0891f96a433"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/fdeflate-v0_3/LICENSE-APACHE",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "textSha256": "4bf96504d6e83ce5c6fc7167f1795d9ceaa68e70ab86bc5d08ab93184262bbbe"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/fdeflate-v0_3/LICENSE-MIT",
+      "sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3",
+      "textSha256": "77949ead506e84e3ff5c31f784bdc17b6c4095d4102edae05dc5557ef6c61c8c"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/fend-core-v1/LICENSE.md",
+      "sha256": "d39a21ed70fb553856f6d7e74fee4332261069502ae32ab9ac13b49d147696f7",
+      "textSha256": "b3c763df3eaadfb43260aaf103f5e00c4a438d77f3b07b1b4c49b72abca062b9"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/fixed_decimal-v0_7/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/flate2-v1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/flate2-v1/LICENSE-MIT",
+      "sha256": "75d3bf11a47fed60aee0a6cc56a97b896b470ee8fb52d6cd553bd8348337f422",
+      "textSha256": "e8bac4ebed6c05750aa207769b5b1d89607408bf06ca04c100c3de3ee507cf96"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/foldhash-v0_2/LICENSE",
+      "sha256": "b1181a40b2a7b25cf66fd01481713bc1005df082c53ef73e851e55071b102744",
+      "textSha256": "b1181a40b2a7b25cf66fd01481713bc1005df082c53ef73e851e55071b102744"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/font-types-v0_10/LICENSE-APACHE",
+      "sha256": "a14f7d685a79c0f4fb64aee305527a6d5fa55f2401f4e6d688d7b1301868e6c0",
+      "textSha256": "bfa7ed27d2b079e06d6c51fbfafb2b972019c9d045b76021058246a16fa1090d"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/font-types-v0_10/LICENSE-MIT",
+      "sha256": "8a62fa27ffdccc3df19dce90f8bb3d572e27aecffc1a383d0c2601834dcec434",
+      "textSha256": "163aebd02543da63ffaf66b84ebf5b135a70ca1b5b0911c9ef9d3bcbf84e7471"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/hashbrown-v0_15/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/hashbrown-v0_15/LICENSE-MIT",
+      "sha256": "ff8f68cb076caf8cefe7a6430d4ac086ce6af2ca8ce2c4e5a2004d4552ef52a2",
+      "textSha256": "ae9791f02f2bbe0ce17b434753af97be6e5284b6f8e9f22db3c1f0f11b2e015a"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/hashbrown-v0_16/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/hashbrown-v0_16/LICENSE-MIT",
+      "sha256": "ff8f68cb076caf8cefe7a6430d4ac086ce6af2ca8ce2c4e5a2004d4552ef52a2",
+      "textSha256": "ae9791f02f2bbe0ce17b434753af97be6e5284b6f8e9f22db3c1f0f11b2e015a"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/heck-v0_5/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/heck-v0_5/LICENSE-MIT",
+      "sha256": "7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0",
+      "textSha256": "033a9383ff21d1e4811d98dd2e0081b0ba0d9c9a31d6c7ba9e63e3488479bf29"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/hex-v0_4/LICENSE-APACHE",
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "textSha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/hex-v0_4/LICENSE-MIT",
+      "sha256": "f7bdb3426d045cd50efd4953026e3eb5a83d0199f458a075602611b9344da5b9",
+      "textSha256": "9dde4a6ad496606322ae0b61b70dc7123fa231be543caa0896d567e34d20fbf8"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/hmac-sha256-v1/LICENSE",
+      "sha256": "6dea9c6b28d6afb09254f31db4530f188ff6b8e980f7e2f92adcec05785fb100",
+      "textSha256": "9400897d2bae5ed6df0ce9f5ff824a612010e147b1e20ef8cff96724425151bc"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_calendar_data-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_calendar-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_casemap_data-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_casemap-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_collections-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_decimal_data-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_decimal-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_experimental_data-v0_4/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_experimental-v0_4/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_list_data-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_list-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_locale_core-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_locale_data-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_locale-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_normalizer_data-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_normalizer-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_pattern-v0_4/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_plurals_data-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_plurals-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_properties_data-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_properties-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/icu_provider-v2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/image-v0_25/LICENSE-APACHE",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "textSha256": "4bf96504d6e83ce5c6fc7167f1795d9ceaa68e70ab86bc5d08ab93184262bbbe"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/image-v0_25/LICENSE-MIT",
+      "sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3",
+      "textSha256": "77949ead506e84e3ff5c31f784bdc17b6c4095d4102edae05dc5557ef6c61c8c"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/indexmap-v2/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/indexmap-v2/LICENSE-MIT",
+      "sha256": "ecc269ef87fd38a1d98e30bfac9ba964a9dbd9315c3770fed98d4d7cb5882055",
+      "textSha256": "4f2ac128e429d9646bf481baaa120eb561234f980503d337c710c06d0af6bbf9"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/itertools-v0_11/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/itertools-v0_11/LICENSE-MIT",
+      "sha256": "7576269ea71f767b99297934c0b2367532690f8c4badc695edf8e04ab6a1e545",
+      "textSha256": "fdd1c2117bcf8157d1d013d0953c0a7e6e5fab73df9e36773cd77634428568eb"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/itoa-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/itoa-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/ixdtf-v0_6/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/jxl_macros-v0_2/LICENSE",
+      "sha256": "8405932022a556380c2d8c272eff154a923feb197233f348ce5f7334fb0a5ede",
+      "textSha256": "e0352d9e8cda3317dfe580e57cb50dabe288d4fc420e50406123984fccf622e5"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/jxl_simd-v0_2/LICENSE",
+      "sha256": "8405932022a556380c2d8c272eff154a923feb197233f348ce5f7334fb0a5ede",
+      "textSha256": "e0352d9e8cda3317dfe580e57cb50dabe288d4fc420e50406123984fccf622e5"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/jxl_transforms-v0_2/LICENSE",
+      "sha256": "8405932022a556380c2d8c272eff154a923feb197233f348ce5f7334fb0a5ede",
+      "textSha256": "e0352d9e8cda3317dfe580e57cb50dabe288d4fc420e50406123984fccf622e5"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/jxl-v0_2/LICENSE",
+      "sha256": "8405932022a556380c2d8c272eff154a923feb197233f348ce5f7334fb0a5ede",
+      "textSha256": "e0352d9e8cda3317dfe580e57cb50dabe288d4fc420e50406123984fccf622e5"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/lazy_static-v1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/lazy_static-v1/LICENSE-MIT",
+      "sha256": "0621878e61f0d0fda054bcbe02df75192c28bde1ecc8289cbd86aeba2dd72720",
+      "textSha256": "9e0027807b0c548ac1df1bd85fe0d72da6665498b06ebf8a64d5cb841f39fcef"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/libc-v0_2/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/libc-v0_2/LICENSE-MIT",
+      "sha256": "a8d47ff51ca256f56a8932dba07660672dbfe3004257ca8de708aac1415937a1",
+      "textSha256": "98ed3581f1f1338414ec61cb65850f41e456b450ce210620d05933d7d0f63bc6"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/libm-v0_2/LICENSE.txt",
+      "sha256": "3823dda7cf046602f4b4e77ec8e227863dc4736037cc85bb33d9f19febe16bb7",
+      "textSha256": "5f5535fee8ec2ca694194338af28838569d643911d535632f8fcdfa748851a0c"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/litemap-v0_8/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/llguidance-v1/LICENSE",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "textSha256": "ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/lock_api-v0_4/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/lock_api-v0_4/LICENSE-MIT",
+      "sha256": "c9a75f18b9ab2927829a208fc6aa2cf4e63b8420887ba29cdb265d6619ae82d5",
+      "textSha256": "8d1f81ea4e87111d557b185d58d996e7bcb974c19c364197fffd4e814fd9b6fa"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/log-v0_4/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/log-v0_4/LICENSE-MIT",
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+      "textSha256": "14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/memchr-v2/COPYING",
+      "sha256": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f",
+      "textSha256": "65314a6c96683f76f7495709bb0ddecb4eaa6fa244b28f23c4812ef8e5524066"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/memchr-v2/LICENSE-MIT",
+      "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f",
+      "textSha256": "154c1af2b38e25e5c18613dfe352eed29b0863cb39e494007822cdeb39150ac5"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/minijinja-v2/LICENSE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/miniz_oxide-v0_8/LICENSE",
+      "sha256": "4108245a1f2df9d4e94df8abed5b4ba0759bb2f9b40a6b939f1be141077ae50b",
+      "textSha256": "7427abc630365f6335b3ced8b620b6c8a87b3793edea701d15cdde01ec7a6cde"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/miniz_oxide-v0_8/LICENSE-APACHE.md",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "textSha256": "4bf96504d6e83ce5c6fc7167f1795d9ceaa68e70ab86bc5d08ab93184262bbbe"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/miniz_oxide-v0_8/LICENSE-MIT.md",
+      "sha256": "799e9ca9d179295ef372f25d3769cdda7d25bb2668add6a6a1e22d1e4c678b8d",
+      "textSha256": "ac9859ce4e9a80a4846ee0b453981427f4fc2ba9ac7d0e568de61ab80a53d86d"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/miniz_oxide-v0_8/LICENSE-ZLIB.md",
+      "sha256": "0a54e647fe54104658b5e563c04c6f9edf251710e47bce692e0bd990a4ddaa39",
+      "textSha256": "eac3911cc3d41ffb7de705edeec755d3f83189b61839389cc9079acb54d8c5af"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/moxcms-v0_7/LICENSE-APACHE.md",
+      "sha256": "90bf2d659c43045111b65c733ab2a6d4cbcb422a098368c8c58a9ba3db4ed0c5",
+      "textSha256": "836a9c1227c6446925bee567ecfbcd4620780b4cc020c2c6019ba4b8d1295520"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/moxcms-v0_7/LICENSE.md",
+      "sha256": "2aa92cada6431e75615e3fe6cb1a9082c98f777d48ae1c087c0da0e37f7b8bff",
+      "textSha256": "2aa92cada6431e75615e3fe6cb1a9082c98f777d48ae1c087c0da0e37f7b8bff"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/murmur3-v0_4/LICENSE-APACHE",
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "textSha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/murmur3-v0_4/LICENSE-MIT",
+      "sha256": "d24a2b82b5d96fd64c84cdae1b1f6250d76c16f0660a593d4ac8127177054b5f",
+      "textSha256": "aa69def5f3423c375a7b0c81fce25bd5c3f42978c165863e6f8e0cd8f52ec6ab"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/num-bigint-v0_4/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/num-bigint-v0_4/LICENSE-MIT",
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+      "textSha256": "14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/num-derive-v0_4/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/num-derive-v0_4/LICENSE-MIT",
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+      "textSha256": "14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/num-integer-v0_1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/num-integer-v0_1/LICENSE-MIT",
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+      "textSha256": "14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/num-rational-v0_4/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/num-rational-v0_4/LICENSE-MIT",
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+      "textSha256": "14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/num-traits-v0_2/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/num-traits-v0_2/LICENSE-MIT",
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+      "textSha256": "14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/once_cell-v1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/once_cell-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/parking_lot_core-v0_9/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/parking_lot_core-v0_9/LICENSE-MIT",
+      "sha256": "c9a75f18b9ab2927829a208fc6aa2cf4e63b8420887ba29cdb265d6619ae82d5",
+      "textSha256": "8d1f81ea4e87111d557b185d58d996e7bcb974c19c364197fffd4e814fd9b6fa"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/parking_lot-v0_12/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/parking_lot-v0_12/LICENSE-MIT",
+      "sha256": "c9a75f18b9ab2927829a208fc6aa2cf4e63b8420887ba29cdb265d6619ae82d5",
+      "textSha256": "8d1f81ea4e87111d557b185d58d996e7bcb974c19c364197fffd4e814fd9b6fa"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/png-v0_18/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/png-v0_18/LICENSE-MIT",
+      "sha256": "eaf40297c75da471f7cda1f3458e8d91b4b2ec866e609527a13acfa93b638652",
+      "textSha256": "80cdd90699e446abbe50d005e6c4de2a827a5f6dce34deacce04900c7a825ecf"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/potential_utf-v0_1/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/proc-macro-error-attr2-v2/LICENSE-APACHE",
+      "sha256": "6fd0f3522047150ca7c1939f02bc4a15662a4741a89bc03ae784eefa18caa299",
+      "textSha256": "2bbedf556bfd75e8bc04dfcd34722c8d688f3ff4b877aaf9759b9f2b05330520"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/proc-macro-error-attr2-v2/LICENSE-MIT",
+      "sha256": "544b3aed1fd723d0cadea567affdcfe0431e43e18d997a718f9d67256b814fde",
+      "textSha256": "c7495b7b3a525563d3a3f4003277a9db6ef7fd02ce4a3bd4b8103944c4037a32"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/proc-macro-error2-v2/LICENSE-APACHE",
+      "sha256": "4665f973ccb9393807a7fb1264add6b3513d19abc6b357e4cb52c6fe59cc6a3b",
+      "textSha256": "2bbedf556bfd75e8bc04dfcd34722c8d688f3ff4b877aaf9759b9f2b05330520"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/proc-macro-error2-v2/LICENSE-MIT",
+      "sha256": "544b3aed1fd723d0cadea567affdcfe0431e43e18d997a718f9d67256b814fde",
+      "textSha256": "c7495b7b3a525563d3a3f4003277a9db6ef7fd02ce4a3bd4b8103944c4037a32"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/prost-derive-v0_14/LICENSE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/prost-v0_14/LICENSE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/pxfm-v0_1/LICENSE-APACHE.md",
+      "sha256": "90bf2d659c43045111b65c733ab2a6d4cbcb422a098368c8c58a9ba3db4ed0c5",
+      "textSha256": "836a9c1227c6446925bee567ecfbcd4620780b4cc020c2c6019ba4b8d1295520"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/pxfm-v0_1/LICENSE.md",
+      "sha256": "2aa92cada6431e75615e3fe6cb1a9082c98f777d48ae1c087c0da0e37f7b8bff",
+      "textSha256": "2aa92cada6431e75615e3fe6cb1a9082c98f777d48ae1c087c0da0e37f7b8bff"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/qr_code-v2/LICENSE-APACHE.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "textSha256": "283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/qr_code-v2/LICENSE-MIT.txt",
+      "sha256": "7f865e72ab3644ea5887aa1f352aa435b36d139c35a964f47091e7dc02722e9a",
+      "textSha256": "e98c3116159c8988689eac8f588d64b6f42ce7c869f9c54d2bff9569aca7c9f2"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/quote-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/quote-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/read-fonts-v0_36/LICENSE-APACHE",
+      "sha256": "a14f7d685a79c0f4fb64aee305527a6d5fa55f2401f4e6d688d7b1301868e6c0",
+      "textSha256": "bfa7ed27d2b079e06d6c51fbfafb2b972019c9d045b76021058246a16fa1090d"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/read-fonts-v0_36/LICENSE-MIT",
+      "sha256": "8a62fa27ffdccc3df19dce90f8bb3d572e27aecffc1a383d0c2601834dcec434",
+      "textSha256": "163aebd02543da63ffaf66b84ebf5b135a70ca1b5b0911c9ef9d3bcbf84e7471"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/regex-automata-v0_4/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/regex-automata-v0_4/LICENSE-MIT",
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+      "textSha256": "14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/regex-syntax-v0_8/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/regex-syntax-v0_8/LICENSE-MIT",
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+      "textSha256": "14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/regex-syntax-v0_8/src/unicode_tables/LICENSE-UNICODE",
+      "sha256": "74db5baf44a41b1000312c673544b3374e4198af5605c7f9080a402cec42cfa3",
+      "textSha256": "ea8df489e83b7674d5c9d50c320bec3b15d2e2eeb7a3a8879a666d91e5640c16"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/resb-v0_1/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/rustc-demangle-capi-v0_1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/rustc-demangle-capi-v0_1/LICENSE-MIT",
+      "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397",
+      "textSha256": "84e1bbfebd74e4196cfa0ea5cf58e677aa24b47c6661adbb19fb07920d089d1d"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/rustc-demangle-v0_1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/rustc-demangle-v0_1/LICENSE-MIT",
+      "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397",
+      "textSha256": "84e1bbfebd74e4196cfa0ea5cf58e677aa24b47c6661adbb19fb07920d089d1d"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/ryu-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/ryu-v1/LICENSE-BOOST",
+      "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
+      "textSha256": "8d8291caf1cee26d23acf3eb67c9f9a2d58f1c681b16a4fbe8cbfb9e3c0b5a9b"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/scopeguard-v1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/scopeguard-v1/LICENSE-MIT",
+      "sha256": "fb77f0a9c53e473abe5103c8632ef9f0f2874d4fb3f17cb2d8c661aab9cee9d7",
+      "textSha256": "1a6aa2616e74056910aa02ac3a764d45c1b5309eac53768153ad2119637c95cb"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/serde_core-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/serde_core-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/serde_derive-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/serde_derive-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/serde_json_lenient-v0_2/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/serde_json_lenient-v0_2/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/serde_json-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/serde_json-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/serde-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/serde-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/simd-adler32-v0_3/LICENSE.md",
+      "sha256": "42a35170233e83e18856792e748de4c1ce4a63b2afce9a370c89ef3fe23f9f2d",
+      "textSha256": "627eff66d6c4b984355e737e8a92b262d584865956e93a1ece6e285a083d8be9"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/skrifa-v0_39/LICENSE-APACHE",
+      "sha256": "a14f7d685a79c0f4fb64aee305527a6d5fa55f2401f4e6d688d7b1301868e6c0",
+      "textSha256": "bfa7ed27d2b079e06d6c51fbfafb2b972019c9d045b76021058246a16fa1090d"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/skrifa-v0_39/LICENSE-MIT",
+      "sha256": "8a62fa27ffdccc3df19dce90f8bb3d572e27aecffc1a383d0c2601834dcec434",
+      "textSha256": "163aebd02543da63ffaf66b84ebf5b135a70ca1b5b0911c9ef9d3bcbf84e7471"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/small_ctor-v0_1/LICENSE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/smallvec-v1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/smallvec-v1/LICENSE-MIT",
+      "sha256": "0b28172679e0009b655da42797c03fd163a3379d5cfa67ba1f1655e974a2a1a9",
+      "textSha256": "7f194ae45c2525a57443f7edabd392e8218109ee81a4bce70d385104c87c1a71"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/stable_deref_trait-v1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/stable_deref_trait-v1/LICENSE-MIT",
+      "sha256": "5e05b024f653a5ce199e77cbbbd42fb5553562ec714b819421ed0c3e552a75d7",
+      "textSha256": "5e05b024f653a5ce199e77cbbbd42fb5553562ec714b819421ed0c3e552a75d7"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/static_assertions-v1/LICENSE-APACHE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "textSha256": "283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/static_assertions-v1/LICENSE-MIT",
+      "sha256": "ea084a2373ebc1f0902c09266e7bf25a05ab3814c1805bb017ffa7308f90c061",
+      "textSha256": "95a6a71a30f39d33a1fe6c03a52d1b57f0d1d43305a9137780a0c616231b4a52"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/strck-v1/LICENSE",
+      "sha256": "7e24648e3d082d4f8026cdedb21d084d91ef13223bff6b76cb8bf19a744b7d28",
+      "textSha256": "096cb20af7a80c794a58c5a76f6d08712021bb7342e2b91d25c2e1a5b34d79de"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/strsim-v0_11/LICENSE",
+      "sha256": "1e697ce8d21401fbf1bddd9b5c3fd4c4c79ae1e3bdf51f81761c85e11d5a89cd",
+      "textSha256": "8fd8980cab8977a58aecdb4c48857aa6b70a64250cc923b3eeb0ecd903c51def"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/strum_macros-v0_27/LICENSE",
+      "sha256": "8bce3b45e49ecd1461f223b46de133d8f62cd39f745cfdaf81bee554b908bd42",
+      "textSha256": "26da0e99dd332e7626ce0ee45de06548670992e7e321f7edaf17c0b48f126ac7"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/strum-v0_27/LICENSE",
+      "sha256": "8bce3b45e49ecd1461f223b46de133d8f62cd39f745cfdaf81bee554b908bd42",
+      "textSha256": "26da0e99dd332e7626ce0ee45de06548670992e7e321f7edaf17c0b48f126ac7"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/subtle-v2/LICENSE",
+      "sha256": "d1fc1bc0d155df60b2e7705b6b2ae02a05c96f948e1cec6e2fb86360b09f346b",
+      "textSha256": "24fa06d8eae3c3ba93e1f863f0640ef57c8996f4bece3e14c3d29c5efb7c0089"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/symphonia-bundle-flac-v0_5/LICENSE",
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+      "textSha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/symphonia-core-v0_5/LICENSE",
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+      "textSha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/symphonia-metadata-v0_5/LICENSE",
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+      "textSha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/symphonia-utils-xiph-v0_5/LICENSE",
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+      "textSha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/symphonia-v0_5/LICENSE",
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+      "textSha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/syn-v2/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/syn-v2/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/synstructure-v0_13/LICENSE",
+      "sha256": "219920e865eee70b7dcfc948a86b099e7f4fe2de01bcca2ca9a20c0a033f2b59",
+      "textSha256": "3a036676ec8c0dba1c24b96f83595456280b7a754ddee64585dd8048ed2b087f"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/temporal_capi-v0_1/LICENSE-Apache",
+      "sha256": "4e6bdc19db64d455dbddc0ee2f53ecba556f0226d4558954b5f02673c7358e59",
+      "textSha256": "e05054c30e5c61f91950affb6474e0fdb3ecad44fb35753cd8cc053af341f458"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/temporal_capi-v0_1/LICENSE-MIT",
+      "sha256": "073d3574ac6389e263360572b331e045dda7ac5cdba239ce5bdb02f299ef47bb",
+      "textSha256": "8062bb9642035597b8ece6bc9d001f101e2b45ad6e3cbe017f17712b6441db51"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/temporal_rs-v0_1/LICENSE-Apache",
+      "sha256": "4e6bdc19db64d455dbddc0ee2f53ecba556f0226d4558954b5f02673c7358e59",
+      "textSha256": "e05054c30e5c61f91950affb6474e0fdb3ecad44fb35753cd8cc053af341f458"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/temporal_rs-v0_1/LICENSE-MIT",
+      "sha256": "073d3574ac6389e263360572b331e045dda7ac5cdba239ce5bdb02f299ef47bb",
+      "textSha256": "8062bb9642035597b8ece6bc9d001f101e2b45ad6e3cbe017f17712b6441db51"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/termcolor-v1/COPYING",
+      "sha256": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f",
+      "textSha256": "65314a6c96683f76f7495709bb0ddecb4eaa6fa244b28f23c4812ef8e5524066"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/termcolor-v1/LICENSE-MIT",
+      "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f",
+      "textSha256": "154c1af2b38e25e5c18613dfe352eed29b0863cb39e494007822cdeb39150ac5"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/thiserror-impl-v2/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/thiserror-impl-v2/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/thiserror-v2/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/thiserror-v2/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/timezone_provider-v0_1/LICENSE-Apache",
+      "sha256": "4e6bdc19db64d455dbddc0ee2f53ecba556f0226d4558954b5f02673c7358e59",
+      "textSha256": "e05054c30e5c61f91950affb6474e0fdb3ecad44fb35753cd8cc053af341f458"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/timezone_provider-v0_1/LICENSE-MIT",
+      "sha256": "073d3574ac6389e263360572b331e045dda7ac5cdba239ce5bdb02f299ef47bb",
+      "textSha256": "8062bb9642035597b8ece6bc9d001f101e2b45ad6e3cbe017f17712b6441db51"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/tinystr-v0_8/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/toktrie-v1/LICENSE",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "textSha256": "ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/typed-arena-v2/LICENSE",
+      "sha256": "9ed5e982274d54d0cf94f0e9f9fd889182b6f1f50a012f0be41ce7c884347ab6",
+      "textSha256": "82eee73114639e1d2e0ca209d0f5f73d3c8003e1f66fac22af3d75898b99cd3e"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/unicode-ident-v1/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "textSha256": "85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/unicode-ident-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/unicode-ident-v1/LICENSE-UNICODE",
+      "sha256": "f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1",
+      "textSha256": "361d7912957842f2ce61c774b14afba41ae91df84882982e6f7e749e01c07c91"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/unicode-width-v0_2/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/unicode-width-v0_2/LICENSE-MIT",
+      "sha256": "7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0",
+      "textSha256": "033a9383ff21d1e4811d98dd2e0081b0ba0d9c9a31d6c7ba9e63e3488479bf29"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/uuid-v1/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "textSha256": "954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/uuid-v1/LICENSE-MIT",
+      "sha256": "436bc5a105d8e57dcd8778730f3754f7bf39c14d2f530e4cde4bd2d17a83ec3d",
+      "textSha256": "11cd7e6caed4b2377bdc3a08deb5a565efb76f0d747cfb2e26c7f7c1f6302e54"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/winapi-util-v0_1/COPYING",
+      "sha256": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f",
+      "textSha256": "65314a6c96683f76f7495709bb0ddecb4eaa6fa244b28f23c4812ef8e5524066"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/winapi-util-v0_1/LICENSE-MIT",
+      "sha256": "cb3c929a05e6cbc9de9ab06a4c57eeb60ca8c724bef6c138c87d3a577e27aa14",
+      "textSha256": "739620ea44ad8f99e96ea272e583b63a7d44a83a71250d7550b2544ea6b49fbf"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/windows_aarch64_msvc-v0_52/license-apache-2.0",
+      "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+      "textSha256": "783829b43aacb86cb8e6cedcd777210c13f2081aae94419cc7a30e112977d488"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/windows_aarch64_msvc-v0_52/license-mit",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "textSha256": "ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/windows_i686_msvc-v0_52/license-apache-2.0",
+      "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+      "textSha256": "783829b43aacb86cb8e6cedcd777210c13f2081aae94419cc7a30e112977d488"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/windows_i686_msvc-v0_52/license-mit",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "textSha256": "ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/windows_x86_64_msvc-v0_52/license-apache-2.0",
+      "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+      "textSha256": "783829b43aacb86cb8e6cedcd777210c13f2081aae94419cc7a30e112977d488"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/windows_x86_64_msvc-v0_52/license-mit",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "textSha256": "ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/windows-link-v0_2/license-apache-2.0",
+      "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+      "textSha256": "783829b43aacb86cb8e6cedcd777210c13f2081aae94419cc7a30e112977d488"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/windows-link-v0_2/license-mit",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "textSha256": "ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/windows-sys-v0_52/license-apache-2.0",
+      "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+      "textSha256": "783829b43aacb86cb8e6cedcd777210c13f2081aae94419cc7a30e112977d488"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/windows-sys-v0_52/license-mit",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "textSha256": "ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/windows-targets-v0_52/license-apache-2.0",
+      "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+      "textSha256": "783829b43aacb86cb8e6cedcd777210c13f2081aae94419cc7a30e112977d488"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/windows-targets-v0_52/license-mit",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "textSha256": "ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/writeable-v0_6/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/xml-v1/LICENSE",
+      "sha256": "0dc18d924dc0a5f41172a393012843a5eaaef338e795b3645da9cc3b6068220b",
+      "textSha256": "06250c7066bcd3f947667887383bf797d5c128d53e27d140fadc461adacdadf1"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/yoke-derive-v0_8/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/yoke-v0_8/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/zerofrom-derive-v0_1/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/zerofrom-v0_1/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/zerotrie-v0_2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/zerovec-derive-v0_11/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/zerovec-v0_11/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/zip-v6/LICENSE",
+      "sha256": "04dc52136d82400b11df5f474949863a70a5d05d2278dec45b99c479494450a6",
+      "textSha256": "04dc52136d82400b11df5f474949863a70a5d05d2278dec45b99c479494450a6"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/zmij-v1/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "textSha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/zoneinfo64-v0_2/LICENSE",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "textSha256": "cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae"
+    },
+    {
+      "path": "third_party/rust/clap/v4/README.chromium",
+      "sha256": "9c20f8584b211bf249aa1688bfc4658e3886e05c51e4e5b56394bffa0739fa26",
+      "textSha256": "79de64d4d16cb2f1f595317a0a8e8e2ff5bb3b32a5d67354cd884a3a082b656b"
+    },
+    {
+      "path": "third_party/rust/clap_builder/v4/README.chromium",
+      "sha256": "417ffdce591b345a73be742ae4bff5684653888ca0e7028846f39a0cc85926b5",
+      "textSha256": "ecbfeb6e77d02cdafe389a2e6e245c6910de64ab64c95496b61ada91915a083a"
+    },
+    {
+      "path": "third_party/rust/clap_lex/v0_7/README.chromium",
+      "sha256": "3bda7f998c7d579771b47aa51a3cbcebc2025b934e21e2ca01f51c869158c4b7",
+      "textSha256": "1e1bb8aaac8512a942ed6f1931ff39b61c60bf2b9a27f6ff50a77abd1f3b5520"
+    },
+    {
+      "path": "third_party/rust/codespan_reporting/v0_13/README.chromium",
+      "sha256": "b3410ee50ca648413e33e22ee677c72d992fc86d1ddd92a99075e085c526e664",
+      "textSha256": "69b4cd8153621fc2f849b169b1f08de2bdad4ec4e2ed107837cec0fd953a6227"
+    },
+    {
+      "path": "third_party/rust/core_maths/v0_1/README.chromium",
+      "sha256": "1aa298ac7304eb0ab3709a1e338da1076f63391121765d83a1e98cff2982fd24",
+      "textSha256": "42c08bf22fbed2bef6bcd7b83a2c5dc856b83ec7ff54a8357f585b5ccbcc74da"
+    },
+    {
+      "path": "third_party/rust/crc32fast/v1/README.chromium",
+      "sha256": "db48cb0c23afc2c58e0b3ecf79457fdfe97a8a72afdbe7c05b21d4e2a00d8e82",
+      "textSha256": "4d1612be6202c1837b982dadce091e0e5796a9e8b71846892f0d4c50e41052c9"
+    },
+    {
+      "path": "third_party/rust/cxx/v1/README.chromium",
+      "sha256": "fbe8fd2e244f7c6bacfc717acc5e3b6b84a402a37d19fcfc947c9d91ba0d6297",
+      "textSha256": "5b3d86faa35f651862e1f623f4f76c369869b1f1bfe08373da6c1be2830992df"
+    },
+    {
+      "path": "third_party/rust/cxxbridge_cmd/v1/README.chromium",
+      "sha256": "0fbc814f24fd87eacb69aa84a8965fd5e47f6508001c52a5fccbc776cf5d2005",
+      "textSha256": "a09db5f5b9cc2bb0f1bff2a9f9e3bae6ff912ea93882a9cc6b067d4327705066"
+    },
+    {
+      "path": "third_party/rust/cxxbridge_flags/v1/README.chromium",
+      "sha256": "a4f5f1a30a84d1b25f30161dbf11681f9c33b1716f8eb1da03871b6d5e1de86b",
+      "textSha256": "caa299c1bca18b6678c9319101070b0dacc6c73c428374e684ffddd142d626da"
+    },
+    {
+      "path": "third_party/rust/cxxbridge_macro/v1/README.chromium",
+      "sha256": "e0f7dfc5ade49c599081c39b967846430532b3712598d2059411d805f5f74de5",
+      "textSha256": "21ded3b024b7182b662be60d3f2594603b4b228d4db01005c7f0d08fee412648"
+    },
+    {
+      "path": "third_party/rust/derivre/v0_3/README.chromium",
+      "sha256": "d452d5c4f4ad434dadd5f42214df249af19c62db7a71cd977172f3e9571c8665",
+      "textSha256": "ebcb688baa80810a9f7da981e684efe72352db6fd9707705f89f2644f040deac"
+    },
+    {
+      "path": "third_party/rust/diplomat/v0_14/README.chromium",
+      "sha256": "56005948f0e48d2eb22bea44e93c9d0a7a3f4eca5b074226e9a0fc6a00e66664",
+      "textSha256": "2aaf33e7774756eee4f148ce0d524660950083788014be234f467960adb8a174"
+    },
+    {
+      "path": "third_party/rust/diplomat_core/v0_14/README.chromium",
+      "sha256": "2636247cd75e5174933d2198c8d725373952de54daa4802e40cea8a48461e278",
+      "textSha256": "22ac12533d2f6be4a2b77e0c909f186c343b5e7120c438f4bce6f7fee51e86f9"
+    },
+    {
+      "path": "third_party/rust/diplomat_runtime/v0_14/README.chromium",
+      "sha256": "a9afa894ddd2b8d8a859686ecacc3f084a52131ff36f8afc0f60c3658e1e00a2",
+      "textSha256": "6bdfbda35d93953abfff51c48b9b54cace1f758972ab9c646a3c76e59e62b0b1"
+    },
+    {
+      "path": "third_party/rust/displaydoc/v0_2/README.chromium",
+      "sha256": "c29eeced2ee22ab329c00eaf97944e78d306e238d11950dbe0bf1af5b12f2af5",
+      "textSha256": "d667ae71c46f22ae0db7ece03e8cd03c086b97515a843311fe137eebda5616e6"
+    },
+    {
+      "path": "third_party/rust/either/v1/README.chromium",
+      "sha256": "e30500e68a9267ea8a570d1f98d3db6c418eb9cbc4e85b43cf689a4652748798",
+      "textSha256": "eb46fcc56ec9e31de0aacfe0f59e0ab65a765f936d2de1a8e600f75a1f9402de"
+    },
+    {
+      "path": "third_party/rust/encoding_rs/v0_8/README.chromium",
+      "sha256": "c0d5b014141034cd968b60b882a4891a3077992c8a559b76a839d35fe595a2bc",
+      "textSha256": "35600ccd85a2f05387c085cb9c03ecd65ae13c0991e33fc8cae06e5b132d23fc"
+    },
+    {
+      "path": "third_party/rust/equivalent/v1/README.chromium",
+      "sha256": "f100b0a928baea9ade4ef84be5c51726fa7718a8d24c40aed46e71207323f582",
+      "textSha256": "942497df4c973d280fae8f7e09d5609e785b012e352ed82ab52744cb9b0f4c6a"
+    },
+    {
+      "path": "third_party/rust/fdeflate/v0_3/README.chromium",
+      "sha256": "43d3a641c91fdbc00edcbf69c4d1fe35a4e414fa0ec0bbb79f087463723ad0a9",
+      "textSha256": "8e9f96d230395e916807bbae57133e24b109f547d8ba29786145a7ce2513697a"
+    },
+    {
+      "path": "third_party/rust/fend_core/v1/README.chromium",
+      "sha256": "beee0274c450492caf0ba270c40b1adc45fa1169032b2e0964bfe5deb5d20b0c",
+      "textSha256": "19542b39160107eea4e0723452907e9db655e4898179893d2afab8ad1e601dbd"
+    },
+    {
+      "path": "third_party/rust/fixed_decimal/v0_7/README.chromium",
+      "sha256": "0dd8e06afed04fe04eee8dd5f4b298482ff7270947295bbed007d6846b733b6a",
+      "textSha256": "0f4e22361940715c02579087b6acc6dae450daa0448eea6078dd1b110cfa39b2"
+    },
+    {
+      "path": "third_party/rust/flate2/v1/README.chromium",
+      "sha256": "e6f4d816db86b172d0a9c7e245a710d1c7af3f6bb0413d6e0761b9d32fc4b25c",
+      "textSha256": "f3fa1d125c0032a56d899c700f08065476fa7de30812d59cc81a166779077095"
+    },
+    {
+      "path": "third_party/rust/foldhash/v0_2/README.chromium",
+      "sha256": "61107b6c5c0c0c1376a26ef9e8f6ea0369604e5cbc73fb7c84c676280c4871fa",
+      "textSha256": "5075024bc0b48904dde288fbe21ea99a2839b42d61518d0e1841b65368faed52"
+    },
+    {
+      "path": "third_party/rust/font_types/v0_10/README.chromium",
+      "sha256": "2ac236066fc6c8b61170aa67962b0496c54f5a1dbba2413cf8db9b3133a7ce3e",
+      "textSha256": "279edfb7ac57097fffe790a90ff85126c259e393e3d1b2ceadaa274bc4668d16"
+    },
+    {
+      "path": "third_party/rust/hashbrown/v0_15/README.chromium",
+      "sha256": "b8387799002f9c44630970993fe0bcbc729e3a7d6f8af0ca26fe0aa71fd1a0e0",
+      "textSha256": "5e49e7a1e174ade0e77665858ebc8a5dc3e4deb23cabd9431074499a755601b1"
+    },
+    {
+      "path": "third_party/rust/hashbrown/v0_16/README.chromium",
+      "sha256": "814704ad552c04d1a41d95e1349913f88416d2e1c15afa240144b2598e36c636",
+      "textSha256": "3030cf2f5a8bc3e7301a416b3c2722d5479c83791b770d5270cae8d62f1dc174"
+    },
+    {
+      "path": "third_party/rust/heck/v0_5/README.chromium",
+      "sha256": "c43d03c5f6f77941d00e0c3bd2f76f97e79e49afc37a9f55e475179ee7c28cd8",
+      "textSha256": "9fe20692dd30f84ce2e15b58b4da239f620e6e8ad673ea74cb5ea2bd8fcb2652"
+    },
+    {
+      "path": "third_party/rust/hex/v0_4/README.chromium",
+      "sha256": "bf478cc881d57a44d165509147973cbf192603d3b2bbcc5e8ae5be52a5ee12de",
+      "textSha256": "c6a1ecd48d5da5a40eca86ae263c58bdc6f02455bbd97a19cbbc810e30f8ef95"
+    },
+    {
+      "path": "third_party/rust/hmac_sha256/v1/README.chromium",
+      "sha256": "2d2f953f87858442eda27b9ec3615edf5d8652809052e1bea1cbe80d6c2037ed",
+      "textSha256": "832c021059e79c891a39708f84b4d6e2593aaebd69338d77fff4872a09955cab"
+    },
+    {
+      "path": "third_party/rust/icu_calendar/v2/README.chromium",
+      "sha256": "2ccae92f15b12d0217daf58281d6b7163d65cb3a63a7a7d3ebd5a6facb24bd04",
+      "textSha256": "1d592c59678cdd924f36c2b60dba63b022b792083059652f8ca1bc565d00d886"
+    },
+    {
+      "path": "third_party/rust/icu_calendar_data/v2/README.chromium",
+      "sha256": "74d46690dacf65fea76827a7a68a28a8370a02a024ac033584218ef260cf0925",
+      "textSha256": "b86321fb2090b60fc9a058b3e63638ec6aaf6dea9175cbcd9effc12b08823d4e"
+    },
+    {
+      "path": "third_party/rust/icu_casemap/v2/README.chromium",
+      "sha256": "3158df4841aec914ee587badfd968bff815a299a64418e2bd851139ce3111a71",
+      "textSha256": "b15e81695ac888e8d0835106ac4fd177c37efca5f7cb1a78c5170801c281036a"
+    },
+    {
+      "path": "third_party/rust/icu_casemap_data/v2/README.chromium",
+      "sha256": "ee5458922a7e60a0cf070d834b24f10f51240bda3857dc6a47a5dd7f776a1465",
+      "textSha256": "bebea4cd552c77908d44ef7e03f9eaac2433687d05d5ca4100e2d77c52eeb907"
+    },
+    {
+      "path": "third_party/rust/icu_collections/v2/README.chromium",
+      "sha256": "5a821caae7f8533c4448213c8c38b667cf9a112e6f209a5b771802221a116445",
+      "textSha256": "d81be0cbcdaee897c42609951dc40f96630b98a77f41cc410bc7499534883e23"
+    },
+    {
+      "path": "third_party/rust/icu_decimal/v2/README.chromium",
+      "sha256": "1f755cf78e010c7b15158f35a097c84d47f9b9920726f1b8ce5327127ae1a54a",
+      "textSha256": "89a43bbeccf10fff9b86eb86edad6c94dc6c065f1881783b2c9daa0982fbfa1c"
+    },
+    {
+      "path": "third_party/rust/icu_decimal_data/v2/README.chromium",
+      "sha256": "9b1b061ffa3109dddecfa7ddce4d9a8cb5ad502df3f3e105b0344477c4a754ec",
+      "textSha256": "73070ecde72e406f4cb19996d8808b66b8463bcdc8cef31b5d75909a64858578"
+    },
+    {
+      "path": "third_party/rust/icu_experimental/v0_4/README.chromium",
+      "sha256": "0d2fec0eb9ff556e39a75606640dd22c47a73ea3b8bc9c2764066565465eb89c",
+      "textSha256": "4597d92a76312efc55d4281f599ff316ba842c4a3ce6b9d0de65ff51497d8a1f"
+    },
+    {
+      "path": "third_party/rust/icu_experimental_data/v0_4/README.chromium",
+      "sha256": "4e958a60473bd10db631777a4c775a39f11d36249b1079b7c5820a5ee55f978e",
+      "textSha256": "eb4c92317a857883f3759bbdf70a176fcae9660f52b500d350e4451b2ca72139"
+    },
+    {
+      "path": "third_party/rust/icu_list/v2/README.chromium",
+      "sha256": "258273f578429d035fdd5aef96401bb44c78f056ee0a4e4e578d2f43047d76f3",
+      "textSha256": "fec30340aed2dd6fb3698140f63b45110fb0ecb73b068c6b86731dbe440c63aa"
+    },
+    {
+      "path": "third_party/rust/icu_list_data/v2/README.chromium",
+      "sha256": "722acbcc0d554c7615900d1a23883ffc1a20eaa5a6708b480331f922933108e8",
+      "textSha256": "508a20253cf0972450c5e3c8c7ad52a7916551a1cdcab60b0e3a71261d467e0e"
+    },
+    {
+      "path": "third_party/rust/icu_locale/v2/README.chromium",
+      "sha256": "b0b70b23a542832e5c4e3eac270e4ae9a663c2cb5a00c138755bdfe53709d879",
+      "textSha256": "84a2f8f3dbfd4d0d869938c5dcd98f6e6f6fa3f371b7898b259c0838477210fc"
+    },
+    {
+      "path": "third_party/rust/icu_locale_core/v2/README.chromium",
+      "sha256": "bc928daecdd0c9f349482aacc86fad680229cdb7e2e3c73bd23b5b9ebb48d3eb",
+      "textSha256": "edd6f287ba6eaa050f88165f8729976d3383c8c8cda49e880768d2acfa9c5d2a"
+    },
+    {
+      "path": "third_party/rust/icu_locale_data/v2/README.chromium",
+      "sha256": "ea5e84ca3d057d00aee66733186122dcb0930e4afd4329075387eb7ed8a34acc",
+      "textSha256": "697ada3301b5220071ceb1bf6835637b46513678d6babc0a88328785498fb158"
+    },
+    {
+      "path": "third_party/rust/icu_normalizer/v2/README.chromium",
+      "sha256": "94144020a18f6d0e6843913f01a7e05f312304e505551d1dc61d2af94956118e",
+      "textSha256": "9247ee0ddf9b470ffc52a20cc8764122b39d31e8d511547e7849517cd89ee88f"
+    },
+    {
+      "path": "third_party/rust/icu_normalizer_data/v2/README.chromium",
+      "sha256": "0283f743a80c7b5bdfedddaa37c4b6038f779ac2686052e5135dbba5a641f2f8",
+      "textSha256": "e444f00a15ceaf95f11acc6bcacef56786487f8f50be3c37c410da2b9cd6d42b"
+    },
+    {
+      "path": "third_party/rust/icu_pattern/v0_4/README.chromium",
+      "sha256": "3bb790b7240c5f4d4a905caf688b9ef77fc26ab3ee123009cf7ff914c37c81f0",
+      "textSha256": "fbc067af0ea02f86a174c6b76e8325e0eb13f45019aec1372b1d38c09ea0dff8"
+    },
+    {
+      "path": "third_party/rust/icu_plurals/v2/README.chromium",
+      "sha256": "d7cde99772db5a7afb81cbe9e61a96c3f7525a8760ee68d6d106de09f62bae6b",
+      "textSha256": "2bbc935ccf8a669efc7626e0da8f43588ca1f93494c2b0c5011410058be1ea3f"
+    },
+    {
+      "path": "third_party/rust/icu_plurals_data/v2/README.chromium",
+      "sha256": "02b5cef161c840d2c29b176195adf59552e425a102b0cfc09fab12ff7c6f4351",
+      "textSha256": "7570f4516ee798ac703fcabf89bf3dc9d207caaa10bf5d4b341adca783c6374a"
+    },
+    {
+      "path": "third_party/rust/icu_properties/v2/README.chromium",
+      "sha256": "511ad249fd5c535aa66b8db3a98ff7be1a6d1005caa7a0ce6470a84af2a4cec1",
+      "textSha256": "cac8205832594f004afe3e66021d6014ed21d9fabf1619a741f46f0e92c711f3"
+    },
+    {
+      "path": "third_party/rust/icu_properties_data/v2/README.chromium",
+      "sha256": "053b6d3396344b64ab6c8364d2b216dc90a68f0c3c77cdb4d840747d5375a746",
+      "textSha256": "579a4480aae536b76d67de5feef2e54426391f6fcee2c2d5bb852b88afe234b0"
+    },
+    {
+      "path": "third_party/rust/icu_provider/v2/README.chromium",
+      "sha256": "95673997031ba9172559be8f1afade7db2626da418c0085d246c4fad15473744",
+      "textSha256": "08ad97efdfccea2cfe31bcc206d51cdd78a199c32ade66c8f10e9b9bc90e2436"
+    },
+    {
+      "path": "third_party/rust/image/v0_25/README.chromium",
+      "sha256": "1e53a62082cb59e8a4986c59e14ab9648f813ae77272160ff9e743d2b356c5c6",
+      "textSha256": "ad93dc7ffc88980b6a8e274c9b90610a3c2eee9dc51fba6b7c23e344460f779c"
+    },
+    {
+      "path": "third_party/rust/indexmap/v2/README.chromium",
+      "sha256": "de8391c0ba4762cd602171ca9ce9b5cb1a3018fc549679ca3bca163db6428507",
+      "textSha256": "5e9a2e5214e3dd707f9b988eeb69096b3c1c8c53ff835916f2a85f3036c99659"
+    },
+    {
+      "path": "third_party/rust/itertools/v0_11/README.chromium",
+      "sha256": "307d361d055c6f1f542db9a888a739087d75062913c53de5e9b521f44428c4b1",
+      "textSha256": "d2098020c5f869c5e4e817c7a1733f7de7c7c63dd0e51afa34c87a8666cf22a9"
+    },
+    {
+      "path": "third_party/rust/itoa/v1/README.chromium",
+      "sha256": "9bb2d05e6aa8efa029438fd34af049bdc649e6bf7edf7fe9f980496a64ae4924",
+      "textSha256": "7cf1ef5833cd64651818c114901819a64cffdda959c74451ef835a8be8eb8550"
+    },
+    {
+      "path": "third_party/rust/ixdtf/v0_6/README.chromium",
+      "sha256": "6a259c5f443c4f1e09a4ee2bc287e74f0f96f07db22196ef86343dbe77957ca0",
+      "textSha256": "9ca6995d79dc6db036438b1cd2ce778c11b0aa7d064055ef18bc4bf7985c1804"
+    },
+    {
+      "path": "third_party/rust/jxl/v0_2/README.chromium",
+      "sha256": "2fbb4d16f1c741a28e89bee7069bf23519c5a584ca379a918949a8c5dacbe595",
+      "textSha256": "6f4e2bb06f6523d69e5d7caa4b4c225ddffa6c4e0b29ef39a9a22569541f8f61"
+    },
+    {
+      "path": "third_party/rust/jxl_macros/v0_2/README.chromium",
+      "sha256": "ef55686915126a949ba7e9cae2d55e57727994d09c35280f694b24b406c80356",
+      "textSha256": "26f9194341f565717dc0f4454ca79df69f71c8a3d94929ea811627af6f089525"
+    },
+    {
+      "path": "third_party/rust/jxl_simd/v0_2/README.chromium",
+      "sha256": "c221b33827a2ceabf6c335af558c12028cfcd88f6a1ed34eba602533d8509c4f",
+      "textSha256": "447cec0a67ce4d245e813e40ce62d227696bd8d2c5ce3818f544b4b142d183b3"
+    },
+    {
+      "path": "third_party/rust/jxl_transforms/v0_2/README.chromium",
+      "sha256": "7df25f822704dda68a2d3ff93a739f3137a16e4eb6d17b7bad8f0642684d8fed",
+      "textSha256": "50baec9092bb203dbf18157ad2c12759043dd65f3a97cd49fbf0d381ba52e884"
+    },
+    {
+      "path": "third_party/rust/lazy_static/v1/README.chromium",
+      "sha256": "f0b45a38a1e59ac406897b6fd904e8cf9e632265c5745b50a2726f9748cd4ace",
+      "textSha256": "20564d37031108a4dd83904dc54a994e618ff005a5228763d98b5581d991f7ba"
+    },
+    {
+      "path": "third_party/rust/libc/v0_2/README.chromium",
+      "sha256": "c2b0c32c3a777b43aed677086952a053892137f6a5a4682f64169ad0a2ecd1e5",
+      "textSha256": "01961ed96207175a5ca7575e1a036779668b4894ea885fbb9d2004f1eb149100"
+    },
+    {
+      "path": "third_party/rust/libm/v0_2/README.chromium",
+      "sha256": "91d2ff1ade666db6973db54edb63d7975af10bfb3d5fd87f11045b0021f37c3c",
+      "textSha256": "c839477f1433da86d1b7f0adbc310e88d5ea6860ce753c63cd7ee77591474302"
+    },
+    {
+      "path": "third_party/rust/litemap/v0_8/README.chromium",
+      "sha256": "444a4436968a6b1ad4804581526ca3875cd3f988d5c465a55f80758d909b8e40",
+      "textSha256": "20d0255dfa1868d058a4d8958e29ceef2db2fe3c3c47f1c67d11a124d37d0d96"
+    },
+    {
+      "path": "third_party/rust/llguidance/v1/README.chromium",
+      "sha256": "a62ea9e588e19937a913a6375f179e0b803bbb2b29a0ff6f2376d97d8f133d2d",
+      "textSha256": "22b74d949462941404a3fc2a89a928cfa757aa899127c5636f45d9a0abbb2aa8"
+    },
+    {
+      "path": "third_party/rust/lock_api/v0_4/README.chromium",
+      "sha256": "00be73264d7bf60c933d40a95be5a94b98b527eafda836390d2ff1738125ed6e",
+      "textSha256": "8095d8771116e697141d3f7bf23574486ed635626ed3d2f292bef0b9c6f04612"
+    },
+    {
+      "path": "third_party/rust/log/v0_4/README.chromium",
+      "sha256": "f44405d75e0284ba0a93b90f5a0ab8185db22e61c1f4b3163b721277074d7afc",
+      "textSha256": "4fa1d217fa1c7c9e613961cf31f5cd1e354a52bf8f78e355ac5e33f991ab9a0b"
+    },
+    {
+      "path": "third_party/rust/memchr/v2/README.chromium",
+      "sha256": "bf7ff784817d43c2cfe4b710d1d79ca71ed53bd3f39665e0cc0f7ee8a9003daf",
+      "textSha256": "cd464336a68b7c28a09b512a3d83edc6c8a84aae6b0929d6ad014ef09f51afe9"
+    },
+    {
+      "path": "third_party/rust/minijinja/v2/README.chromium",
+      "sha256": "3d28709ca00e0f1c08c573428e11b1479083de63e7784d0fda9dbb0d62903c14",
+      "textSha256": "3d43b1ab181636c2888669fd76558a398d3774fbb390780a7fc83f70e3ff52aa"
+    },
+    {
+      "path": "third_party/rust/miniz_oxide/v0_8/README.chromium",
+      "sha256": "2c1ffe8575ec6b2831abd16f353ff612f329f0c2d2fb0da54d4616523c57b164",
+      "textSha256": "0c194e3564bd83f7e41b2d9042e8a230ddf0d902a421b248011da98d0b3274db"
+    },
+    {
+      "path": "third_party/rust/moxcms/v0_7/README.chromium",
+      "sha256": "f01ee2a716f8c6474bf065b27c05114874ab2e11c093826709cb35d1f774d0cd",
+      "textSha256": "82cb9eb454cf8f1eba4c87258efe697fba4fd036b174efffe08f2d430a6cc246"
+    },
+    {
+      "path": "third_party/rust/murmur3/v0_4/README.chromium",
+      "sha256": "12f00390fdc1a630568e0a157dcbfbb779d4d8a165c39d2ab3f15e94bfc3c596",
+      "textSha256": "53c73418342e272b3387a75e316f70ec1b23275065691c05b7864f22676edb8a"
+    },
+    {
+      "path": "third_party/rust/num_bigint/v0_4/README.chromium",
+      "sha256": "1e7e4462c7fc338d03df6be4ecf7f92d886c793353c916d15a019a0564c78d42",
+      "textSha256": "889504b1e5d3c914db6ac635bb70b09b63c1ae347df24523aaa283da06907259"
+    },
+    {
+      "path": "third_party/rust/num_derive/v0_4/README.chromium",
+      "sha256": "ba8c0461e6d6b2d2aa0e24442c98af5b34104ed8fcb92ca7a2422489844b330d",
+      "textSha256": "c73a28f5e613fba9bf28306c57f8e4db3b14349335399fbac5b71f5a19a539cf"
+    },
+    {
+      "path": "third_party/rust/num_integer/v0_1/README.chromium",
+      "sha256": "e5e0c0e6def3005485d133afd1a32552b0af2524d7fa342e4bbe4682bf6669d3",
+      "textSha256": "8936bf868f66e0558d78b883a065149c8249edda243a68e1fdc61ece123c815b"
+    },
+    {
+      "path": "third_party/rust/num_rational/v0_4/README.chromium",
+      "sha256": "a12bc4ff21a822051edb243ec9283a89a234e109ba6349a8efc4609f8fe71665",
+      "textSha256": "466dafea4bcc1bcd550cdb26e7994d9dc7d8366b779b5ba8f27c9eb569c95b7d"
+    },
+    {
+      "path": "third_party/rust/num_traits/v0_2/README.chromium",
+      "sha256": "1d4999014d6ce0b0de6771f826fced2cb02f2deb6ae5c26206c889752496265c",
+      "textSha256": "64b31ecb85dca2c8be66af3aa8d3b84d69bd5dc0e35b569b09509d24f6d9ee12"
+    },
+    {
+      "path": "third_party/rust/once_cell/v1/README.chromium",
+      "sha256": "b4082e6f9d65955b6f85d6df69219ec2ed9f1efcf48cd6edc7c7d218a5612432",
+      "textSha256": "27a10a16fe3ec33dbc1db1a3ab92d2b067613b3f5da0242c94e3f373cddc2278"
+    },
+    {
+      "path": "third_party/rust/parking_lot/v0_12/README.chromium",
+      "sha256": "7dc4eb2b1640cfb1a6788bde0ed8ed5578eb1340d380022bb9c24e350c92aaa4",
+      "textSha256": "9b2d63c5583494e8f301c44bbdbc617e3ce1aeb62d4d8307e1e13b1226e44c35"
+    },
+    {
+      "path": "third_party/rust/parking_lot_core/v0_9/README.chromium",
+      "sha256": "b45761fa390010a4041605bd241bc0ee59680471044ab1ef6b2fb1bc0a7b9b57",
+      "textSha256": "e8561750a9767d32cb26f832461269ad63c7ece576ae24c6737df5484fc2a72d"
+    },
+    {
+      "path": "third_party/rust/png/v0_18/README.chromium",
+      "sha256": "4072619bd9fa6fcdb44afdc6614dfd7b42d6851f32b7c4615844df88adee55ea",
+      "textSha256": "47b759e63c385bc0977881f30a53e56e19428fb84d48adf1c6b03d11c3ea0cd0"
+    },
+    {
+      "path": "third_party/rust/potential_utf/v0_1/README.chromium",
+      "sha256": "e7bba89da4be17ad147b9304a5420ec59b4dbef9c7dbb535e7e1655c3b33dec4",
+      "textSha256": "2818ff704a63d57b098bc40b96c0917b8e0ae5c888e6f7e486f486fa2cf988b8"
+    },
+    {
+      "path": "third_party/rust/proc_macro_error_attr2/v2/README.chromium",
+      "sha256": "2c2ee7a6ecf2848898c2fbff78c8d2d3a8e2d614ea2912f53725337f8ace2968",
+      "textSha256": "1d214e7702740ab62f7e608bbccc380420c020a19a68af14a8e2169fb6290cc8"
+    },
+    {
+      "path": "third_party/rust/proc_macro_error2/v2/README.chromium",
+      "sha256": "333abe62a6ba9618cf90916c724fa22ad15944b1be3d32110089345a1da5202a",
+      "textSha256": "aa0f7f470ce617dc7d5115c1132f8f7a65e1dfa5fd283d97739d3371c36eee21"
+    },
+    {
+      "path": "third_party/rust/proc_macro2/v1/README.chromium",
+      "sha256": "a035b4dceee782ed0c13735c1843fabb90ec24fd94a8c3530c7a829f01ab99a2",
+      "textSha256": "831843413855967f99b5ac5a56008c7786a300136977fae0f5abea568a893bf6"
+    },
+    {
+      "path": "third_party/rust/prost/v0_14/README.chromium",
+      "sha256": "5fd819050e0509168449a3ce1d8ecdc3e90eeff7553dfe4004876bad2ccff541",
+      "textSha256": "16c26574bf895f3fb92a68b3f1d7e6ee7eee129d72a4f18bb3b0e88e0438cb70"
+    },
+    {
+      "path": "third_party/rust/prost_derive/v0_14/README.chromium",
+      "sha256": "acb534ee63991909dcce5d41cc2336450d3432cd23fc77116e4e2f072bc6bcce",
+      "textSha256": "5e7c77d2331b37e359d8a2f0ebee1aa595500758b18197bb7ae3bb661ba88044"
+    },
+    {
+      "path": "third_party/rust/pxfm/v0_1/README.chromium",
+      "sha256": "ef5e06d2b1ec4e11c37978ccaa6a5ab1168a1ce2d57cec70b305bbc2ec0c336d",
+      "textSha256": "9fadceec97304d7148d4e04cedd9f01b3741ac66c1c469e917bb83fcc898edcf"
+    },
+    {
+      "path": "third_party/rust/qr_code/v2/README.chromium",
+      "sha256": "773952d35f2d3260a7ff300b446c93f574ad166a835e7e067063e6bd1814e997",
+      "textSha256": "490dfef549be2249cd71ff64a5dd49fa4a4b818f0e484dd026216c02d7511a24"
+    },
+    {
+      "path": "third_party/rust/quote/v1/README.chromium",
+      "sha256": "a970808e13c977f49d579c259688c490c9484df8367c6111157b6f2d09652058",
+      "textSha256": "683cbb9bd536b5ebfc2428f35744e6c72813e6a06ff93339e85868c238b70590"
+    },
+    {
+      "path": "third_party/rust/read_fonts/v0_36/README.chromium",
+      "sha256": "600326e3e3dd6a29a26967a2d3dc5a58b08b94f22da2102f9774a7a5e2e5f4a8",
+      "textSha256": "1b9baf2324aa0b8985b8593965325f86177b5497ecdcb5a1145f48631ea10fd5"
+    },
+    {
+      "path": "third_party/rust/regex_automata/v0_4/README.chromium",
+      "sha256": "6ff57cfcc011825b615a4f93e2087fdd411469bd29246a536891360334433928",
+      "textSha256": "3848e0d9b22aebb656fc14a0ea677e15e9e27524a1bc2885ed685830eb0624d9"
+    },
+    {
+      "path": "third_party/rust/regex_syntax/v0_8/README.chromium",
+      "sha256": "693e0bbddac7ed3c551a6c8d5ff3c6a04757f142fa684714a71fc55367ceb71a",
+      "textSha256": "2dd33ae40461617744a1eb6b7499f9b60679ff787678fe6faa40eb9d3a51dcf6"
+    },
+    {
+      "path": "third_party/rust/resb/v0_1/README.chromium",
+      "sha256": "ece2fb8d534cd82d78de777d999e42dadebf72550e2bf051651c6b76998a9b31",
+      "textSha256": "85f5288262cc8af735167abe70fdeb572dc48ad303b8e1e2fb000f090a5fb919"
+    },
+    {
+      "path": "third_party/rust/rustc_demangle/v0_1/README.chromium",
+      "sha256": "775c1e68d140ac22bfeb4f44af80adc0c8eb3a13ed56d02955b3dd7ffa392d8f",
+      "textSha256": "5fda0ffdc3b39657c9923f778c1b79ff67e5dcf5f3376d718cf3bae1957b302a"
+    },
+    {
+      "path": "third_party/rust/rustc_demangle_capi/v0_1/README.chromium",
+      "sha256": "842e405eff9680ca6d318d43591d366bed861f5023138ca88a0fb0c9bec84f71",
+      "textSha256": "6d1d9f92ef683c6962efe7a06ec04a2529cdf054caaf7370b8c73cb089908879"
+    },
+    {
+      "path": "third_party/rust/ryu/v1/README.chromium",
+      "sha256": "4605c6055bbaf2323fda6afb8da4c45f57e1f50acb6e95ee1d45c91b52240115",
+      "textSha256": "8112998019dc378178040c3689b13df06b5f91f3ccbfc5ad40ad00f8dd759dc6"
+    },
+    {
+      "path": "third_party/rust/scopeguard/v1/README.chromium",
+      "sha256": "41567f62e6f28df29c1564d139ad708be3b539380322166bb2f1eeef9574ad7e",
+      "textSha256": "6275ef2d8a662bb9f8a0cbcd26bc1005d9087ad4f61b65c710c257c623eebf41"
+    },
+    {
+      "path": "third_party/rust/serde/v1/README.chromium",
+      "sha256": "fe2cc432a0e36c0482dfb158351bb62613b4fea85c8e675258e7ad4472e63c42",
+      "textSha256": "63e21a42e13766f5d174743860dbfa65b28b2bc7c98c5d5ee64b91be603442d9"
+    },
+    {
+      "path": "third_party/rust/serde_core/v1/README.chromium",
+      "sha256": "839516c24aac2955e9db32d4aaf945ebd68d38888dcd3d515451a26079b75fdd",
+      "textSha256": "d51421dbaac452154165e76517f9b8a9b964d9dea29dab27be2398e6fa74bbe7"
+    },
+    {
+      "path": "third_party/rust/serde_derive/v1/README.chromium",
+      "sha256": "346ea73693cf9a1e67d0b0554987bb7cd1bd456038dcbcab85f0eeee2bc6dd3d",
+      "textSha256": "1e8956bd3c44c92bd49e4a7aed9af7260ee507005a28944ed703ce5a7a4f27bf"
+    },
+    {
+      "path": "third_party/rust/serde_json/v1/README.chromium",
+      "sha256": "b0810aab5aa95d76d5cd16e4cd3fb96608c29e0472bd3a4a5c1b610af0bc3e0e",
+      "textSha256": "a71b39a159047e44cd0b279d5c8732257e3f24a956f13f8c279cccb91b8ce492"
+    },
+    {
+      "path": "third_party/rust/serde_json_lenient/v0_2/README.chromium",
+      "sha256": "7cc16155b0f480e331e67557bf267365eedc7ec2b6e63ea8745b00a84b8ae290",
+      "textSha256": "3fc050486008d0202bb314ceb9c46aa8a822579f7d67a6a18cc4f333b057bb71"
+    },
+    {
+      "path": "third_party/rust/simd_adler32/v0_3/README.chromium",
+      "sha256": "65985254e6d318da4d844d1ecd743be30ed8ec5bfb05af6f5744dbaa05c074ac",
+      "textSha256": "434381601525f05a3a9622fccc8296ee7b3f7699a32d6d852643dad261ccb817"
+    },
+    {
+      "path": "third_party/rust/skrifa/v0_39/README.chromium",
+      "sha256": "53decc6ab5e40ced1af7ac76cb9c7ed4afb40dbdae3088c92b070726460e49b6",
+      "textSha256": "6e5140d9f68f3df33309d4d4ed009c687ac8166737ce2c56e2e8af897be4c9b9"
+    },
+    {
+      "path": "third_party/rust/small_ctor/v0_1/README.chromium",
+      "sha256": "07859e807584bcc44837111ad96566a2b50cab8cc6da20518640bf1ba376c29d",
+      "textSha256": "2f5f2d74455b9e1b953639f19a988f6de8ee76ac2fa99c70ced8d41cb9a6b0e0"
+    },
+    {
+      "path": "third_party/rust/smallvec/v1/README.chromium",
+      "sha256": "3f0e9ac124bb9a4fdf25a027f4093c588a055107ddd0f448b1d47b7cf6d75232",
+      "textSha256": "9ccbe449d59b27f1543c0fe83608a89361f49218120ed37254fc7e14ee53c82e"
+    },
+    {
+      "path": "third_party/rust/stable_deref_trait/v1/README.chromium",
+      "sha256": "903baa2fe669df48086c2a5e8eb4301edfff7d09d094de7f582a7bbe17d12935",
+      "textSha256": "b48eb8ce3785c813edcc6c9ebc093c98cb4332334e1d29722bb7fc8f606c0e08"
+    },
+    {
+      "path": "third_party/rust/static_assertions/v1/README.chromium",
+      "sha256": "398cb8d8b716b1fda2854294aa46f85550432bd2a57ae060d54a7eeaa23ed18b",
+      "textSha256": "5e9dbf7f66dc2853aadf6dfb5f090670f68ebb7401a58b0d505f15b91735e089"
+    },
+    {
+      "path": "third_party/rust/strck/v1/README.chromium",
+      "sha256": "ce0b18e54c2857a27d0a62ac09cbff011e3d711d2d6b2d7d064d506281b593d7",
+      "textSha256": "3efba07f72e73be3783763148967639318a068d765c61bd1001534363f3f4c4a"
+    },
+    {
+      "path": "third_party/rust/strsim/v0_11/README.chromium",
+      "sha256": "9a2ee094e4a1a6016d7e25125099d55e5cac649417c8140837c8a068c1bd0038",
+      "textSha256": "09abeb15040f1283ccab13e6545c4684f213e5d85100093671b33e86735e523e"
+    },
+    {
+      "path": "third_party/rust/strum/v0_27/README.chromium",
+      "sha256": "1039041ed76e0daaed7bcf92ce0a5296a02285400de28428d621aa371bfb4eb5",
+      "textSha256": "bacb737b4ba24fc472e7fcdbc97cd3b21a54c2888e48ae0282142370281f279e"
+    },
+    {
+      "path": "third_party/rust/strum_macros/v0_27/README.chromium",
+      "sha256": "dca182fb2e436963957ec2e4183ab7a6f31945ca2a1ecec430e085ec9ba6d556",
+      "textSha256": "057a7562202f8fe8a20bf6bf53255b9baac041c8b379c2c842e533c5e39a88fb"
+    },
+    {
+      "path": "third_party/rust/subtle/v2/README.chromium",
+      "sha256": "e3b830f218b409efc2951028a2e5d081fe2ce4b1ad524b4ba0ee9d75d12a22c0",
+      "textSha256": "79a0a99edb8053c385bcd625f0bd4a14f9964a52c81d93966898bf6d79fc4db2"
+    },
+    {
+      "path": "third_party/rust/symphonia/v0_5/README.chromium",
+      "sha256": "6cc13a5fdca5c1af0f14b744351fe9239e010b903bea4a6ffc69b4dc44993cf0",
+      "textSha256": "89478d4413d84719d4939812afd2e9e459a335bd60dd0572792f605687dd8d7b"
+    },
+    {
+      "path": "third_party/rust/symphonia_bundle_flac/v0_5/README.chromium",
+      "sha256": "33449a40181c0fdccab282730b9a55d713242f446eca9426723ad98697565b5e",
+      "textSha256": "d4521b4afe5f3abdb7a23260d282b49575a563ded9526cffa778b81f5375b183"
+    },
+    {
+      "path": "third_party/rust/symphonia_core/v0_5/README.chromium",
+      "sha256": "7864aac1eeaa0aec6d993744fa8138f5e130f4ee678b1edb0497fdf360d1955f",
+      "textSha256": "a99335f073039e30c7c7fd36473b454050f070f7e259075e3d0ea4bbb2b93a9e"
+    },
+    {
+      "path": "third_party/rust/symphonia_metadata/v0_5/README.chromium",
+      "sha256": "6a02657fdd7199fc3d99df51f5cc74bd984302738703f2e5127ea60deb2fe96c",
+      "textSha256": "01c33deaed1d7af2a906526498494fcb0166e8568300747c2d43324545b178c1"
+    },
+    {
+      "path": "third_party/rust/symphonia_utils_xiph/v0_5/README.chromium",
+      "sha256": "b49265d8f87b88a789bac1192b9f692b8f8cf5a42845205cdb8219bbf8b1e76f",
+      "textSha256": "051fd42ae09c9c1bdcd2f0105d2eef6562118cf68370335c0bdcd733c29d5841"
+    },
+    {
+      "path": "third_party/rust/syn/v2/README.chromium",
+      "sha256": "7decade263676618b55d638b0c3badd7d11cc207fd0fd5a9583667db1992c023",
+      "textSha256": "4b522d745d6ee420e0eb173bc888636220907e9c1a659d04bd0468837d7d32e7"
+    },
+    {
+      "path": "third_party/rust/synstructure/v0_13/README.chromium",
+      "sha256": "e9c15aaa47f8764171eb523f3f6ab6c3e5b72e9e23522cafa7b32afb778a8559",
+      "textSha256": "f44f42478afd675d17bdd81f7f29b6a504beab93fb97601afc2b0e001edfe4f9"
+    },
+    {
+      "path": "third_party/rust/temporal_capi/v0_1/README.chromium",
+      "sha256": "db6880819f332cfcd6915157b9c9d35fc61431dec8c2991088daede9a04326a3",
+      "textSha256": "c33f96031204aa39d91ff7decd470797223fe73a251b008a2b59bc101ec4cdc9"
+    },
+    {
+      "path": "third_party/rust/temporal_rs/v0_1/README.chromium",
+      "sha256": "f08276c7badca9a0ed8a5c8a8f5162242162ac45e2d7d6fbc9cb92d26f08b3cb",
+      "textSha256": "77777500924e200ff7687761e9efb4b1bc540c7079d2a4acf3b68ad67d2bc3b3"
+    },
+    {
+      "path": "third_party/rust/termcolor/v1/README.chromium",
+      "sha256": "607c7c1c5009113d01a7b532772a67b7f5a6d9961864f73adde996de8d4f931a",
+      "textSha256": "1051035d97bd95c10092485365089208c7f49b09c9ff91de18691dc2041cb95e"
+    },
+    {
+      "path": "third_party/rust/thiserror/v2/README.chromium",
+      "sha256": "98daea601c40f17087a75baa1ec7f57d221978fbe0bc6e9eff7eb9a1cf15485f",
+      "textSha256": "a002a707fbaf154207dd2b477fc1e9466e77ff89aca4499863ffa69c769d1a3e"
+    },
+    {
+      "path": "third_party/rust/thiserror_impl/v2/README.chromium",
+      "sha256": "4be9b2c3fddc69cfe10cfd03d76188e81f0b6a86850352226c39a72ed60b4ade",
+      "textSha256": "89795692d6de016d91f1e5a76e00868bef5c44a2d50068fd1f23d98fe6daf389"
+    },
+    {
+      "path": "third_party/rust/timezone_provider/v0_1/README.chromium",
+      "sha256": "a6597acdcf44b6239adb28f6a561a311e12356aa8f0ed7a916805582f60892bc",
+      "textSha256": "61f47ac79df938d8c2479c14ceaf992e706d23d5ff7066f767ef0bb46eea08f7"
+    },
+    {
+      "path": "third_party/rust/tinystr/v0_8/README.chromium",
+      "sha256": "0c12ff273fbdf936d9385c606d0901fe0bd14a5a8a48f6b710675078dd01b9a9",
+      "textSha256": "ddce8ca7dc80412de6a71256020b30a6cf8b877883a6e70e46064394abf0bc18"
+    },
+    {
+      "path": "third_party/rust/toktrie/v1/README.chromium",
+      "sha256": "74307ee4bf73f67de7445876fcceb798dce8517c7b861fa3618fb0d16a25c7eb",
+      "textSha256": "2fc0e5e7fa04f9f5dd8dbce9bb17702e2c3d7ec43af3549a3123fda39fe0d48f"
+    },
+    {
+      "path": "third_party/rust/typed_arena/v2/README.chromium",
+      "sha256": "fab7a956a1c28c901f75a3e431b80457797443949e96c0aa7dc786b03b201ac6",
+      "textSha256": "7c2660620628efebbe1a39e63f4070acb708e9f71b5ae4c1c5a30c0e35de726d"
+    },
+    {
+      "path": "third_party/rust/unicode_ident/v1/README.chromium",
+      "sha256": "02b6391327819edbf44ebc49e57aa6921d23c720c3d0e46b5582b96eda2c4277",
+      "textSha256": "0d3d34a1a36a8200c9228f8cd16b8aa73c0524f0d39f3f83c2b540ac2f541d8c"
+    },
+    {
+      "path": "third_party/rust/unicode_width/v0_2/README.chromium",
+      "sha256": "c88ac0165b523443c673ba33e47a4ebe89210f7eabd225a5794a962f97681fe1",
+      "textSha256": "22a7bab3ea26bc85c27c3862013feea64dba9483fdcc8c0aed71482edb1f2cfe"
+    },
+    {
+      "path": "third_party/rust/uuid/v1/README.chromium",
+      "sha256": "a0e2103cb639da8f8246022d967c59571876da1df95859d4fe56a8a6d822c805",
+      "textSha256": "d81f4fac46a9953e67b142875cadeb5dff26186e61c1e41bf6ba1d8096400093"
+    },
+    {
+      "path": "third_party/rust/winapi_util/v0_1/README.chromium",
+      "sha256": "433abdd8d6b89389b5406b9e188b27f86b0ddf0abd67592827a745ff94355861",
+      "textSha256": "b6b5dab79f89392ad8df7a6f3ebcc2a64975dcc7fdc60c0f664877d1a70b113e"
+    },
+    {
+      "path": "third_party/rust/windows_aarch64_msvc/v0_52/README.chromium",
+      "sha256": "3a51eeae8a81dd741a9ee47a6d9d61a6523325aaef2beaeaa44829ee94302009",
+      "textSha256": "d80f4aee47ef55db81c9532487987145d2b3eab96a79ed9dfedf586ae3c2ded1"
+    },
+    {
+      "path": "third_party/rust/windows_i686_msvc/v0_52/README.chromium",
+      "sha256": "f01391e9c6b5e94d45f2324790f74affc29dd4146c8c89beac6a3c50918efbc7",
+      "textSha256": "2906ec7733f47e4192f980f1e4ce226a27749dbd7733d4c092d14003aef696fd"
+    },
+    {
+      "path": "third_party/rust/windows_link/v0_2/README.chromium",
+      "sha256": "0762acfb57d03ef923af22fe23a58a4da4d48e32b0f2b4799cfa328362db52db",
+      "textSha256": "ad02b7280dde1c9aeeee6d0c2e789093a86ddfa7c47ff60a764e6923af488867"
+    },
+    {
+      "path": "third_party/rust/windows_sys/v0_52/README.chromium",
+      "sha256": "c4aad9f479347bf3bf1e92b71a9f42e63d2d2086907e01676ef7c838fd112e27",
+      "textSha256": "b3ac7a6ae0341547561d482d1613cbd6ab41cecda19c313c9e92642e26393b80"
+    },
+    {
+      "path": "third_party/rust/windows_targets/v0_52/README.chromium",
+      "sha256": "0ada1d07702f8d2b33b565147946a0cec5844b0573918c01d61320c8641703f3",
+      "textSha256": "09bfdd8d5a94e472e648019d5fb19c1b569ffa8228d47be9f45932fbbda16793"
+    },
+    {
+      "path": "third_party/rust/windows_x86_64_msvc/v0_52/README.chromium",
+      "sha256": "c1e17a02829a6e458e8251e69fd7af38ce2d36e0aded968033b74fc9e9fdfd2e",
+      "textSha256": "2521c5ae3d3cb53f42a3a8cd1b5c981b58468c2bba3a99973c046f9e718c95c2"
+    },
+    {
+      "path": "third_party/rust/writeable/v0_6/README.chromium",
+      "sha256": "e3c6cc803f3e56e418a7745c69856068701803512871ad2c4d7dd0010c89e55b",
+      "textSha256": "530d7302f5e0461828a480dfcc44cab8d98889b2134e06ea328ac0c49a12df76"
+    },
+    {
+      "path": "third_party/rust/xml/v1/README.chromium",
+      "sha256": "566bfd78fb160a7905ae92b99918561e742aa8203bb550104b9bd6d4addc4730",
+      "textSha256": "0324610cb89efdc65d643be2de6d5b6d78053876c3787ae47b075323f158a4ba"
+    },
+    {
+      "path": "third_party/rust/yoke/v0_8/README.chromium",
+      "sha256": "7ed7115ec6c9513f0f52b87b90db01635067c64adb0faec931db0def20bb485c",
+      "textSha256": "2580a832617581f5a38654a138756c36080ab0a4ba13eb2611859e8fcfc29b5f"
+    },
+    {
+      "path": "third_party/rust/yoke_derive/v0_8/README.chromium",
+      "sha256": "c32672c611798d92943c7860effbd676b407b2caef3e40f19c1881935a8e982e",
+      "textSha256": "1e90f5c523deb4ecd2539d9dec4032f145abccfa8c1f3f8bc5da06d3efe07516"
+    },
+    {
+      "path": "third_party/rust/zerofrom/v0_1/README.chromium",
+      "sha256": "8407941aaee38fc436014e3851b0084861b00099184110130279836cafdc5534",
+      "textSha256": "147dc013f7328db468d86ab557895a21ab316af2cdfa37ac3b1cace019467d75"
+    },
+    {
+      "path": "third_party/rust/zerofrom_derive/v0_1/README.chromium",
+      "sha256": "c42efb2b1bd098fb4523c076d487923e79427b68f7958f33c11eb38aba4dcc2e",
+      "textSha256": "18f37acdf8a4a6b1bbb118bb83e5bfbde46be1e4d0b526de9c3e1c7a8201c515"
+    },
+    {
+      "path": "third_party/rust/zerotrie/v0_2/README.chromium",
+      "sha256": "3839233e24cd89c34ed0c6cfdfe5ce20617da4cb34f0b7863022f8653ffff811",
+      "textSha256": "48b92592868beb9c5ce5c98ed40fcc7a6b36d2fcfdc04244afbafdc6ec852274"
+    },
+    {
+      "path": "third_party/rust/zerovec/v0_11/README.chromium",
+      "sha256": "1f3040da83212e4b4b0a4e54fb82b43ef96ca11bcd7dfba327a2d96bdb1202b2",
+      "textSha256": "0e1e6a856f4bba02395ebe88182d98eaa6cade50c24975672e26f1b02bef2adb"
+    },
+    {
+      "path": "third_party/rust/zerovec_derive/v0_11/README.chromium",
+      "sha256": "1bc355bf01df723f64e5e66aad4e4ebb2f340989b59e7ccb9d00cdb30f1c6ee2",
+      "textSha256": "8c862675db6aac2681679eaecae5100a02c4e7afeb8d59a0f0a2016d5c1ec8bf"
+    },
+    {
+      "path": "third_party/rust/zip/v6/README.chromium",
+      "sha256": "fa850e78c6a022dcd0bb656676927372f2df84ed46e625f45dfee7817e6b1a80",
+      "textSha256": "a6045c45fa06a80266b570bb5f2db7cfc27e00b360c05ded358167c5430d7183"
+    },
+    {
+      "path": "third_party/rust/zmij/v1/README.chromium",
+      "sha256": "0742189243c69e3dc4833c7d02ceab2cf82b1ef3185f39e3c6d3720e003d6834",
+      "textSha256": "12deccd00c855dbba12856e6cdde57ec7ded9fd84f7fcf5071b490f6824021b2"
+    },
+    {
+      "path": "third_party/rust/zoneinfo64/v0_2/README.chromium",
+      "sha256": "7abd07da092307ada4f3c87b8ab8c8e1f3f3e73d54a706bc60e6e9c1e679d488",
+      "textSha256": "e51b4de30d644350fbfab2693e53ae71a33e3580fd9def56822736689707f72c"
+    },
+    {
+      "path": "third_party/simdutf/LICENSE",
+      "sha256": "fc8dbc04e03ad4efc08a647ffe7f995b811a95bc04c0e85a56d5277c6593fa5f",
+      "textSha256": "ac630cbb3ab44d8f6a26281669cfd9f405140a0ef62da8cc3a2898a0ea36fe32"
+    },
+    {
+      "path": "third_party/simdutf/README.chromium",
+      "sha256": "711a04e591eac67248960dd4049a7aa1dc6eb3c96a520f11d26a06592d8daea9",
+      "textSha256": "1eaeeadbbeb1c4bb9fe4fd50c4991778265b7fadd2858691159cdf9b6aa0f47f"
+    }
+  ]
+}

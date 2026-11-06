@@ -1,0 +1,3 @@
+scripts/licencas/deno/*.txt -text -whitespace
+scripts/licencas/deno/*.sources.json -text
+scripts/licencas/deno/LICENSE.md -text -whitespace

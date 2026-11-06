@@ -12,6 +12,7 @@ Responsável: Estaleiro (distribuição). Complementa [distribuicao.md](distribu
 |---|---|---|
 | yt-dlp, código-fonte | Unlicense (domínio público) | Nenhuma obrigatória |
 | **yt-dlp, binário PyInstaller** (`yt-dlp.exe`, `yt-dlp_macos`, `yt-dlp_linux`…) | **GPLv3+** (obra combinada), com componentes PSF, MIT, BSD, Apache-2.0, LGPL etc. | Incluir o texto da GPLv3 e o `THIRD_PARTY_LICENSES.txt`; disponibilizar o código-fonte correspondente; não impor restrições adicionais |
+| **Deno 2.7.0** (runtime JavaScript oficial, recurso executável) | **MIT** | Incluir o aviso MIT e apontar para os avisos/licenças das dependências de terceiros da tag fixada |
 | **FFmpeg (build próprio mínimo, recomendado)** | **LGPL v2.1+** (sem `--enable-gpl` e sem `--enable-nonfree`) | Publicar o código-fonte exato, a linha de `configure` e eventuais patches junto dos binários; avisos no site e na tela “Sobre” |
 | FFmpeg de terceiros com `--enable-gpl` (gyan.dev, evermeet.cx, BtbN `gpl`) | GPL v2+ (ou v3 com `--enable-version3`) | Iguais às da GPL; **evitar** |
 | FFmpeg com `--enable-nonfree` | **Não redistribuível** | Proibido distribuir |
@@ -43,6 +44,16 @@ A alternativa só com Unlicense/MIT/ISC (`yt-dlp` *zipimport*) exige Python 3.11
 3. **Sem restrições adicionais**: o EULA ou os termos do Clipora não podem proibir engenharia reversa, modificação ou redistribuição do yt-dlp, nem impor condições contrárias à GPL sobre ele.
 4. **Atualizações baixadas pelo app** (seção 6 de distribuicao.md): o app baixa o binário direto do GitHub do yt-dlp, por ação do usuário. Para essas cópias, quem as distribui é o próprio projeto yt-dlp. Mesmo assim, a tela de licenças deve indicar a versão em uso e onde obter o código daquela versão.
 5. Assinar o binário com o nosso certificado (macOS/Windows) não altera a licença e não conflita com a GPLv3 para software de desktop.
+
+### 2.4 Deno (runtime JavaScript empacotado)
+
+O Clipora distribui o Deno **2.7.0** oficial, somente para executar localmente o suporte JavaScript/EJS do yt-dlp em links do YouTube. O Deno é um processo separado, tem licença MIT e não é baixado nem atualizado pelo app. O texto MIT foi copiado sem síntese de `LICENSE.md` na tag v2.7.0; seu SHA-256, o hash do source archive e o hash do Cargo.lock estão em `scripts/binarios.lock`.
+
+Como o ZIP da release não traz um aviso consolidado, `scripts/licencas/deno/` contém avisos gerados e vendorizados com SHA-256 e proveniência. O grafo de `cli/Cargo.toml` foi processado com cargo-about 0.9.2 para os seis alvos do produto: 872 pacotes associados a 412 textos distintos. Textos integralmente idênticos são deduplicados; associação de pacote, versão, licença e autores permanece junto ao texto. Nenhum JSON bruto do cargo-about vai ao pacote. O inventário V8 usa Rusty V8 v145.0.0 e o commit do submódulo `denoland/v8` fixado na árvore upstream, além dos submódulos `third_party`; lista paths e hashes dos avisos coletados. Também inclui os arquivos de licença de Node, Undici e WebGPU na fonte Deno e o TypeScript 5.9.2 embutido no snapshot, cujo arquivo e texto Apache-2.0 têm hashes fixos.
+
+A coleta V8 inclui arquivos de teste/build e bibliotecas condicionais, pois não resolve o grafo de link por alvo. A busca na fonte Deno exclui caminhos de teste/benchmark e coleta avisos por nomes convencionais, além das licenças requeridas de Node/Undici/WebGPU e do snapshot TypeScript. Avisos inline sem arquivo próprio, nomes não convencionais e componentes sem evidência nos arquivos coletados são limites concretos; o conjunto não afirma completude jurídica absoluta. O gerador falha se faltar qualquer arquivo de aviso requerido ou se bytes/hash/proveniência divergirem. Para reproduzir a coleta, consulte `scripts/licencas/deno/README.md` e os scripts do mesmo diretório.
+
+Para macOS universal, o executável combina os ZIPs arm64 e x64 oficiais; não existe nem é presumido um ZIP universal. Os avisos e hashes são mantidos no `scripts/binarios.lock` e no manifesto `deno/clipora-deno.json` do pacote. O SHA-256 do manifesto é calculado sobre os bytes finais do recurso executável, após assinatura com o entitlement mínimo de JIT.
 
 ---
 
@@ -129,11 +140,12 @@ Gerado por `scripts/compilar-ffmpeg.mjs` (flags em `FLAGS_COMUNS` e `flagsAlvo`;
 
 ### 5.1 Implementados (2026-11-05)
 1. **`scripts/gerar-licencas.mjs`** (no CI: passo “THIRD_PARTY_LICENSES” de cada alvo) gera em `src-tauri/binaries/licencas/`:
-   - `THIRD_PARTY_LICENSES.txt` (~740 KB), com quatro seções:
+   - `THIRD_PARTY_LICENSES.txt`, com seções para:
      1. **yt-dlp**: versão, URL do binário e do `yt-dlp.tar.gz` da mesma tag, link para o workflow de build, `THIRD_PARTY_LICENSES.txt` do próprio build PyInstaller e texto da GPLv3;
-     2. **FFmpeg**: aviso exigido pelo ffmpeg.org, URL e SHA-256 da fonte exata, linha de `configure` completa do alvo e texto da LGPL-2.1;
-     3. **crates Rust** (cargo-about, por alvo; o universal junta as duas fatias);
-     4. **npm** de produção;
+     2. **Deno 2.7.0**: texto MIT oficial e avisos vendorizados deduplicados do grafo de crates, V8/`third_party`, fontes Deno fora de testes e TypeScript embutido; cada conjunto é validado contra hashes em `scripts/binarios.lock`;
+     3. **FFmpeg**: aviso exigido pelo ffmpeg.org, URL e SHA-256 da fonte exata, linha de `configure` completa do alvo e texto da LGPL-2.1;
+     4. **crates Rust** do Clipora (cargo-about, por alvo; o universal junta as duas fatias);
+     5. **npm** de produção;
    - `licencas.json`: resumo estruturado (componentes, versões, licenças, links) para a tela “Sobre / Licenças”.
    - Textos GPL/LGPL vendorizados de fonte verificada (`scripts/licencas/LEIAME.md`). Falha se o build do FFmpeg tiver `--enable-gpl|nonfree|version3` ou se o yt-dlp extraído não for a versão do lock.
 2. **Verificação no CI** (estágio `ffmpeg`): falha se o `configure` registrado tiver `--enable-gpl|nonfree|version3` ou não tiver `--disable-gpl`/`--disable-nonfree`. Onde executável, exige `-L` LGPL e 0 codificadores. Os SHA-256 do yt-dlp são conferidos contra o lock e o `SHA2-256SUMS` assinado.

@@ -108,6 +108,100 @@
       }
     }
   },
+  "deno": {
+    "versao": "2.7.0",
+    "licenca": "MIT",
+    "projeto": "https://github.com/denoland/deno/tree/v2.7.0",
+    "avisosTerceiros": {
+      "versao": "2.7.0",
+      "licenseFile": "scripts/licencas/deno/LICENSE.md",
+      "cargoNoticeFile": "scripts/licencas/deno/CARGO-THIRD_PARTY_LICENSES.txt",
+      "cargoSourcesFile": "scripts/licencas/deno/CARGO-THIRD_PARTY_LICENSES.sources.json",
+      "v8NoticeFile": "scripts/licencas/deno/V8-THIRD_PARTY_LICENSES.txt",
+      "v8SourcesFile": "scripts/licencas/deno/V8-THIRD_PARTY_LICENSES.sources.json",
+      "denoSourceNoticeFile": "scripts/licencas/deno/DENO-SOURCE-THIRD_PARTY_LICENSES.txt",
+      "denoSourceSourcesFile": "scripts/licencas/deno/DENO-SOURCE-THIRD_PARTY_LICENSES.sources.json",
+      "typescriptLicenseFile": "scripts/licencas/deno/TYPESCRIPT-APACHE-2.0.txt",
+      "licenca": {
+        "origem": "https://github.com/denoland/deno/blob/v2.7.0/LICENSE.md",
+        "sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588"
+      },
+      "denoSourceUrl": "https://codeload.github.com/denoland/deno/tar.gz/refs/tags/v2.7.0",
+      "denoSourceSha256": "3e8180e19b89a595d051234ff7344e2251ac7529ea6d6a39506cf76310e494e5",
+      "cargoSourceUrl": "https://github.com/denoland/deno/blob/v2.7.0/Cargo.lock",
+      "cargoLockSha256": "5c34db249c90bfc351d35a541e817b1f5d28a0e7779777a1503bdbec52b5efdc",
+      "cargoNoticeSha256": "b980faeb738c7d69d1556fec9152760454c3a2b100f2fd4ab01b4d971f46d68b",
+      "cargoSourcesSha256": "70e57bf2408c5fbb45db79c3fe46c401db5c7d85133069d0193350635ce2ab8b",
+      "cargoAbout": {
+        "versao": "0.9.2",
+        "config": "scripts/licencas/deno/about.toml",
+        "manifesto": "cli/Cargo.toml",
+        "targets": [
+          "aarch64-apple-darwin",
+          "x86_64-apple-darwin",
+          "x86_64-pc-windows-msvc",
+          "aarch64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "aarch64-unknown-linux-gnu"
+        ]
+      },
+      "v8": {
+        "crate": "145.0.0",
+        "rustyv8SourceUrl": "https://codeload.github.com/denoland/rusty_v8/tar.gz/refs/tags/v145.0.0",
+        "rustyv8SourceSha256": "d00f6ebae3ae3c11fba262e947798c98c93a5b60bae5b0a6230a9df0e9611284",
+        "rustyv8Commit": "e6a88b35dd3d7f2849a0df33a71d338701c55316",
+        "v8SourceUrl": "https://codeload.github.com/denoland/v8/tar.gz/8defb67673c5483ae56258a2de01b07e947dc921",
+        "v8SourceSha256": "7b3d243fb8edf7338e222dd0e396bb3b5d5410e053b7268deb12a0e0709e2546",
+        "v8Commit": "8defb67673c5483ae56258a2de01b07e947dc921",
+        "noticeSha256": "05b05e4b1e8a1513d58ba7935d6dca89ff6a1f759105f3fa8c4a245cf70d1bae",
+        "sourcesSha256": "f746378230abe8b5b1a882b8b78c95811a5695956bc466d0a49e9317dc1e247d"
+      },
+      "denoSource": {
+        "sourceArchiveUrl": "https://codeload.github.com/denoland/deno/tar.gz/refs/tags/v2.7.0",
+        "sourceArchiveSha256": "3e8180e19b89a595d051234ff7344e2251ac7529ea6d6a39506cf76310e494e5",
+        "noticeSha256": "034430db4c3f91bf2923d292b7fc222ab76cfbc552a246b4b62aa76c25103533",
+        "sourcesSha256": "51802e40e734d2dcebb4ff2cc22be65c478b852e9f298bad218ac80e4f7c75ce",
+        "typescriptVersion": "5.9.2",
+        "typescriptFile": "cli/tsc/00_typescript.js",
+        "typescriptFileSha256": "e1a0ff47df93e30b2e7e02aae5d6202cb7cf38019408767d3556393d749ef810",
+        "typescriptLicenseUrl": "https://github.com/microsoft/TypeScript/blob/v5.9.2/LICENSE.txt",
+        "typescriptLicenseSha256": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47"
+      }
+    },
+    "baseUrl": "https://github.com/denoland/deno/releases/download/v2.7.0/",
+    "alvos": {
+      "aarch64-apple-darwin": {
+        "arquivo": "deno-aarch64-apple-darwin.zip",
+        "url": "https://github.com/denoland/deno/releases/download/v2.7.0/deno-aarch64-apple-darwin.zip",
+        "sha256": "1b239846bc513ab3e29a7bf054738c0f937753a6abf3513c95afb320b1f24eb6"
+      },
+      "x86_64-apple-darwin": {
+        "arquivo": "deno-x86_64-apple-darwin.zip",
+        "url": "https://github.com/denoland/deno/releases/download/v2.7.0/deno-x86_64-apple-darwin.zip",
+        "sha256": "f3a51563029919c8043a79c03e04c3737a40b13c0847f3f5ef90e993d95359b5"
+      },
+      "x86_64-pc-windows-msvc": {
+        "arquivo": "deno-x86_64-pc-windows-msvc.zip",
+        "url": "https://github.com/denoland/deno/releases/download/v2.7.0/deno-x86_64-pc-windows-msvc.zip",
+        "sha256": "e7895110bab2d77c4ae9878d1c75d44d0b5219f13f337322b210ebcc8867e6ff"
+      },
+      "aarch64-pc-windows-msvc": {
+        "arquivo": "deno-aarch64-pc-windows-msvc.zip",
+        "url": "https://github.com/denoland/deno/releases/download/v2.7.0/deno-aarch64-pc-windows-msvc.zip",
+        "sha256": "fa92eefed87636ab13fbe2d16aa59a558e369bd321b843a3dc37ac74bfd9a71b"
+      },
+      "x86_64-unknown-linux-gnu": {
+        "arquivo": "deno-x86_64-unknown-linux-gnu.zip",
+        "url": "https://github.com/denoland/deno/releases/download/v2.7.0/deno-x86_64-unknown-linux-gnu.zip",
+        "sha256": "f1ca687ba8545105ba5809688ef659d96fe4272acc11e8b4800657cdb0045b7d"
+      },
+      "aarch64-unknown-linux-gnu": {
+        "arquivo": "deno-aarch64-unknown-linux-gnu.zip",
+        "url": "https://github.com/denoland/deno/releases/download/v2.7.0/deno-aarch64-unknown-linux-gnu.zip",
+        "sha256": "04d35f9f836c92804dcfb433740e0c6dbdea2b32b444a50dc71aa03dcaf06589"
+      }
+    }
+  },
   "ffmpeg": {
     "versao": "8.1.3",
     "licenca": "LGPL-2.1-or-later (build sem --enable-gpl e sem --enable-nonfree)",

@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "typescriptVersion": "5.9.2",
+  "typescriptFileSha256": "e1a0ff47df93e30b2e7e02aae5d6202cb7cf38019408767d3556393d749ef810",
+  "typescriptLicenseSha256": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47",
+  "denoLicenseTextSha256": "d7507dc065841fb76af8f1f7b6bd66e590316f06626abd063bbe0dcb233d6d2f",
+  "licenseLikeFileCount": 3,
+  "distinctTextCount": 3,
+  "textSha256": "034430db4c3f91bf2923d292b7fc222ab76cfbc552a246b4b62aa76c25103533",
+  "files": [
+    {
+      "path": "cli/tsc/dts/node/LICENSE",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "textSha256": "ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310"
+    },
+    {
+      "path": "cli/tsc/dts/node/undici/LICENSE",
+      "sha256": "a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27",
+      "textSha256": "fe64958bfaef10b1c9628b4ee9f1c48170b0219bd4b2a7ef4a0c41aebd920c9e"
+    },
+    {
+      "path": "ext/webgpu/LICENSE.md",
+      "sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588",
+      "textSha256": "d7507dc065841fb76af8f1f7b6bd66e590316f06626abd063bbe0dcb233d6d2f"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "LICENSE.md",
+      "sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "5c34db249c90bfc351d35a541e817b1f5d28a0e7779777a1503bdbec52b5efdc"
+    },
+    {
+      "path": "cli/tsc/00_typescript.js",
+      "sha256": "e1a0ff47df93e30b2e7e02aae5d6202cb7cf38019408767d3556393d749ef810"
+    },
+    {
+      "path": "cli/tsc/README.md",
+      "sha256": "0013d178d75efe10521424f29e9aa731473edfaf3b53b5e34e54e83286cc03a9"
+    },
+    {
+      "path": "cli/tsc/dts/node/LICENSE",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+    },
+    {
+      "path": "cli/tsc/dts/node/undici/LICENSE",
+      "sha256": "a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27"
+    },
+    {
+      "path": "ext/webgpu/LICENSE.md",
+      "sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588"
+    },
+    {
+      "path": "microsoft-TypeScript-v5.9.2/LICENSE.txt",
+      "sha256": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47"
+    },
+    {
+      "path": "cli/tsc/00_typescript.js",
+      "sha256": "e1a0ff47df93e30b2e7e02aae5d6202cb7cf38019408767d3556393d749ef810"
+    },
+    {
+      "path": "cli/tsc/README.md",
+      "sha256": "0013d178d75efe10521424f29e9aa731473edfaf3b53b5e34e54e83286cc03a9"
+    }
+  ]
+}

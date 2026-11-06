@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { arquiteturaPe, classificarSeloCodesign, validarInfoFfmpeg } from './conferir-pacote.mjs';
+import { arquiteturaPe, classificarSeloCodesign, validarInfoFfmpeg, versaoDenoPermitida } from './conferir-pacote.mjs';
 
 const triple = 'x86_64-pc-windows-msvc';
 const lock = {
@@ -52,4 +52,26 @@ test('codesign só classifica como unsigned com evidência reconhecida', () => {
   assert.equal(classificarSeloCodesign(1, 'Info.plist=not bound'), 'unsigned');
   assert.equal(classificarSeloCodesign(1, 'resource envelope is obsolete'), 'unknown-error');
   assert.equal(classificarSeloCodesign(0, 'Authority=Developer ID Application'), 'signed');
+});
+
+test('Deno reconhece somente a base 2.7.0 e metadado SemVer permitido', () => {
+  const real = 'deno 2.7.0+fb4db33 (canary, release, aarch64-apple-darwin)\ntypescript 5.9.2';
+  assert.equal(versaoDenoPermitida(real, '2.7.0', 'aarch64-apple-darwin'), '2.7.0+fb4db33');
+  assert.equal(versaoDenoPermitida('deno 2.7.0', '2.7.0', 'aarch64-apple-darwin'), '2.7.0');
+  assert.equal(versaoDenoPermitida('deno 2.7.0 (stable, release, x86_64-apple-darwin)', '2.7.0', 'aarch64-apple-darwin'), '2.7.0');
+  for (const target of ['aarch64-apple-darwin', 'x86_64-apple-darwin', 'x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc', 'x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu']) {
+    assert.equal(versaoDenoPermitida(`deno 2.7.0+fb4db33 (stable, release, ${target})`, '2.7.0', target), '2.7.0+fb4db33');
+  }
+  for (const line of [
+    'deno 2.7.01+fb4db33 (canary, release, aarch64-apple-darwin)',
+    'deno 2.7.0-rc.1 (canary, release, aarch64-apple-darwin)',
+    'deno 2.7.0+fb4db33 (rc, release, aarch64-apple-darwin)',
+    'deno 2.9.8+fb4db33 (canary, release, aarch64-apple-darwin)',
+    'xdeno 2.7.0+fb4db33 (canary, release, aarch64-apple-darwin)',
+    'deno 2.7.0+fb4db33 arbitrary suffix',
+    'deno 2.7.0+bad_metadata (canary, release, aarch64-apple-darwin)',
+    'deno 2.7.0+fb4db33 (canary, release, aarch64-foo-bar)',
+    'deno 2.7.0+fb4db33 (canary, debug, aarch64-apple-darwin)',
+    'deno 2.7.0+fb4db33 (unknown, release, aarch64-apple-darwin)',
+  ]) assert.equal(versaoDenoPermitida(line, '2.7.0', 'aarch64-apple-darwin'), null, line);
 });
