@@ -46,7 +46,7 @@ export function HistoricoPainel(props: Props) {
             <article className="historico-item" key={item.downloadId}>
               <div className="historico-dados">
                 <strong>{item.nomeArquivo}</strong>
-                <span>{item.plataforma === "instagram" ? "Instagram" : "TikTok"} · {dataLegivel(item.concluidoEm)}</span>
+                <span>{item.plataforma === "instagram" ? "Instagram" : item.plataforma === "tiktok" ? "TikTok" : "YouTube"} · {dataLegivel(item.concluidoEm)}</span>
                 {!item.disponivel && <span className="historico-indisponivel">Arquivo indisponível neste local.</span>}
               </div>
               {item.disponivel && <button type="button" aria-label={`Abrir arquivo ${item.nomeArquivo}`} onClick={() => props.aoAbrirArquivo(item.downloadId)}>Abrir vídeo</button>}

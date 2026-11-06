@@ -18,6 +18,7 @@ function previaFalsa(requisicaoId: number, overrides: Partial<Previa> = {}): Pre
     plataforma: "instagram",
     duracaoSegundos: 12,
     capaDataUrl: "data:image/jpeg;base64,xyz",
+    qualidadesYoutube: null,
     ...overrides,
   };
 }
@@ -37,7 +38,7 @@ describe("fluxo feliz: link -> prévia -> download -> concluído", () => {
 
     const previa = previaFalsa(1);
     estado = reduzir(estado, { tipo: "previa_recebida", requisicaoId: 1, previa });
-    expect(estado).toEqual({ tipo: "pronto", previa });
+    expect(estado).toEqual({ tipo: "pronto", previa, alturaYoutube: null });
     expect(podeSolicitarDownload(estado)).toBe(true);
 
     estado = reduzir(estado, { tipo: "download_iniciado", downloadId: "d1" });
@@ -45,6 +46,7 @@ describe("fluxo feliz: link -> prévia -> download -> concluído", () => {
       tipo: "baixando",
       previa,
       downloadId: "d1",
+      alturaYoutube: null,
       progresso: { etapa: "preparando", percentual: null },
     });
 
@@ -72,6 +74,7 @@ describe("fluxo feliz: link -> prévia -> download -> concluído", () => {
       tipo: "concluido",
       previa,
       downloadId: "d1",
+      alturaYoutube: null,
       resultado: { caminho: "/tmp/video.mp4", nomeArquivo: "video.mp4", renomeado: false },
     });
     expect(podeAbrirPasta(estado)).toBe(true);
@@ -172,7 +175,7 @@ describe("respostas atrasadas de prévia", () => {
     // A resposta da segunda chega e é aplicada normalmente.
     const previaNova = previaFalsa(2, { urlOriginal: "https://segundo" });
     estado = reduzir(estado, { tipo: "previa_recebida", requisicaoId: 2, previa: previaNova });
-    expect(estado).toEqual({ tipo: "pronto", previa: previaNova });
+    expect(estado).toEqual({ tipo: "pronto", previa: previaNova, alturaYoutube: null });
   });
 
   it("ignora PREVIA_CANCELADA sempre, mesmo sem exibir erro", () => {
@@ -222,6 +225,7 @@ describe("cancelamento do diálogo de pasta", () => {
     expect(reduzir(baixando, { tipo: "download_cancelado", downloadId: "d1" })).toEqual({
       tipo: "pronto",
       previa,
+      alturaYoutube: null,
     });
   });
 
@@ -251,6 +255,7 @@ describe("recuperação de estado via obter_estado() ao abrir o app", () => {
       tipo: "baixando",
       previa,
       downloadId: "d1",
+      alturaYoutube: null,
       progresso: { etapa: "baixando_video", percentual: 40 },
       recuperado: true,
     });
@@ -277,6 +282,7 @@ describe("recuperação de estado via obter_estado() ao abrir o app", () => {
       tipo: "baixando",
       previa: null,
       downloadId: "d1",
+      alturaYoutube: null,
       progresso: { etapa: "unindo", percentual: 80 },
       recuperado: true,
     });
@@ -293,6 +299,7 @@ describe("recuperação de estado via obter_estado() ao abrir o app", () => {
       tipo: "concluido",
       previa: null,
       downloadId: "d1",
+      alturaYoutube: null,
       resultado: { caminho: "/tmp/v.mp4", nomeArquivo: "v.mp4", renomeado: false },
     });
   });
@@ -343,6 +350,7 @@ describe("erros e recuperação", () => {
       erro: { codigo: "LOGIN_NECESSARIO", mensagem: "x" },
       origem: "previa",
       previa: null,
+      alturaYoutube: null,
     });
 
     // Reconhecer o erro de prévia volta para aguardando_link.
@@ -423,6 +431,7 @@ describe("tentar novamente após erro de download", () => {
       tipo: "baixando",
       previa,
       downloadId: "d2",
+      alturaYoutube: null,
       progresso: { etapa: "preparando", percentual: null },
     });
   });
@@ -435,6 +444,43 @@ describe("tentar novamente após erro de download", () => {
       previa: null,
     };
     expect(reduzir(erro, { tipo: "download_iniciado", downloadId: "d2" })).toBe(erro);
+  });
+});
+
+describe("seleção de qualidade YouTube", () => {
+  it("mantém altura exata na tentativa, erro e retentativa; edição de link a limpa", () => {
+    const previa = previaFalsa(1, {
+      plataforma: "youtube",
+      qualidadesYoutube: [1080, 720],
+      urlOriginal: "https://youtu.be/YE7VzlLtp-4",
+    });
+    let estado = reduzir(estadoInicial, { tipo: "previa_solicitada", requisicaoId: 1, url: previa.urlOriginal });
+    estado = reduzir(estado, { tipo: "previa_recebida", requisicaoId: 1, previa });
+    expect(estado).toMatchObject({ tipo: "pronto", alturaYoutube: null });
+    estado = reduzir(estado, { tipo: "qualidade_youtube_alterada", altura: 720 });
+    expect(estado).toMatchObject({ tipo: "pronto", alturaYoutube: 720 });
+    estado = reduzir(estado, { tipo: "download_iniciado", downloadId: "d1" });
+    expect(estado).toMatchObject({ tipo: "baixando", alturaYoutube: 720 });
+    estado = reduzir(estado, {
+      tipo: "download_erro", downloadId: "d1", erro: { codigo: "DOWNLOAD_FALHOU", mensagem: "x" },
+    });
+    expect(estado).toMatchObject({ tipo: "erro", alturaYoutube: 720 });
+    estado = reduzir(estado, { tipo: "download_iniciado", downloadId: "d2" });
+    expect(estado).toMatchObject({ tipo: "baixando", alturaYoutube: 720 });
+    estado = reduzir(estado, { tipo: "download_erro", downloadId: "d2", erro: { codigo: "DOWNLOAD_FALHOU", mensagem: "x" } });
+    estado = reduzir(estado, { tipo: "erro_reconhecido" });
+    expect(estado).toMatchObject({ tipo: "pronto", alturaYoutube: 720 });
+    expect(reduzir(estado, { tipo: "link_editado" })).toEqual({ tipo: "aguardando_link" });
+  });
+
+  it("não permite baixar prévia YouTube sem catálogo válido nem escolher altura ausente", () => {
+    const previa = previaFalsa(1, { plataforma: "youtube", qualidadesYoutube: null });
+    const pronto = reduzir(
+      reduzir(estadoInicial, { tipo: "previa_solicitada", requisicaoId: 1, url: previa.urlOriginal }),
+      { tipo: "previa_recebida", requisicaoId: 1, previa },
+    );
+    expect(podeSolicitarDownload(pronto)).toBe(false);
+    expect(reduzir(pronto, { tipo: "download_iniciado", downloadId: "d1" })).toBe(pronto);
   });
 });
 
@@ -467,6 +513,7 @@ describe("encerramento de download recuperado", () => {
         tipo: "download_resultado_recuperado",
         resultado: {
           downloadId: "d2",
+          alturaYoutube: null,
           tipo: "concluido",
           caminho: "/Downloads/clip.mp4",
           nomeArquivo: "clip.mp4",
@@ -477,6 +524,7 @@ describe("encerramento de download recuperado", () => {
       tipo: "concluido",
       previa: null,
       downloadId: "d2",
+      alturaYoutube: null,
       resultado: { caminho: "/Downloads/clip.mp4", nomeArquivo: "clip.mp4", renomeado: false },
     });
   });
@@ -487,6 +535,7 @@ describe("encerramento de download recuperado", () => {
         tipo: "download_resultado_recuperado",
         resultado: {
           downloadId: "d2",
+          alturaYoutube: null,
           tipo: "erro",
           erro: { codigo: "DOWNLOAD_FALHOU", mensagem: "failed" },
         },
@@ -496,6 +545,7 @@ describe("encerramento de download recuperado", () => {
       origem: "download",
       previa: null,
       erro: { codigo: "DOWNLOAD_FALHOU", mensagem: "failed" },
+      alturaYoutube: null,
     });
   });
 
@@ -505,6 +555,7 @@ describe("encerramento de download recuperado", () => {
         tipo: "download_resultado_recuperado",
         resultado: {
           downloadId: "antigo",
+          alturaYoutube: null,
           tipo: "concluido",
           caminho: "/Downloads/antigo.mp4",
           nomeArquivo: "antigo.mp4",

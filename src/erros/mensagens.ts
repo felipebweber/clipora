@@ -7,7 +7,7 @@ import type { CodigoErro, ErroClipora } from "../tipos/contrato";
 export const MENSAGENS_ERRO: Record<CodigoErro, string> = {
   LINK_INVALIDO: "Esse link não é válido. Confira o endereço e cole de novo.",
   PLATAFORMA_NAO_SUPORTADA:
-    "Esse link não é do Instagram Reels ou do TikTok. Cole um link de uma dessas plataformas.",
+    "Esse link não é do Instagram Reels, do TikTok ou do YouTube. Cole um link de uma dessas plataformas.",
   PREVIA_CANCELADA: "A prévia foi cancelada. Cole o link de novo para continuar.",
   TEMPO_ESGOTADO: "O carregamento demorou demais. Verifique sua conexão e tente novamente.",
   SEM_CONEXAO: "Sem conexão com a internet. Verifique sua rede e tente novamente.",
@@ -45,6 +45,9 @@ export const MENSAGENS_ERRO: Record<CodigoErro, string> = {
     "As informações de licença não foram encontradas neste aplicativo. Reinstale o Clipora para restaurá-las.",
   HISTORICO_INDISPONIVEL: "Não foi possível atualizar o histórico. Tente novamente.",
   ARQUIVO_AUSENTE: "Este vídeo não está mais disponível no local salvo. Tente baixá-lo novamente.",
+  QUALIDADE_INDISPONIVEL: "Essa qualidade não está mais disponível. Atualize a prévia e escolha outra.",
+  MOTOR_YOUTUBE_INDISPONIVEL:
+    "O componente necessário para baixar do YouTube está indisponível ou é incompatível. Reinstale ou atualize o Clipora.",
   YTDLP_INDISPONIVEL:
     "O componente necessário para obter o vídeo está indisponível. Reinstale o Clipora ou atualize o yt-dlp quando o aviso de nova versão aparecer.",
   ERRO_INTERNO:
@@ -69,12 +72,16 @@ const PREVIA_SEM_NOVA_TENTATIVA: ReadonlySet<CodigoErro> = new Set<CodigoErro>([
   "CONTEUDO_NAO_SUPORTADO",
   "YTDLP_INDISPONIVEL",
   "FFMPEG_INDISPONIVEL",
+  "MOTOR_YOUTUBE_INDISPONIVEL",
+  "QUALIDADE_INDISPONIVEL",
 ]);
 
 /** Erros de download em que repetir não adianta (a ação é reinstalar). */
 const DOWNLOAD_SEM_NOVA_TENTATIVA: ReadonlySet<CodigoErro> = new Set<CodigoErro>([
   "YTDLP_INDISPONIVEL",
   "FFMPEG_INDISPONIVEL",
+  "MOTOR_YOUTUBE_INDISPONIVEL",
+  "QUALIDADE_INDISPONIVEL",
 ]);
 
 export function permiteNovaTentativa(erro: ErroClipora, origem: "previa" | "download"): boolean {

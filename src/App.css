@@ -180,6 +180,37 @@ h1 {
   font-size: 0.9rem;
 }
 
+.seletor-qualidade-youtube {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
+.seletor-qualidade-youtube label {
+  font-weight: 600;
+}
+
+.seletor-qualidade-youtube select {
+  min-width: 13rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 0.4rem;
+  background: var(--cor-superficie);
+  color: var(--cor-texto);
+  font: inherit;
+}
+
+.seletor-qualidade-youtube select:focus-visible {
+  outline: 3px solid var(--cor-destaque);
+  outline-offset: 2px;
+}
+
+.seletor-qualidade-youtube select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 button {
   font: inherit;
   cursor: pointer;

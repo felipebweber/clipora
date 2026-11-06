@@ -50,6 +50,7 @@ describe("PreviaCard (L1)", () => {
     plataforma: "tiktok",
     duracaoSegundos: 65,
     capaDataUrl: null,
+    qualidadesYoutube: null,
   };
 
   it.each([

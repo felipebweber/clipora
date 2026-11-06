@@ -39,6 +39,8 @@ export type CodigoErro =
   | "LICENCAS_INDISPONIVEIS"
   | "HISTORICO_INDISPONIVEL"
   | "ARQUIVO_AUSENTE"
+  | "QUALIDADE_INDISPONIVEL"
+  | "MOTOR_YOUTUBE_INDISPONIVEL"
   | "ERRO_INTERNO";
 
 /** Lista em runtime dos códigos válidos, usada para validar erros vindos do
@@ -72,6 +74,8 @@ export const CODIGOS_ERRO = [
   "LICENCAS_INDISPONIVEIS",
   "HISTORICO_INDISPONIVEL",
   "ARQUIVO_AUSENTE",
+  "QUALIDADE_INDISPONIVEL",
+  "MOTOR_YOUTUBE_INDISPONIVEL",
   "ERRO_INTERNO",
 ] as const satisfies readonly CodigoErro[];
 
@@ -96,7 +100,7 @@ export type ErroClipora = {
   detalhe?: string;
 };
 
-export type Plataforma = "instagram" | "tiktok";
+export type Plataforma = "instagram" | "tiktok" | "youtube";
 
 export type ItemHistorico = {
   downloadId: string;
@@ -118,6 +122,7 @@ export type Previa = {
   plataforma: Plataforma;
   duracaoSegundos: number | null;
   capaDataUrl: string | null;
+  qualidadesYoutube: number[] | null;
 };
 
 export type EtapaDownload =
@@ -146,6 +151,7 @@ export type EventoDownload =
  */
 export type EstadoDownloadAtivo = {
   downloadId: string;
+  alturaYoutube: number | null;
   percentual: number | null;
   etapa: EtapaDownload;
   previa?: Previa | null;
@@ -154,12 +160,13 @@ export type EstadoDownloadAtivo = {
 export type ResultadoTerminal =
   | {
       downloadId: string;
+      alturaYoutube: number | null;
       tipo: "concluido";
       caminho: string;
       nomeArquivo: string;
       renomeado: boolean;
     }
-  | { downloadId: string; tipo: "erro"; erro: ErroClipora };
+  | { downloadId: string; alturaYoutube: number | null; tipo: "erro"; erro: ErroClipora };
 
 /** Retorno de `obter_estado()` — renomeado de `Estado` (ver nota acima). */
 export type EstadoPersistido = {

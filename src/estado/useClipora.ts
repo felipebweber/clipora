@@ -6,6 +6,7 @@ import { servico as servicoPadrao } from "../servicos";
 import type { ServicoClipora } from "../servicos/tipos";
 import type { EventoDownload } from "../tipos/contrato";
 import { ehErroDePasta } from "../tipos/contrato";
+import { catalogoYoutubeValido } from "../qualidadesYoutube";
 import {
   type EstadoApp,
   estadoInicial,
@@ -81,10 +82,11 @@ export function useClipora(
             downloadId: download.downloadId,
             etapa: download.etapa,
             percentual: download.percentual,
-            previa: download.previa ?? null,
+            alturaYoutube: download.alturaYoutube ?? null,
+            previa: download.previa ? { ...download.previa, qualidadesYoutube: download.previa.qualidadesYoutube ?? null } : null,
           });
         } else if (ultimoResultado) {
-          dispatch({ tipo: "download_resultado_recuperado", resultado: ultimoResultado });
+          dispatch({ tipo: "download_resultado_recuperado", resultado: { ...ultimoResultado, alturaYoutube: ultimoResultado.alturaYoutube ?? null } });
         }
       },
       () => {},
@@ -137,7 +139,7 @@ export function useClipora(
       }
 
       servicoClipora.obter_previa({ url, requisicaoId }).then(
-        (previa) => dispatch({ tipo: "previa_recebida", requisicaoId, previa }),
+        (previa) => dispatch({ tipo: "previa_recebida", requisicaoId, previa: { ...previa, qualidadesYoutube: previa.qualidadesYoutube ?? null } }),
         (erro: unknown) =>
           dispatch({ tipo: "previa_falhou", requisicaoId, erro: normalizarErro(erro) }),
       );
@@ -213,11 +215,16 @@ export function useClipora(
    * `download_erro` (ou `download_cancelado` se o seletor for cancelado).
    */
   const executarDownload = useCallback(
-    async (downloadId: string, url: string): Promise<void> => {
+    async (downloadId: string, url: string, alturaYoutube?: number | null): Promise<void> => {
       const onEvento = criarOuvinteDeEventos(downloadId);
       for (let tentativa = 0; ; tentativa++) {
         try {
-          await servicoClipora.iniciar_download({ downloadId, url, onEvento });
+          await servicoClipora.iniciar_download({
+            downloadId,
+            url,
+            ...(alturaYoutube !== undefined ? { alturaYoutube } : {}),
+            onEvento,
+          });
           return;
         } catch (erroDesconhecido) {
           const erro = normalizarErro(erroDesconhecido);
@@ -248,17 +255,38 @@ export function useClipora(
       ? estado.previa
       : null;
 
+  const baixarHabilitado = previaPronta !== null &&
+    (previaPronta.plataforma !== "youtube" ||
+      (catalogoYoutubeValido(previaPronta.qualidadesYoutube) && servicoClipora.youtubeDownloadIntegrado === true));
+
   const baixar = useCallback(() => {
     // Só baixa a prévia pronta que corresponde ao texto atual do campo.
-    if (!previaPronta) return;
+    if (!previaPronta || !baixarHabilitado) return;
     interacaoDoUsuario.current = true;
     const downloadId = gerarIdDownload();
     setAviso(null);
     dispatch({ tipo: "download_iniciado", downloadId });
     // O Rust valida este endereço e deriva urlNormalizada da prévia associada;
     // preservar o original permite registrar as duas formas no histórico.
-    void executarDownload(downloadId, previaPronta.urlOriginal);
-  }, [previaPronta, executarDownload]);
+    const altura = previaPronta.plataforma === "youtube" && estado.tipo === "pronto" ? estado.alturaYoutube : undefined;
+    void executarDownload(downloadId, previaPronta.urlOriginal, altura);
+  }, [estado, previaPronta, baixarHabilitado, executarDownload]);
+
+  const podeBaixarNovamente = estado.tipo === "concluido" &&
+    estado.previa !== null &&
+    textoLink.trim() === estado.previa.urlOriginal &&
+    (estado.previa.plataforma !== "youtube" ||
+      (catalogoYoutubeValido(estado.previa.qualidadesYoutube) && servicoClipora.youtubeDownloadIntegrado === true));
+
+  const baixarNovamente = useCallback(() => {
+    if (estado.tipo !== "concluido" || !estado.previa || !podeBaixarNovamente) return;
+    interacaoDoUsuario.current = true;
+    const downloadId = gerarIdDownload();
+    setAviso(null);
+    dispatch({ tipo: "download_iniciado", downloadId });
+    const altura = estado.previa.plataforma === "youtube" ? estado.alturaYoutube ?? null : undefined;
+    void executarDownload(downloadId, estado.previa.urlOriginal, altura);
+  }, [estado, podeBaixarNovamente, executarDownload]);
 
   /** "Tentar novamente": repete a ação que falhou. */
   const tentarNovamente = useCallback(() => {
@@ -267,7 +295,8 @@ export function useClipora(
     if (estado.origem === "download" && estado.previa) {
       const downloadId = gerarIdDownload();
       dispatch({ tipo: "download_iniciado", downloadId });
-      void executarDownload(downloadId, estado.previa.urlOriginal);
+      const altura = estado.previa.plataforma === "youtube" ? estado.alturaYoutube : undefined;
+      void executarDownload(downloadId, estado.previa.urlOriginal, altura);
       return;
     }
     const texto = textoLink.trim();
@@ -279,6 +308,19 @@ export function useClipora(
     interacaoDoUsuario.current = true;
     dispatch({ tipo: "erro_reconhecido" });
   }, []);
+
+  const alterarQualidadeYoutube = useCallback((altura: number | null) => {
+    dispatch({ tipo: "qualidade_youtube_alterada", altura });
+  }, []);
+
+  const atualizarPrevia = useCallback(() => {
+    if (estado.tipo !== "erro" || estado.erro.codigo !== "QUALIDADE_INDISPONIVEL") return;
+    const url = estado.previa?.urlOriginal ?? textoLink.trim();
+    if (!url) return;
+    interacaoDoUsuario.current = true;
+    setAviso(null);
+    solicitarPrevia(url);
+  }, [estado, textoLink, solicitarPrevia]);
 
   const abrirPasta = useCallback(() => {
     if (estado.tipo !== "concluido") return;
@@ -295,11 +337,15 @@ export function useClipora(
     aoAlterarLink,
     confirmarLink,
     baixar,
+    baixarNovamente,
     tentarNovamente,
     reconhecerErro,
     abrirPasta,
+    alterarQualidadeYoutube,
+    atualizarPrevia,
     podeEditarLink: podeEditarLink(estado),
-    podeSolicitarDownload: previaPronta !== null,
+    podeSolicitarDownload: baixarHabilitado,
+    podeBaixarNovamente,
     podeAbrirPasta: podeAbrirPasta(estado),
   };
 }

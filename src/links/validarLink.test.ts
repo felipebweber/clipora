@@ -33,6 +33,18 @@ describe("validarLink (pré-filtro leniente, não autoritativo)", () => {
     expect(validarLink("https://vt.tiktok.com/ZMabcdef/").ok).toBe(true);
   });
 
+  it("aceita hosts do YouTube como plataforma sem validar o tipo do caminho", () => {
+    for (const url of [
+      "https://youtube.com/watch?v=YE7VzlLtp-4",
+      "https://www.youtube.com/watch?v=YE7VzlLtp-4",
+      "https://m.youtube.com/watch?v=YE7VzlLtp-4",
+      "https://youtu.be/YE7VzlLtp-4",
+    ]) {
+      expect(validarLink(url)).toEqual({ ok: true, plataforma: "youtube" });
+    }
+    expect(validarLink("https://youtube.com.evil.example/watch?v=YE7VzlLtp-4").ok).toBe(false);
+  });
+
   it("aceita http (será normalizado para https pelo backend)", () => {
     expect(validarLink("http://www.instagram.com/reel/abc/").ok).toBe(true);
   });
@@ -57,7 +69,7 @@ describe("validarLink (pré-filtro leniente, não autoritativo)", () => {
   });
 
   it("rejeita domínio não suportado como PLATAFORMA_NAO_SUPORTADA", () => {
-    expect(validarLink("https://youtube.com/watch?v=abc")).toEqual({
+    expect(validarLink("https://youtube.com.evil.example/watch?v=abc")).toEqual({
       ok: false,
       erro: { codigo: "PLATAFORMA_NAO_SUPORTADA", mensagem: "unsupported host" },
     });

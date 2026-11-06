@@ -14,6 +14,7 @@ function previaFalsa(requisicaoId: number, overrides: Partial<Previa> = {}): Pre
     plataforma: "instagram",
     duracaoSegundos: 10,
     capaDataUrl: null,
+    qualidadesYoutube: null,
     ...overrides,
   };
 }
@@ -67,7 +68,7 @@ describe("useClipora: edição de link e carregamento de prévia", () => {
       resolucoesPrevia.get(1)!.resolve(previa);
       await Promise.resolve();
     });
-    expect(result.current.estado).toEqual({ tipo: "pronto", previa });
+    expect(result.current.estado).toEqual({ tipo: "pronto", previa, alturaYoutube: null });
 
     vi.useRealTimers();
   });
@@ -109,7 +110,7 @@ describe("useClipora: edição de link e carregamento de prévia", () => {
       resolucoesPrevia.get(2)!.resolve(previaSegunda);
       await Promise.resolve();
     });
-    expect(result.current.estado).toEqual({ tipo: "pronto", previa: previaSegunda });
+    expect(result.current.estado).toEqual({ tipo: "pronto", previa: previaSegunda, alturaYoutube: null });
 
     // A da primeira (antiga) chega atrasada: deve ser ignorada.
     const previaPrimeira = previaFalsa(1, { urlOriginal: "https://www.instagram.com/reel/primeiro/" });
@@ -117,7 +118,7 @@ describe("useClipora: edição de link e carregamento de prévia", () => {
       resolucoesPrevia.get(1)!.resolve(previaPrimeira);
       await Promise.resolve();
     });
-    expect(result.current.estado).toEqual({ tipo: "pronto", previa: previaSegunda });
+    expect(result.current.estado).toEqual({ tipo: "pronto", previa: previaSegunda, alturaYoutube: null });
 
     vi.useRealTimers();
   });
@@ -205,7 +206,7 @@ describe("useClipora: fluxo de pasta de destino ao baixar", () => {
     });
 
     expect(servico.iniciar_download).toHaveBeenCalledTimes(1);
-    expect(result.current.estado).toEqual({ tipo: "pronto", previa });
+    expect(result.current.estado).toEqual({ tipo: "pronto", previa, alturaYoutube: null });
   });
 });
 
@@ -220,6 +221,103 @@ describe("useClipora: URL original no download", () => {
     await waitFor(() => expect(result.current.estado.tipo).toBe("pronto"));
     act(() => result.current.baixar());
     expect(servico.iniciar_download).toHaveBeenCalledWith(expect.objectContaining({ url: original }));
+  });
+});
+
+describe("useClipora: qualidade exata do YouTube", () => {
+  const url = "https://youtu.be/YE7VzlLtp-4";
+  const previaYoutube = (requisicaoId: number, qualidades: number[] | null = [1080, 720]): Previa => previaFalsa(requisicaoId, {
+    urlOriginal: url,
+    urlNormalizada: "https://www.youtube.com/watch?v=YE7VzlLtp-4",
+    plataforma: "youtube",
+    qualidadesYoutube: qualidades,
+  });
+
+  it("captura a altura escolhida no payload do download sem misturá-la com links de outras plataformas", async () => {
+    const { servico } = criarServicoControlavel();
+    Object.defineProperty(servico, "youtubeDownloadIntegrado", { value: true });
+    vi.mocked(servico.obter_previa).mockResolvedValue(previaYoutube(1));
+    const { result } = renderHook(() => useClipora(servico));
+    await act(async () => { result.current.aoAlterarLink(url); await Promise.resolve(); });
+    await waitFor(() => expect(result.current.estado.tipo).toBe("pronto"));
+    act(() => result.current.alterarQualidadeYoutube(720));
+    act(() => result.current.baixar());
+    expect(servico.iniciar_download).toHaveBeenCalledWith(expect.objectContaining({ url, alturaYoutube: 720 }));
+
+    const servicoInstagram = criarServicoControlavel().servico;
+    vi.mocked(servicoInstagram.obter_previa).mockResolvedValue(previaFalsa(1));
+    const instagram = renderHook(() => useClipora(servicoInstagram));
+    await act(async () => { instagram.result.current.aoAlterarLink("https://www.instagram.com/reel/abc/"); await Promise.resolve(); });
+    await waitFor(() => expect(instagram.result.current.estado.tipo).toBe("pronto"));
+    act(() => instagram.result.current.baixar());
+    expect(servicoInstagram.iniciar_download).toHaveBeenCalledTimes(1);
+    expect(servicoInstagram.iniciar_download).toHaveBeenCalledWith(expect.not.objectContaining({ alturaYoutube: expect.anything() }));
+  });
+
+  it("preserva 720p na retentativa após escolher uma pasta", async () => {
+    const { servico } = criarServicoControlavel();
+    Object.defineProperty(servico, "youtubeDownloadIntegrado", { value: true });
+    vi.mocked(servico.obter_previa)
+      .mockResolvedValueOnce(previaYoutube(1))
+      .mockResolvedValueOnce(previaYoutube(2, [1080]));
+    let primeira = true;
+    vi.mocked(servico.iniciar_download).mockImplementation(async ({ onEvento }) => {
+      if (primeira) { primeira = false; throw { codigo: "PASTA_NAO_DEFINIDA", mensagem: "folder" }; }
+      onEvento({ tipo: "concluido", caminho: "/d/v.mp4", nomeArquivo: "v.mp4", renomeado: false });
+    });
+    vi.mocked(servico.selecionar_pasta_destino).mockResolvedValue("/d");
+    const { result } = renderHook(() => useClipora(servico));
+    await act(async () => { result.current.aoAlterarLink(url); await Promise.resolve(); });
+    await waitFor(() => expect(result.current.estado.tipo).toBe("pronto"));
+    act(() => result.current.alterarQualidadeYoutube(720));
+    await act(async () => { result.current.baixar(); await Promise.resolve(); await Promise.resolve(); });
+    expect(vi.mocked(servico.iniciar_download).mock.calls.map(([args]) => args.alturaYoutube)).toEqual([720, 720]);
+    expect(result.current.estado).toMatchObject({ tipo: "concluido", alturaYoutube: 720 });
+  });
+
+  it("atualiza o catálogo após QUALIDADE_INDISPONIVEL e volta a Melhor disponível", async () => {
+    const { servico } = criarServicoControlavel();
+    Object.defineProperty(servico, "youtubeDownloadIntegrado", { value: true });
+    vi.mocked(servico.obter_previa)
+      .mockResolvedValueOnce(previaYoutube(1))
+      .mockResolvedValueOnce(previaYoutube(2, [1080]));
+    vi.mocked(servico.iniciar_download).mockRejectedValue({ codigo: "QUALIDADE_INDISPONIVEL", mensagem: "changed" });
+    const { result } = renderHook(() => useClipora(servico));
+    await act(async () => { result.current.aoAlterarLink(url); await Promise.resolve(); });
+    await waitFor(() => expect(result.current.estado.tipo).toBe("pronto"));
+    act(() => result.current.alterarQualidadeYoutube(720));
+    await act(async () => { result.current.baixar(); await Promise.resolve(); });
+    await waitFor(() => expect(result.current.estado).toMatchObject({ tipo: "erro", erro: { codigo: "QUALIDADE_INDISPONIVEL" } }));
+
+    act(() => result.current.atualizarPrevia());
+    await waitFor(() => expect(result.current.estado).toMatchObject({ tipo: "pronto", alturaYoutube: null }));
+    expect(result.current.estado).toMatchObject({ previa: { qualidadesYoutube: [1080] } });
+  });
+
+  it("mantém a qualidade selecionada no resultado concluído", async () => {
+    const { servico } = criarServicoControlavel();
+    Object.defineProperty(servico, "youtubeDownloadIntegrado", { value: true });
+    vi.mocked(servico.obter_previa).mockResolvedValue(previaYoutube(1));
+    vi.mocked(servico.iniciar_download).mockImplementation(async ({ onEvento }) => {
+      onEvento({ tipo: "concluido", caminho: "/d/v.mp4", nomeArquivo: "v.mp4", renomeado: false });
+    });
+    const { result } = renderHook(() => useClipora(servico));
+    await act(async () => { result.current.aoAlterarLink(url); await Promise.resolve(); });
+    await waitFor(() => expect(result.current.estado.tipo).toBe("pronto"));
+    act(() => result.current.alterarQualidadeYoutube(720));
+    await act(async () => result.current.baixar());
+    expect(result.current.estado).toMatchObject({ tipo: "concluido", alturaYoutube: 720 });
+  });
+
+  it("não permite baixar YouTube quando o backend ainda não integrou a tentativa ou não há catálogo", async () => {
+    const { servico } = criarServicoControlavel();
+    vi.mocked(servico.obter_previa).mockResolvedValue(previaYoutube(1, null));
+    const { result } = renderHook(() => useClipora(servico));
+    await act(async () => { result.current.aoAlterarLink(url); await Promise.resolve(); });
+    await waitFor(() => expect(result.current.estado.tipo).toBe("pronto"));
+    expect(result.current.podeSolicitarDownload).toBe(false);
+    act(() => result.current.baixar());
+    expect(servico.iniciar_download).not.toHaveBeenCalled();
   });
 });
 
@@ -384,7 +482,7 @@ describe("useClipora: corrida entre debounce e Baixar (H3)", () => {
     await act(async () => {
       resolucoesPrevia.get(3)!.resolve(atual);
     });
-    expect(result.current.estado).toEqual({ tipo: "pronto", previa: atual });
+    expect(result.current.estado).toEqual({ tipo: "pronto", previa: atual, alturaYoutube: null });
     vi.useRealTimers();
   });
 });
@@ -467,6 +565,7 @@ describe("useClipora: recuperação ao abrir (M4)", () => {
         atualizacaoEmAndamento: false,
         ultimoResultado: {
           downloadId: "antigo",
+          alturaYoutube: null,
           tipo: "concluido",
           caminho: "/Downloads/antigo.mp4",
           nomeArquivo: "antigo.mp4",
@@ -483,12 +582,12 @@ describe("useClipora: recuperação ao abrir (M4)", () => {
     const { servico } = criarServicoControlavel();
     vi.mocked(servico.obter_estado)
       .mockResolvedValueOnce({
-        download: { downloadId: "d9", etapa: "baixando_video", percentual: 30 },
+        download: { downloadId: "d9", alturaYoutube: null, etapa: "baixando_video", percentual: 30 },
         atualizacaoEmAndamento: false,
         ultimoResultado: null,
       })
       .mockResolvedValueOnce({
-        download: { downloadId: "d9", etapa: "unindo", percentual: 90 },
+        download: { downloadId: "d9", alturaYoutube: null, etapa: "unindo", percentual: 90 },
         atualizacaoEmAndamento: false,
         ultimoResultado: null,
       })
@@ -500,6 +599,7 @@ describe("useClipora: recuperação ao abrir (M4)", () => {
       tipo: "baixando",
       previa: null,
       downloadId: "d9",
+      alturaYoutube: null,
       progresso: { etapa: "baixando_video", percentual: 30 },
       recuperado: true,
     });
@@ -518,7 +618,7 @@ describe("useClipora: recuperação ao abrir (M4)", () => {
     const { servico } = criarServicoControlavel();
     const previa = previaFalsa(5);
     vi.mocked(servico.obter_estado).mockResolvedValue({
-      download: { downloadId: "d1", etapa: "preparando", percentual: null, previa },
+      download: { downloadId: "d1", alturaYoutube: null, etapa: "preparando", percentual: null, previa },
       atualizacaoEmAndamento: false,
       ultimoResultado: null,
     });

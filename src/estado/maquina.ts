@@ -4,6 +4,7 @@ import type {
   Previa,
   ResultadoTerminal,
 } from "../tipos/contrato";
+import { catalogoYoutubeValido } from "../qualidadesYoutube";
 
 /**
  * Máquina de estados da tela principal do Clipora.
@@ -35,7 +36,7 @@ export type OrigemErro = "previa" | "download";
 export type EstadoApp =
   | { tipo: "aguardando_link" }
   | { tipo: "carregando_previa"; requisicaoId: number; url: string }
-  | { tipo: "pronto"; previa: Previa }
+  | { tipo: "pronto"; previa: Previa; alturaYoutube?: number | null }
   | {
       tipo: "baixando";
       // `null` apenas no caso de download recuperado via `obter_estado()`
@@ -43,6 +44,7 @@ export type EstadoApp =
       // prévia nesse retorno (ver ação `estado_recuperado`).
       previa: Previa | null;
       downloadId: string;
+      alturaYoutube?: number | null;
       progresso: ProgressoDownload;
       /** Download iniciado antes de recarregar a janela: o canal de eventos
        * original se perdeu, então o progresso vem de consultas periódicas a
@@ -53,15 +55,17 @@ export type EstadoApp =
       tipo: "concluido";
       previa: Previa | null;
       downloadId: string;
+      alturaYoutube?: number | null;
       resultado: ResultadoDownload;
     }
-  | { tipo: "erro"; erro: ErroClipora; origem: OrigemErro; previa: Previa | null };
+  | { tipo: "erro"; erro: ErroClipora; origem: OrigemErro; previa: Previa | null; alturaYoutube?: number | null };
 
 export type AcaoApp =
   | { tipo: "link_limpo" }
   | { tipo: "link_editado" }
   | { tipo: "previa_solicitada"; requisicaoId: number; url: string }
   | { tipo: "previa_recebida"; requisicaoId: number; previa: Previa }
+  | { tipo: "qualidade_youtube_alterada"; altura: number | null }
   | { tipo: "previa_falhou"; requisicaoId: number; erro: ErroClipora }
   | { tipo: "download_iniciado"; downloadId: string }
   | {
@@ -87,6 +91,7 @@ export type AcaoApp =
       downloadId: string;
       etapa: EtapaDownload;
       percentual: number | null;
+      alturaYoutube?: number | null;
       previa: Previa | null;
     }
   | { tipo: "download_resultado_recuperado"; resultado: ResultadoTerminal }
@@ -122,7 +127,13 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
     case "previa_recebida": {
       if (estado.tipo !== "carregando_previa") return estado;
       if (estado.requisicaoId !== acao.requisicaoId) return estado; // atrasada
-      return { tipo: "pronto", previa: acao.previa };
+      return { tipo: "pronto", previa: acao.previa, alturaYoutube: null };
+    }
+
+    case "qualidade_youtube_alterada": {
+      if (estado.tipo !== "pronto" || estado.previa.plataforma !== "youtube") return estado;
+      if (acao.altura !== null && !estado.previa.qualidadesYoutube?.includes(acao.altura)) return estado;
+      return { ...estado, alturaYoutube: acao.altura };
     }
 
     case "previa_falhou": {
@@ -131,7 +142,7 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
       if (acao.erro.codigo === "PREVIA_CANCELADA") return estado;
       if (estado.tipo !== "carregando_previa") return estado;
       if (estado.requisicaoId !== acao.requisicaoId) return estado; // atrasada
-      return { tipo: "erro", erro: acao.erro, origem: "previa", previa: null };
+      return { tipo: "erro", erro: acao.erro, origem: "previa", previa: null, alturaYoutube: null };
     }
 
     case "download_iniciado": {
@@ -139,14 +150,29 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
       // do erro de um download anterior dessa mesma prévia ("Tentar
       // novamente").
       let previa: Previa;
-      if (estado.tipo === "pronto") previa = estado.previa;
-      else if (estado.tipo === "erro" && estado.origem === "download" && estado.previa)
+      let alturaYoutube: number | null;
+      if (estado.tipo === "pronto") {
+        if (!podeSolicitarDownload(estado)) return estado;
         previa = estado.previa;
+        alturaYoutube = estado.previa.plataforma === "youtube" ? estado.alturaYoutube ?? null : null;
+      } else if (estado.tipo === "concluido" && estado.previa) {
+        if (
+          estado.previa.plataforma === "youtube" &&
+          (!catalogoYoutubeValido(estado.previa.qualidadesYoutube) ||
+            (estado.alturaYoutube != null && !estado.previa.qualidadesYoutube.includes(estado.alturaYoutube)))
+        ) return estado;
+        previa = estado.previa;
+        alturaYoutube = estado.previa.plataforma === "youtube" ? estado.alturaYoutube ?? null : null;
+      } else if (estado.tipo === "erro" && estado.origem === "download" && estado.previa) {
+        previa = estado.previa;
+        alturaYoutube = estado.previa.plataforma === "youtube" ? estado.alturaYoutube ?? null : null;
+      }
       else return estado;
       return {
         tipo: "baixando",
         previa,
         downloadId: acao.downloadId,
+        alturaYoutube,
         progresso: { etapa: "preparando", percentual: null },
       };
     }
@@ -172,6 +198,7 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
         tipo: "concluido",
         previa: estado.previa,
         downloadId: estado.downloadId,
+        alturaYoutube: estado.alturaYoutube,
         resultado: {
           caminho: acao.caminho,
           nomeArquivo: acao.nomeArquivo,
@@ -183,7 +210,7 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
     case "download_erro": {
       if (estado.tipo !== "baixando") return estado;
       if (estado.downloadId !== acao.downloadId) return estado;
-      return { tipo: "erro", erro: acao.erro, origem: "download", previa: estado.previa };
+      return { tipo: "erro", erro: acao.erro, origem: "download", previa: estado.previa, alturaYoutube: estado.alturaYoutube };
     }
 
     case "download_cancelado": {
@@ -198,7 +225,7 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
       // recuperado sem prévia (ver `estado_recuperado`) passar pelo fluxo de
       // pasta, não há prévia para voltar a "pronto" — melhor reiniciar.
       if (!estado.previa) return { tipo: "aguardando_link" };
-      return { tipo: "pronto", previa: estado.previa };
+      return { tipo: "pronto", previa: estado.previa, alturaYoutube: estado.alturaYoutube ?? null };
     }
 
     case "estado_recuperado": {
@@ -209,6 +236,7 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
         tipo: "baixando",
         previa: acao.previa,
         downloadId: acao.downloadId,
+        alturaYoutube: acao.alturaYoutube ?? null,
         progresso: { etapa: acao.etapa, percentual: acao.percentual },
         recuperado: true,
       };
@@ -227,6 +255,7 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
           tipo: "concluido",
           previa: estado.tipo === "baixando" ? estado.previa : null,
           downloadId: acao.resultado.downloadId,
+          alturaYoutube: acao.resultado.alturaYoutube,
           resultado: {
             caminho: acao.resultado.caminho,
             nomeArquivo: acao.resultado.nomeArquivo,
@@ -239,6 +268,7 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
         erro: acao.resultado.erro,
         origem: "download",
         previa: estado.tipo === "baixando" ? estado.previa : null,
+        alturaYoutube: acao.resultado.alturaYoutube,
       };
     }
 
@@ -255,7 +285,7 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
       // Erro de download com prévia conhecida: volta para "pronto" para
       // permitir tentar o download novamente sem recarregar a prévia.
       if (estado.origem === "download" && estado.previa) {
-        return { tipo: "pronto", previa: estado.previa };
+        return { tipo: "pronto", previa: estado.previa, alturaYoutube: estado.alturaYoutube };
       }
       return { tipo: "aguardando_link" };
     }
@@ -274,7 +304,8 @@ export function podeEditarLink(estado: EstadoApp): boolean {
 }
 
 export function podeSolicitarDownload(estado: EstadoApp): boolean {
-  return estado.tipo === "pronto";
+  return estado.tipo === "pronto" &&
+    (estado.previa.plataforma !== "youtube" || catalogoYoutubeValido(estado.previa.qualidadesYoutube));
 }
 
 export function podeAbrirPasta(estado: EstadoApp): boolean {

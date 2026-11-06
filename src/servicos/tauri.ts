@@ -29,6 +29,8 @@ import type { ServicoClipora } from "./tipos";
  * exceção) vira `ERRO_INTERNO`.
  */
 export class ServicoCliporaTauri implements ServicoClipora {
+  readonly youtubeDownloadIntegrado = false;
+
   private async chamar<T>(comando: string, args?: Record<string, unknown>): Promise<T> {
     try {
       return await invoke<T>(comando, args);
@@ -37,8 +39,9 @@ export class ServicoCliporaTauri implements ServicoClipora {
     }
   }
 
-  obter_previa({ url, requisicaoId }: { url: string; requisicaoId: number }): Promise<Previa> {
-    return this.chamar<Previa>("obter_previa", { url, requisicaoId });
+  async obter_previa({ url, requisicaoId }: { url: string; requisicaoId: number }): Promise<Previa> {
+    const previa = await this.chamar<Previa & { qualidadesYoutube?: number[] | null }>("obter_previa", { url, requisicaoId });
+    return { ...previa, qualidadesYoutube: previa.qualidadesYoutube ?? null };
   }
 
   obter_historico(): Promise<ItemHistorico[]> {
@@ -60,10 +63,12 @@ export class ServicoCliporaTauri implements ServicoClipora {
   iniciar_download({
     downloadId,
     url,
+    alturaYoutube,
     onEvento,
   }: {
     downloadId: string;
     url: string;
+    alturaYoutube?: number | null;
     onEvento: (evento: EventoDownload) => void;
   }): Promise<void> {
     // Cada chamada Rust consome seu Channel. Em particular, uma rejeição por
@@ -71,11 +76,24 @@ export class ServicoCliporaTauri implements ServicoClipora {
     // lógico, mas precisa de outra instância JS para receber eventos.
     const canal = new Channel<EventoDownload>();
     canal.onmessage = onEvento;
-    return this.chamar<void>("iniciar_download", { downloadId, url, onEvento: canal });
+    const args: Record<string, unknown> = { downloadId, url, onEvento: canal };
+    if (alturaYoutube !== undefined) args.alturaYoutube = alturaYoutube;
+    return this.chamar<void>("iniciar_download", args);
   }
 
-  obter_estado(): Promise<EstadoPersistido> {
-    return this.chamar<EstadoPersistido>("obter_estado");
+  async obter_estado(): Promise<EstadoPersistido> {
+    const estado = await this.chamar<EstadoPersistido>("obter_estado");
+    const download = estado.download ? {
+      ...estado.download,
+      alturaYoutube: estado.download.alturaYoutube ?? null,
+      previa: estado.download.previa
+        ? { ...estado.download.previa, qualidadesYoutube: estado.download.previa.qualidadesYoutube ?? null }
+        : null,
+    } : null;
+    const ultimoResultado = estado.ultimoResultado
+      ? { ...estado.ultimoResultado, alturaYoutube: estado.ultimoResultado.alturaYoutube ?? null }
+      : null;
+    return { ...estado, download, ultimoResultado };
   }
 
   abrir_pasta_download({ downloadId }: { downloadId: string }): Promise<void> {

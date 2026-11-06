@@ -24,6 +24,7 @@ const HOSTS_TIKTOK = new Set([
   "vm.tiktok.com",
   "vt.tiktok.com",
 ]);
+const HOSTS_YOUTUBE = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"]);
 
 export function validarLink(urlTexto: string): ResultadoValidacao {
   const texto = urlTexto.trim();
@@ -55,6 +56,9 @@ export function validarLink(urlTexto: string): ResultadoValidacao {
   }
   if (HOSTS_TIKTOK.has(host)) {
     return { ok: true, plataforma: "tiktok" };
+  }
+  if (HOSTS_YOUTUBE.has(host)) {
+    return { ok: true, plataforma: "youtube" };
   }
 
   return {

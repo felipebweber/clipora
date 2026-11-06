@@ -49,7 +49,10 @@ describe("ServicoCliporaTauri: nomes de comando e payloads exatos do contrato", 
     const previa = { requisicaoId: 3 };
     invokeMock.mockResolvedValue(previa);
     const servico = new ServicoCliporaTauri();
-    await expect(servico.obter_previa({ url: "https://x", requisicaoId: 3 })).resolves.toBe(previa);
+    await expect(servico.obter_previa({ url: "https://x", requisicaoId: 3 })).resolves.toEqual({
+      ...previa,
+      qualidadesYoutube: null,
+    });
     expect(invokeMock).toHaveBeenCalledWith("obter_previa", { url: "https://x", requisicaoId: 3 });
   });
 
@@ -100,6 +103,37 @@ describe("ServicoCliporaTauri: nomes de comando e payloads exatos do contrato", 
       onEvento: canaisCriados[0],
     });
     expect(Object.keys(invokeMock.mock.calls[0][1]).sort()).toEqual(["downloadId", "onEvento", "url"]);
+  });
+
+  it("normaliza campos aditivos ausentes no backend antigo e envia alturaYouTube só quando informada", async () => {
+    invokeMock.mockResolvedValueOnce({
+      requisicaoId: 5, urlOriginal: "https://youtu.be/YE7VzlLtp-4", urlNormalizada: "https://www.youtube.com/watch?v=YE7VzlLtp-4",
+      titulo: "Vídeo", plataforma: "youtube", duracaoSegundos: 20, capaDataUrl: null,
+    });
+    const servico = new ServicoCliporaTauri();
+    await expect(servico.obter_previa({ url: "https://youtu.be/YE7VzlLtp-4", requisicaoId: 5 }))
+      .resolves.toMatchObject({ qualidadesYoutube: null });
+    expect(servico.youtubeDownloadIntegrado).toBe(false);
+
+    invokeMock.mockResolvedValue(null);
+    await servico.iniciar_download({ downloadId: "yt", url: "https://youtu.be/YE7VzlLtp-4", alturaYoutube: 720, onEvento: () => {} });
+    expect(invokeMock).toHaveBeenLastCalledWith("iniciar_download", {
+      downloadId: "yt", url: "https://youtu.be/YE7VzlLtp-4", alturaYoutube: 720, onEvento: canaisCriados[canaisCriados.length - 1],
+    });
+    await servico.iniciar_download({ downloadId: "ig", url: "https://instagram.com/reel/a/", onEvento: () => {} });
+    expect(Object.keys(invokeMock.mock.calls[invokeMock.mock.calls.length - 1][1]).sort()).toEqual(["downloadId", "onEvento", "url"]);
+  });
+
+  it("normaliza altura ausente em estado ativo e resultados terminais legados para null", async () => {
+    invokeMock.mockResolvedValue({
+      download: { downloadId: "d1", etapa: "unindo", percentual: 80, previa: null },
+      atualizacaoEmAndamento: false,
+      ultimoResultado: { downloadId: "d0", tipo: "erro", erro: { codigo: "DOWNLOAD_FALHOU", mensagem: "failed" } },
+    });
+    await expect(new ServicoCliporaTauri().obter_estado()).resolves.toMatchObject({
+      download: { alturaYoutube: null },
+      ultimoResultado: { alturaYoutube: null },
+    });
   });
 
   it("atualizar_ytdlp envia { versaoEsperada, onEvento: Channel } e devolve o resultado", async () => {

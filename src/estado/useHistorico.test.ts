@@ -7,7 +7,7 @@ import { HistoricoPainel } from "../componentes/HistoricoPainel";
 import { useHistorico } from "./useHistorico";
 
 const previa = (url: string): Previa => ({
-  requisicaoId: 1, urlOriginal: url, urlNormalizada: url, titulo: "Vídeo", plataforma: "instagram", duracaoSegundos: null, capaDataUrl: null,
+  requisicaoId: 1, urlOriginal: url, urlNormalizada: url, titulo: "Vídeo", plataforma: "instagram", duracaoSegundos: null, capaDataUrl: null, qualidadesYoutube: null,
 });
 const item: ItemHistorico = {
   downloadId: "antigo", urlOriginal: "https://instagram.com/reel/old/", urlNormalizada: "https://instagram.com/reel/old/",

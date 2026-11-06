@@ -43,6 +43,7 @@ import type { ServicoClipora } from "./tipos";
  * (ATUALIZACAO_EM_ANDAMENTO / DOWNLOAD_EM_ANDAMENTO).
  */
 export class ServicoCliporaSimulado implements ServicoClipora {
+  readonly youtubeDownloadIntegrado = true;
   private readonly atrasoPreviaMs: number;
   private readonly tempoLimitePreviaMs: number;
   private readonly atrasoPassoDownloadMs: number;
@@ -56,7 +57,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
   /** Próximo valor retornado por selecionar_pasta_destino(); ajustável nos testes. */
   proximaSelecaoDePasta: string | null = "/simulado/Downloads";
 
-  private downloadAtivo: { downloadId: string; percentual: number | null; etapa: EtapaDownload } | null =
+  private downloadAtivo: { downloadId: string; alturaYoutube: number | null; percentual: number | null; etapa: EtapaDownload } | null =
     null;
   private ultimoResultado: ResultadoTerminal | null = null;
   private readonly downloadsConcluidos = new Map<
@@ -167,6 +168,9 @@ export class ServicoCliporaSimulado implements ServicoClipora {
   }
 
   private erroSimuladoDePrevia(url: string): ErroClipora | null {
+    if (url.includes("erro-motor-youtube")) {
+      return { codigo: "MOTOR_YOUTUBE_INDISPONIVEL", mensagem: "YouTube runtime unavailable" };
+    }
     const mapa: Array<[string, ErroClipora["codigo"]]> = [
       ["erro-login", "LOGIN_NECESSARIO"],
       ["erro-privado", "CONTEUDO_PRIVADO_OU_REMOVIDO"],
@@ -184,8 +188,8 @@ export class ServicoCliporaSimulado implements ServicoClipora {
   }
 
   private gerarPreviaFalsa(url: string, requisicaoId: number): Previa {
-    const plataforma: Plataforma = url.includes("tiktok") ? "tiktok" : "instagram";
-    const urlNormalizada = url.startsWith("http://") ? url.replace(/^http:\/\//, "https://") : url;
+    const plataforma = plataformaDaUrl(url);
+    const urlNormalizada = plataforma === "youtube" ? normalizarUrlYoutube(url) : normalizarEsquema(url);
     const semCapa = url.includes("sem-capa");
     return {
       requisicaoId,
@@ -198,18 +202,34 @@ export class ServicoCliporaSimulado implements ServicoClipora {
         ? null
         : // PNG 1×1 (o backend só devolve data URLs de imagem raster).
           "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+      qualidadesYoutube: plataforma === "youtube" && !url.includes("sem-qualidades") ? [1080, 720, 480] : null,
     };
   }
 
   async iniciar_download({
     downloadId,
     url,
+    alturaYoutube,
     onEvento,
   }: {
     downloadId: string;
     url: string;
+    alturaYoutube?: number | null;
     onEvento: (evento: EventoDownload) => void;
   }): Promise<void> {
+    const plataforma = plataformaDaUrl(url);
+    if (alturaYoutube != null && plataforma !== "youtube") {
+      throw { codigo: "QUALIDADE_INDISPONIVEL", mensagem: "quality is only valid for YouTube" } satisfies ErroClipora;
+    }
+    const alturaCapturada = plataforma === "youtube" ? alturaYoutube ?? null : null;
+    if (plataforma === "youtube" && url.includes("erro-motor-youtube")) {
+      throw { codigo: "MOTOR_YOUTUBE_INDISPONIVEL", mensagem: "YouTube runtime unavailable" } satisfies ErroClipora;
+    }
+    const previaConhecida = this.previasPorOriginal.get(url);
+    if (plataforma === "youtube" && alturaCapturada !== null &&
+      (!previaConhecida?.qualidadesYoutube?.includes(alturaCapturada) || url.includes("erro-qualidade-indisponivel"))) {
+      throw { codigo: "QUALIDADE_INDISPONIVEL", mensagem: "selected quality is no longer available" } satisfies ErroClipora;
+    }
     if (this.atualizando) {
       throw {
         codigo: "ATUALIZACAO_EM_ANDAMENTO",
@@ -244,7 +264,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
 
     // Um novo download aceito limpa o resultado terminal anterior, como no backend.
     this.ultimoResultado = null;
-    this.downloadAtivo = { downloadId, percentual: null, etapa: "preparando" };
+    this.downloadAtivo = { downloadId, alturaYoutube: alturaCapturada, percentual: null, etapa: "preparando" };
 
     try {
       for (let i = 0; i < etapas.length; i++) {
@@ -253,7 +273,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
 
         if (falhaNaEtapa && etapa === falhaNaEtapa) {
           const erro: ErroClipora = { codigo: "DOWNLOAD_FALHOU", mensagem: "simulated failure" };
-          this.ultimoResultado = { downloadId, tipo: "erro", erro };
+          this.ultimoResultado = { downloadId, alturaYoutube: alturaCapturada, tipo: "erro", erro };
           this.downloadAtivo = null;
           onEvento({ tipo: "erro", erro });
           throw erro;
@@ -261,14 +281,14 @@ export class ServicoCliporaSimulado implements ServicoClipora {
 
         const percentual =
           indeterminado && i < etapas.length - 1 ? null : Math.round(((i + 1) / etapas.length) * 100);
-        this.downloadAtivo = { downloadId, percentual, etapa };
+        this.downloadAtivo = { downloadId, alturaYoutube: alturaCapturada, percentual, etapa };
         onEvento({ tipo: "progresso", etapa, percentual });
       }
 
       const nomeArquivo = this.nomeArquivoFalso(url);
       const caminho = `${this.pastaAtual.caminho}/${nomeArquivo}`;
       const previa = this.previasPorOriginal.get(url);
-      const plataforma: Plataforma = previa?.plataforma ?? (url.includes("tiktok") ? "tiktok" : "instagram");
+      const plataforma: Plataforma = previa?.plataforma ?? plataformaDaUrl(url);
       this.downloadsConcluidos.set(downloadId, { caminho, nomeArquivo });
       if (url.includes("arquivo-ausente")) this.arquivosSimuladosAusentes.add(downloadId);
       const item: ItemHistorico = {
@@ -284,7 +304,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
       };
       this.historicoPendente.set(downloadId, item);
       try { this.persistirHistoricoPendente(); } catch { /* sucesso do vídeo permanece independente do histórico */ }
-      this.ultimoResultado = { downloadId, tipo: "concluido", caminho, nomeArquivo, renomeado: false };
+      this.ultimoResultado = { downloadId, alturaYoutube: alturaCapturada, tipo: "concluido", caminho, nomeArquivo, renomeado: false };
       this.downloadAtivo = null;
       onEvento({ tipo: "concluido", caminho, nomeArquivo, renomeado: false });
     } finally {
@@ -293,7 +313,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
   }
 
   private nomeArquivoFalso(url: string): string {
-    const plataforma = url.includes("tiktok") ? "tiktok" : "instagram";
+    const plataforma = plataformaDaUrl(url);
     return `Vídeo simulado de ${plataforma}.mp4`;
   }
 
@@ -464,6 +484,11 @@ function chaveVideo(url: string): string {
     const partes = parsed.pathname.split("/").filter(Boolean);
     const host = parsed.hostname.toLowerCase();
     if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.port || autoridade.includes(":") || autoridade.includes("@")) throw new Error();
+    if (["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"].includes(host)) {
+      const id = idYoutube(url);
+      if (!id) throw new Error();
+      return `youtube:${id}`;
+    }
     const plataforma = host.includes("tiktok") ? "tiktok" : "instagram";
     if (plataforma === "instagram") {
       if (!["instagram.com", "www.instagram.com", "m.instagram.com"].includes(host)) throw new Error();
@@ -486,6 +511,40 @@ function chaveVideo(url: string): string {
   } catch {
     throw { codigo: "LINK_INVALIDO", mensagem: "unsupported video URL" } satisfies ErroClipora;
   }
+}
+
+function plataformaDaUrl(url: string): Plataforma {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"].includes(host)) return "youtube";
+    return host.includes("tiktok.com") ? "tiktok" : "instagram";
+  } catch {
+    return "instagram";
+  }
+}
+
+function idYoutube(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    let id: string | null = null;
+    if (["youtube.com", "www.youtube.com", "m.youtube.com"].includes(host) && ["/watch", "/watch/"].includes(parsed.pathname)) {
+      const valores = parsed.searchParams.getAll("v");
+      if (valores.length === 1) id = valores[0];
+    } else if (host === "youtu.be") {
+      const partes = parsed.pathname.split("/").filter(Boolean);
+      if (partes.length === 1) id = partes[0];
+    }
+    return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizarUrlYoutube(url: string): string {
+  const id = idYoutube(url);
+  if (!id) throw { codigo: "LINK_INVALIDO", mensagem: "unsupported YouTube URL" } satisfies ErroClipora;
+  return `https://www.youtube.com/watch?v=${id}`;
 }
 
 function normalizarEsquema(url: string): string {

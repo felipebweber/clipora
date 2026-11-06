@@ -19,7 +19,7 @@ const COM_ATUALIZACAO: VerificacaoYtdlp = {
   erroVerificacao: null,
 };
 
-const campoLink = () => screen.getByLabelText(/link do instagram reels ou do tiktok/i);
+const campoLink = () => screen.getByLabelText(/link do instagram reels.*tiktok.*youtube/i);
 const botaoBaixar = () => screen.getByRole("button", { name: /^baixar$/i });
 const avisoAtualizacao = () => screen.getByRole("region", { name: /atualização do yt-dlp/i });
 
@@ -66,15 +66,15 @@ describe("App (fluxo completo com o serviço simulado)", () => {
     const campo = campoLink();
     await usuario.type(campo, "https://exemplo.com/algo");
 
-    await waitFor(() =>
-      expect(screen.getByText(/esse link não é do instagram reels ou do tiktok/i)).toBeInTheDocument(),
-    );
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(/instagram reels, do tiktok ou do youtube/i);
+    expect(alerta).not.toHaveTextContent(/shorts|stories/i);
     // Link errado não adianta repetir: só "Entendi".
     expect(screen.queryByRole("button", { name: /tentar novamente/i })).not.toBeInTheDocument();
 
     await usuario.click(screen.getByRole("button", { name: /entendi/i }));
     expect(
-      screen.queryByText(/esse link não é do instagram reels ou do tiktok/i),
+      screen.queryByText(/instagram reels, do tiktok ou do youtube/i),
     ).not.toBeInTheDocument();
     // O texto digitado permanece no campo, e o foco volta para ele.
     expect(campo).toHaveValue("https://exemplo.com/algo");
@@ -231,6 +231,93 @@ describe("App: histórico local", () => {
     expect(await screen.findByText(/não foi possível conferir se este vídeo já está no histórico/i)).toBeInTheDocument();
     expect(botaoBaixar()).toBeEnabled();
   });
+});
+
+describe("App: qualidade do YouTube", () => {
+  it("mostra seletor somente com catálogo válido, envia altura escolhida e mantém o fluxo simulado", async () => {
+    const usuario = userEvent.setup();
+    const servico = criarSimulado();
+    servico.definirPastaParaTeste({ caminho: "/d", estado: "valida" });
+    const obterPrevia = vi.spyOn(servico, "obter_previa");
+    const iniciar = vi.spyOn(servico, "iniciar_download");
+    render(<App servico={servico} />);
+
+    await usuario.type(campoLink(), "https://youtu.be/YE7VzlLtp-4");
+    const qualidade = await screen.findByRole("combobox", { name: "Qualidade" });
+    expect([...qualidade.querySelectorAll("option")].map((opcao) => opcao.textContent)).toEqual([
+      "Melhor disponível", "1080p", "720p", "480p",
+    ]);
+    await usuario.selectOptions(qualidade, "720");
+    await usuario.click(botaoBaixar());
+    await waitFor(() => expect(iniciar).toHaveBeenCalledTimes(1));
+    expect(iniciar.mock.calls[0][0]).toMatchObject({ alturaYoutube: 720 });
+    await screen.findByText(/download concluído/i, {}, { timeout: 3000 });
+
+    await usuario.click(await screen.findByRole("button", { name: /baixar novamente/i }));
+    await waitFor(() => expect(iniciar).toHaveBeenCalledTimes(2));
+    const ids = iniciar.mock.calls.map(([args]) => args.downloadId);
+    expect(new Set(ids).size).toBe(2);
+    expect(iniciar.mock.calls.map(([args]) => args.alturaYoutube)).toEqual([720, 720]);
+    expect(obterPrevia).toHaveBeenCalledTimes(1);
+  }, 10_000);
+
+  it("não inicia Baixar novamente enquanto a atualização do yt-dlp está em andamento", async () => {
+    const usuario = userEvent.setup();
+    const servico = criarSimulado({ verificacaoYtdlpInicial: COM_ATUALIZACAO, atrasoPassoDownloadMs: 80 });
+    servico.definirPastaParaTeste({ caminho: "/d", estado: "valida" });
+    const iniciar = vi.spyOn(servico, "iniciar_download");
+    render(<App servico={servico} />);
+
+    await usuario.type(campoLink(), "https://youtu.be/YE7VzlLtp-4");
+    await usuario.selectOptions(await screen.findByRole("combobox", { name: "Qualidade" }), "720");
+    await usuario.click(botaoBaixar());
+    await screen.findByText(/download concluído/i, {}, { timeout: 3000 });
+    const baixarNovamente = await screen.findByRole("button", { name: /baixar novamente/i });
+
+    await usuario.click(within(avisoAtualizacao()).getByRole("button", { name: /^atualizar$/i }));
+    await waitFor(() => expect(baixarNovamente).toBeDisabled());
+    await usuario.click(baixarNovamente);
+    expect(iniciar).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(avisoAtualizacao()).toHaveTextContent(/yt-dlp atualizado/i), { timeout: 3000 });
+    expect(baixarNovamente).toBeEnabled();
+  }, 10_000);
+
+  it("não oferece Baixar novamente para uma conclusão recuperada sem prévia", async () => {
+    const servico = criarSimulado();
+    vi.spyOn(servico, "obter_estado").mockResolvedValue({
+      download: null,
+      atualizacaoEmAndamento: false,
+      ultimoResultado: {
+        downloadId: "d-recuperado",
+        alturaYoutube: 720,
+        tipo: "concluido",
+        caminho: "/Downloads/video.mp4",
+        nomeArquivo: "video.mp4",
+        renomeado: false,
+      },
+    });
+    render(<App servico={servico} />);
+
+    expect(await screen.findByText("Download concluído: video.mp4")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /baixar novamente/i })).not.toBeInTheDocument();
+  });
+
+  it("não habilita tentativa real antes da integração T3 nem inventa catálogo ausente", async () => {
+    const usuario = userEvent.setup();
+    const servico = criarSimulado();
+    Object.defineProperty(servico, "youtubeDownloadIntegrado", { value: false });
+    render(<App servico={servico} />);
+    await usuario.type(campoLink(), "https://youtube.com/watch?v=YE7VzlLtp-4");
+    expect(await screen.findByRole("combobox", { name: "Qualidade" })).toBeInTheDocument();
+    expect(botaoBaixar()).toBeDisabled();
+    expect(screen.getByText(/download do youtube ainda não está integrado/i)).toBeInTheDocument();
+
+    await usuario.clear(campoLink());
+    await usuario.type(campoLink(), "https://youtu.be/YE7VzlLtp-4?sem-qualidades");
+    expect(await screen.findByText(/qualidades deste vídeo não estão disponíveis/i)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Qualidade" })).not.toBeInTheDocument();
+    expect(botaoBaixar()).toBeDisabled();
+  }, 10_000);
 });
 
 describe("App: teclado e foco (M5)", () => {
@@ -409,12 +496,13 @@ describe("App: recuperação ao abrir (obter_estado)", () => {
     let ativo = true;
     vi.spyOn(servico, "obter_estado").mockImplementation(
       async (): Promise<EstadoPersistido> => ({
-        download: ativo ? { downloadId: "d1", etapa: "baixando_audio", percentual: 60 } : null,
+        download: ativo ? { downloadId: "d1", alturaYoutube: null, etapa: "baixando_audio", percentual: 60 } : null,
         atualizacaoEmAndamento: false,
         ultimoResultado: ativo
           ? null
           : {
               downloadId: "outro-download",
+              alturaYoutube: null,
               tipo: "concluido",
               caminho: "/Downloads/outro.mp4",
               nomeArquivo: "outro.mp4",
@@ -444,12 +532,13 @@ describe("App: recuperação ao abrir (obter_estado)", () => {
     }]);
     vi.spyOn(servico, "obter_estado").mockImplementation(
       async (): Promise<EstadoPersistido> => ({
-        download: ativo ? { downloadId: "d-em-andamento", etapa: "unindo", percentual: 90 } : null,
+        download: ativo ? { downloadId: "d-em-andamento", alturaYoutube: null, etapa: "unindo", percentual: 90 } : null,
         atualizacaoEmAndamento: false,
         ultimoResultado: ativo
           ? null
           : {
               downloadId: "d-em-andamento",
+              alturaYoutube: null,
               tipo: "concluido",
               caminho: "/Downloads/clip.mp4",
               nomeArquivo: "clip.mp4",
@@ -474,6 +563,7 @@ describe("App: recuperação ao abrir (obter_estado)", () => {
       atualizacaoEmAndamento: false,
       ultimoResultado: {
         downloadId: "d-finalizado",
+        alturaYoutube: null,
         tipo: "concluido",
         caminho: "/Downloads/clip.mp4",
         nomeArquivo: "clip.mp4",
@@ -494,6 +584,7 @@ describe("App: recuperação ao abrir (obter_estado)", () => {
       atualizacaoEmAndamento: false,
       ultimoResultado: {
         downloadId: "d-falhou",
+        alturaYoutube: null,
         tipo: "erro",
         erro: { codigo: "DOWNLOAD_FALHOU", mensagem: "process exited unsuccessfully" },
       },

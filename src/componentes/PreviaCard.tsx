@@ -10,6 +10,7 @@ function formatarDuracao(segundos: number): string {
 const NOME_PLATAFORMA: Record<Previa["plataforma"], string> = {
   instagram: "Instagram Reels",
   tiktok: "TikTok",
+  youtube: "YouTube",
 };
 
 /** Só aceita data URLs de imagem raster: o backend nunca deve mandar outra

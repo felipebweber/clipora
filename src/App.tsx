@@ -6,6 +6,7 @@ import { ErroAviso } from "./componentes/ErroAviso";
 import { HistoricoPainel } from "./componentes/HistoricoPainel";
 import { PreviaCard } from "./componentes/PreviaCard";
 import { ProgressoDownloadView } from "./componentes/ProgressoDownload";
+import { SeletorQualidadeYoutube } from "./componentes/SeletorQualidadeYoutube";
 import { SobreLicencas } from "./componentes/SobreLicencas";
 import { permiteNovaTentativa } from "./erros/mensagens";
 import type { EstadoApp } from "./estado/maquina";
@@ -14,6 +15,7 @@ import { useClipora } from "./estado/useClipora";
 import { useHistorico } from "./estado/useHistorico";
 import { usePastaDestino } from "./estado/usePastaDestino";
 import { servico as servicoPadrao } from "./servicos";
+import { catalogoYoutubeValido } from "./qualidadesYoutube";
 import type { ServicoClipora } from "./servicos/tipos";
 import type { Previa } from "./tipos/contrato";
 import "./App.css";
@@ -51,11 +53,15 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
     aoAlterarLink,
     confirmarLink,
     baixar,
+    baixarNovamente,
     tentarNovamente,
     reconhecerErro,
     abrirPasta,
     podeEditarLink,
     podeSolicitarDownload,
+    podeBaixarNovamente,
+    alterarQualidadeYoutube,
+    atualizarPrevia,
   } = useClipora(servico, { aoAlterarPasta: pasta.recarregar, intervaloRecuperacaoMs });
 
   const downloadEmAndamento = estado.tipo === "baixando";
@@ -66,6 +72,8 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
   const previaPronta = estado.tipo === "pronto" ? estado.previa : null;
   const historico = useHistorico(servico, previaPronta);
   const ultimoDownloadConcluido = useRef<string | null>(null);
+  const previaYoutubeSemCatalogo = estado.tipo === "pronto" && estado.previa.plataforma === "youtube" && !catalogoYoutubeValido(estado.previa.qualidadesYoutube);
+  const youtubeAguardandoIntegracao = estado.tipo === "pronto" && estado.previa.plataforma === "youtube" && servico.youtubeDownloadIntegrado !== true;
   const baixarHabilitado = podeSolicitarDownload && !atualizacao.emAndamento;
 
   // Gestão de foco: quando o elemento focado some (Baixar ao iniciar o
@@ -112,7 +120,7 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
     <main className="app" inert={sobreAberto}>
       <h1>Clipora</h1>
       <p className="subtitulo">
-        Cole o link de um vídeo público do Instagram Reels ou do TikTok para baixá-lo.
+        Cole o link de um vídeo público do Instagram Reels, TikTok ou YouTube para baixá-lo.
       </p>
 
       <AvisoAtualizacao atualizacao={atualizacao} downloadEmAndamento={downloadEmAndamento} />
@@ -138,12 +146,28 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
           aoTentarNovamente={
             permiteNovaTentativa(estado.erro, estado.origem) ? tentarNovamente : undefined
           }
+          aoAtualizarPrevia={estado.erro.codigo === "QUALIDADE_INDISPONIVEL" ? atualizarPrevia : undefined}
           aoFechar={reconhecerErro}
           refBotao={refErro}
         />
       )}
 
       {previaAtual && <PreviaCard previa={previaAtual} />}
+
+      {previaAtual?.plataforma === "youtube" && catalogoYoutubeValido(previaAtual.qualidadesYoutube) && (
+        <SeletorQualidadeYoutube
+          alturas={previaAtual.qualidadesYoutube}
+          altura={"alturaYoutube" in estado ? estado.alturaYoutube ?? null : null}
+          desabilitado={estado.tipo !== "pronto" || atualizacao.emAndamento}
+          aoAlterar={alterarQualidadeYoutube}
+        />
+      )}
+      {previaYoutubeSemCatalogo && (
+        <p className="status" role="status">As qualidades deste vídeo não estão disponíveis. Atualize a prévia para tentar novamente.</p>
+      )}
+      {youtubeAguardandoIntegracao && (
+        <p className="status" role="status">O download do YouTube ainda não está integrado nesta versão do Clipora.</p>
+      )}
 
       {estado.tipo === "pronto" && (
         <>
@@ -190,6 +214,15 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
           <button type="button" ref={refAbrirPasta} onClick={abrirPasta}>
             Abrir pasta
           </button>
+          {estado.previa && (
+            <button
+              type="button"
+              onClick={() => { if (!atualizacao.emAndamento) baixarNovamente(); }}
+              disabled={!podeBaixarNovamente || atualizacao.emAndamento}
+            >
+              Baixar novamente
+            </button>
+          )}
         </div>
       )}
 

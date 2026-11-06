@@ -6,13 +6,14 @@ type Props = {
   erro: ErroClipora;
   /** Quando presente, exibe "Tentar novamente", que repete a ação que falhou. */
   aoTentarNovamente?: () => void;
+  aoAtualizarPrevia?: () => void;
   aoFechar: () => void;
   /** Recebe o primeiro botão, para onde o foco vai quando o aviso aparece
    * no lugar do elemento focado. */
   refBotao?: Ref<HTMLButtonElement>;
 };
 
-export function ErroAviso({ erro, aoTentarNovamente, aoFechar, refBotao }: Props) {
+export function ErroAviso({ erro, aoTentarNovamente, aoAtualizarPrevia, aoFechar, refBotao }: Props) {
   const mensagem = mensagemDoErro(erro);
   const sugestao = sugestaoDoErro(erro);
 
@@ -34,7 +35,12 @@ export function ErroAviso({ erro, aoTentarNovamente, aoFechar, refBotao }: Props
             Tentar novamente
           </button>
         )}
-        <button type="button" onClick={aoFechar} ref={aoTentarNovamente ? undefined : refBotao}>
+        {aoAtualizarPrevia && (
+          <button type="button" onClick={aoAtualizarPrevia} ref={!aoTentarNovamente ? refBotao : undefined}>
+            Atualizar prévia
+          </button>
+        )}
+        <button type="button" onClick={aoFechar} ref={aoTentarNovamente || aoAtualizarPrevia ? undefined : refBotao}>
           Entendi
         </button>
       </div>

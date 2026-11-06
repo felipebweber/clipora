@@ -23,7 +23,7 @@ export function CampoLink({
     .join(" ");
   return (
     <div className="campo-link">
-      <label htmlFor="campo-link-input">Link do Instagram Reels ou do TikTok</label>
+      <label htmlFor="campo-link-input">Link do Instagram Reels, TikTok ou YouTube</label>
       <input
         id="campo-link-input"
         ref={refInput}

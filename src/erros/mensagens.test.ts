@@ -24,6 +24,13 @@ describe("mensagens de erro", () => {
     expect(mensagem).not.toContain("technical");
   });
 
+  it("usa as mensagens exatas do contrato para qualidade indisponível e motor YouTube", () => {
+    expect(mensagemDoErro({ codigo: "QUALIDADE_INDISPONIVEL", mensagem: "stale" }))
+      .toBe("Essa qualidade não está mais disponível. Atualize a prévia e escolha outra.");
+    expect(mensagemDoErro({ codigo: "MOTOR_YOUTUBE_INDISPONIVEL", mensagem: "missing" }))
+      .toBe("O componente necessário para baixar do YouTube está indisponível ou é incompatível. Reinstale ou atualize o Clipora.");
+  });
+
   it("mensagemDoErro cai para o fallback técnico em código desconhecido", () => {
     const mensagem = mensagemDoErro({
       // simula um código futuro ainda não mapeado no frontend
@@ -95,5 +102,11 @@ describe("permiteNovaTentativa", () => {
     expect(permiteNovaTentativa(erro("SEM_CONEXAO"), "previa")).toBe(true);
     expect(permiteNovaTentativa(erro("DOWNLOAD_FALHOU"), "download")).toBe(true);
     expect(permiteNovaTentativa(erro("PASTA_AUSENTE"), "download")).toBe(true);
+  });
+
+  it("não repete às cegas uma qualidade indisponível nem uma dependência YouTube ausente", () => {
+    expect(permiteNovaTentativa(erro("QUALIDADE_INDISPONIVEL"), "download")).toBe(false);
+    expect(permiteNovaTentativa(erro("MOTOR_YOUTUBE_INDISPONIVEL"), "previa")).toBe(false);
+    expect(permiteNovaTentativa(erro("MOTOR_YOUTUBE_INDISPONIVEL"), "download")).toBe(false);
   });
 });
