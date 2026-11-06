@@ -92,31 +92,39 @@ impl GrupoWindows {
             windows_sys::Win32::System::JobObjects::TerminateJobObject(self.0 as _, 1);
         }
     }
+    /// Atribui ao Job um filho criado com [`FLAGS_FILHO_WINDOWS`] (suspenso) e só então
+    /// retoma sua thread principal, para que nenhum descendente nasça fora do Job.
+    /// Em qualquer falha o filho suspenso é encerrado antes de retornar o erro.
     pub(crate) fn novo(child: &tokio::process::Child) -> Result<Self, &'static str> {
         use windows_sys::Win32::{
             Foundation::CloseHandle,
-            System::JobObjects::{
-                AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-                JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-                SetInformationJobObject,
+            System::{
+                JobObjects::{
+                    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+                    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+                    SetInformationJobObject,
+                },
+                Threading::TerminateProcess,
             },
         };
-        // Risco residual: o filho pode iniciar processos antes da atribuição ao Job;
-        // substituir por CREATE_SUSPENDED + atribuição + retomada em uma etapa futura.
+        let (handle, pid) = match (child.raw_handle(), child.id()) {
+            (Some(h), Some(pid)) => (h, pid),
+            _ => return Err("ERRO_INTERNO"),
+        };
         unsafe {
+            let falhar = |job: windows_sys::Win32::Foundation::HANDLE| {
+                if !job.is_null() {
+                    CloseHandle(job);
+                }
+                TerminateProcess(handle as _, 1);
+                Err("ERRO_INTERNO")
+            };
             let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
             if job.is_null() {
-                return Err("ERRO_INTERNO");
+                return falhar(job);
             }
             let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
             info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-            let handle = match child.raw_handle() {
-                Some(h) => h,
-                None => {
-                    CloseHandle(job);
-                    return Err("ERRO_INTERNO");
-                }
-            };
             if SetInformationJobObject(
                 job,
                 JobObjectExtendedLimitInformation,
@@ -124,12 +132,60 @@ impl GrupoWindows {
                 std::mem::size_of_val(&info) as u32,
             ) == 0
                 || AssignProcessToJobObject(job, handle as _) == 0
+                || !retomar_threads(pid)
             {
-                CloseHandle(job);
-                return Err("ERRO_INTERNO");
+                return falhar(job);
             }
             Ok(Self(job as isize))
         }
+    }
+}
+
+/// `CREATE_NO_WINDOW | CREATE_SUSPENDED`: todo filho acompanhado por [`GrupoWindows`]
+/// nasce suspenso e só é retomado depois de atribuído ao Job (R03).
+#[cfg(windows)]
+pub(crate) const FLAGS_FILHO_WINDOWS: u32 = 0x0800_0000 | 0x0000_0004;
+
+/// A biblioteca padrão descarta o handle da thread principal; localiza as threads do
+/// processo recém-criado (ainda suspenso, portanto só a principal) e as retoma.
+#[cfg(windows)]
+fn retomar_threads(pid: u32) -> bool {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, INVALID_HANDLE_VALUE},
+        System::{
+            Diagnostics::ToolHelp::{
+                CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First,
+                Thread32Next,
+            },
+            Threading::{OpenThread, ResumeThread, THREAD_SUSPEND_RESUME},
+        },
+    };
+    unsafe {
+        let foto = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+        if foto == INVALID_HANDLE_VALUE {
+            return false;
+        }
+        let mut entrada: THREADENTRY32 = std::mem::zeroed();
+        entrada.dwSize = std::mem::size_of::<THREADENTRY32>() as u32;
+        let mut retomadas = 0usize;
+        let mut falhou = false;
+        let mut ha = Thread32First(foto, &mut entrada) != 0;
+        while ha {
+            if entrada.th32OwnerProcessID == pid {
+                let thread = OpenThread(THREAD_SUSPEND_RESUME, 0, entrada.th32ThreadID);
+                if thread.is_null() || ResumeThread(thread) == u32::MAX {
+                    falhou = true;
+                } else {
+                    retomadas += 1;
+                }
+                if !thread.is_null() {
+                    CloseHandle(thread);
+                }
+            }
+            ha = Thread32Next(foto, &mut entrada) != 0;
+        }
+        CloseHandle(foto);
+        retomadas > 0 && !falhou
     }
 }
 #[cfg(windows)]
@@ -222,7 +278,7 @@ async fn executar_limitado_com_entrada(
     #[cfg(unix)]
     cmd.process_group(0);
     #[cfg(windows)]
-    cmd.creation_flags(0x08000000);
+    cmd.creation_flags(FLAGS_FILHO_WINDOWS);
     let mut filho = cmd.spawn().map_err(|e| {
         if matches!(
             e.kind(),

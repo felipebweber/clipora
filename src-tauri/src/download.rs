@@ -2316,7 +2316,7 @@ async fn executar_com_ferramentas(
     #[cfg(unix)]
     comando.process_group(0);
     #[cfg(windows)]
-    comando.creation_flags(0x08000000);
+    comando.creation_flags(crate::processos::FLAGS_FILHO_WINDOWS);
     let mut filho = comando.spawn().map_err(|e| {
         err(
             if matches!(
