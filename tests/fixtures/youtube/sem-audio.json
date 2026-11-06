@@ -1,0 +1,21 @@
+{
+  "id": "YE7VzlLtp-4",
+  "_type": "video",
+  "media_type": "video",
+  "live_status": "not_live",
+  "duration": 596.4,
+  "title": "Big Buck Bunny",
+  "channel": "Blender",
+  "formats": [
+    {
+      "format_id": "137",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "vcodec": "avc1.640028",
+      "acodec": "none",
+      "ext": "mp4",
+      "has_drm": false
+    }
+  ]
+}

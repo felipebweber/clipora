@@ -64,7 +64,7 @@ fn limitar_bytes(texto: &str, limite: usize) -> &str {
 
 fn perfil_nome(metadados: &MetadadosNome, plataforma: crate::links::Plataforma) -> Option<String> {
     let candidatos = match plataforma {
-        crate::links::Plataforma::Instagram => [
+        crate::links::Plataforma::Instagram | crate::links::Plataforma::Youtube => [
             metadados.channel.as_deref(),
             metadados.uploader_id.as_deref(),
             metadados.uploader.as_deref(),
@@ -103,6 +103,21 @@ fn nome_base(metadados: &MetadadosNome, id: &str, plataforma: crate::links::Plat
     let id = texto_nome(Some(id)).unwrap_or_else(|| "sem-id".into());
     let id = limitar_bytes(&id, 64).to_string();
     let max_prefixo = NOME_MAX_BYTES.saturating_sub(id.len() + 3);
+    if plataforma == crate::links::Plataforma::Youtube {
+        let rotulo = metadados
+            .titulo
+            .as_deref()
+            .and_then(|s| texto_nome(Some(s)))
+            .filter(|s| !nome_generico(s))
+            .or_else(|| {
+                metadados
+                    .channel
+                    .as_deref()
+                    .and_then(|s| texto_nome(Some(s)))
+            })
+            .unwrap_or_else(|| "Vídeo".into());
+        return format!("{} [{id}]", limitar_bytes(&rotulo, max_prefixo).trim_end());
+    }
     let perfil = perfil_nome(metadados, plataforma);
     let descricao = metadados
         .descricao
@@ -557,6 +572,33 @@ mod tests {
         }
     }
 
+    #[test]
+    fn youtube_nome_prioriza_titulo_canal_e_fallback_sem_descricao() {
+        let plataforma: crate::links::Plataforma = serde_json::from_str("\"youtube\"").unwrap();
+        let mut m = MetadadosNome {
+            titulo: Some("Título legítimo 🎬".into()),
+            descricao: Some("Descrição longa não é título".into()),
+            channel: Some("Canal".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            nome_base(&m, "YE7VzlLtp-4", plataforma),
+            "Título legítimo 🎬 [YE7VzlLtp-4]"
+        );
+        m.titulo = None;
+        assert_eq!(
+            nome_base(&m, "YE7VzlLtp-4", plataforma),
+            "Canal [YE7VzlLtp-4]"
+        );
+        m.channel = None;
+        assert_eq!(
+            nome_base(&m, "YE7VzlLtp-4", plataforma),
+            "Vídeo [YE7VzlLtp-4]"
+        );
+        m.titulo = Some("🎬".repeat(300));
+        let nome = nome_base(&m, "YE7VzlLtp-4", plataforma);
+        assert!(nome.len() + " (100000).mp4".len() <= 255);
+    }
     #[test]
     fn estado_de_download_expõe_previa_ou_null_para_reidratar_a_tela() {
         let estado = EstadoDownload {
@@ -1434,6 +1476,7 @@ mod historico_tests {
                 plataforma: crate::links::Plataforma::Instagram,
                 duracao_segundos: None,
                 capa_data_url: None,
+                qualidades_youtube: None,
             }),
         });
         let historico = crate::historico::Repositorio::novo(raiz.join("historico.json"));

@@ -43,6 +43,29 @@ O link `https://www.youtube.com/watch?v=tjjjtzRLHvA` retornou `media_type=short`
 com Deno 2.7.0, mostrando que a classificação identifica essa amostra de Short
 mesmo pelo caminho `/watch`. Nenhuma mídia desse Short foi baixada.
 
+## Conferência adicional dos codecs de maior resolução
+
+Para verificar os dois codecs que podem ser necessários quando AVC não está
+disponível numa altura maior, o vídeo `YE7VzlLtp-4` foi baixado integralmente em
+1080p, com Deno 2.7.0 e áudio AAC, pelos mesmos sidecars do Clipora:
+
+| Seleção de vídeo | Saída yt-dlp/FFprobe | Arquivo conferido | Tamanho | Tempo |
+| --- | --- | --- | --- | --- |
+| VP9, formato `248-sr` | 0 / 0 | MP4, 1920×1080 VP9 + AAC, 596,520635 s | 106.582.581 bytes | 13,44 s |
+| AV1, formato `399-sr` | 0 / 0 | MP4, 1920×1080 AV1 + AAC, 596,520635 s | 82.055.992 bytes | 12,28 s |
+
+Finalizações em 17:03:28 e 17:03:41 UTC. O yt-dlp emitiu o aviso
+`Unknown codec iamf.001.001.Opus` ao enumerar um formato do catálogo. Esse formato
+não foi selecionado: os arquivos resultantes têm AAC, confirmado pelo FFprobe.
+Não esconder esse aviso como se a saída tivesse sido totalmente limpa.
+Evidências locais `download-1080-{vp9,av1}.json` e `bigbuck-1080-{vp9,av1}.mp4`.
+
+O smoke local do solver também passou em Deno 2.7.0 sem permissões de rede/FS:
+respostas N/SIG esperadas e parse/generate de programa fixo. A simulação com
+fixture JSON local detectou Deno `2.7.0+fb4db33` e EJS `0.8.0`, sem baixar mídia.
+Isso valida a viabilidade do mecanismo local de conferência de atualizações,
+não os algoritmos que versões futuras do YouTube possam passar a exigir.
+
 ## O que este teste conclui
 
 O conjunto proposto conseguiu obter e baixar anonimamente um vídeo normal em
@@ -51,6 +74,6 @@ implementação do desenho aprovado.
 
 A interface, o backend novo, a escolha automática final, o updater compatível,
 o pacote com Deno, o histórico YouTube e os fluxos completos do Clipora ainda
-precisam ser implementados e testados. Não foram comprovados aqui outros codecs,
-reprodução nos players, macOS 11 real, Intel, Windows nem Linux. Este teste
+precisam ser implementados e testados. A reprodução nos players, macOS 11 real,
+Intel, Windows e Linux não foram verificados. Este teste
 exploratório não é aceitação da funcionalidade pronta ou da distribuição.

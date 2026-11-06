@@ -6,6 +6,7 @@ use url::Url;
 pub enum Plataforma {
     Instagram,
     Tiktok,
+    Youtube,
 }
 
 pub fn validar(input: &str) -> Result<(Url, Plataforma), &'static str> {
@@ -57,6 +58,36 @@ pub fn validar(input: &str) -> Result<(Url, Plataforma), &'static str> {
             }
             Plataforma::Tiktok
         }
+        "youtube.com" | "www.youtube.com" | "m.youtube.com" | "youtu.be" => {
+            let id = if host == "youtu.be" {
+                // Não filtrar segmentos vazios: barras extras não são aliases.
+                url.path()
+                    .strip_prefix('/')
+                    .filter(|p| !p.contains('/'))
+                    .ok_or("LINK_INVALIDO")?
+                    .to_string()
+            } else {
+                if !matches!(url.path(), "/watch" | "/watch/") {
+                    return Err("LINK_INVALIDO");
+                }
+                let valores: Vec<_> = url
+                    .query_pairs()
+                    .filter(|(k, _)| k == "v")
+                    .map(|(_, v)| v.into_owned())
+                    .collect();
+                if valores.len() != 1 {
+                    return Err("LINK_INVALIDO");
+                }
+                valores[0].clone()
+            };
+            if !id_youtube_valido(&id) {
+                return Err("LINK_INVALIDO");
+            }
+            // Só o ID é preservado: sem playlist, recorte, query ou fragmento.
+            let canonica = Url::parse(&format!("https://www.youtube.com/watch?v={id}"))
+                .map_err(|_| "LINK_INVALIDO")?;
+            return Ok((canonica, Plataforma::Youtube));
+        }
         _ => return Err("PLATAFORMA_NAO_SUPORTADA"),
     };
     if url.scheme() == "http" {
@@ -64,9 +95,57 @@ pub fn validar(input: &str) -> Result<(Url, Plataforma), &'static str> {
     }
     Ok((url, result))
 }
+pub(crate) fn id_youtube_valido(id: &str) -> bool {
+    id.len() == 11
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn youtube_urls_canonicas() {
+        for url in [
+            "https://youtube.com/watch?v=YE7VzlLtp-4",
+            "http://www.youtube.com/watch/?v=YE7VzlLtp-4&list=qualquer&t=12#x",
+            "https://m.youtube.com/watch?si=x&v=YE7VzlLtp-4",
+            "https://youtu.be/YE7VzlLtp-4?si=x&t=2",
+        ] {
+            let (normalizada, plataforma) = validar(url).unwrap();
+            assert_eq!(
+                normalizada.as_str(),
+                "https://www.youtube.com/watch?v=YE7VzlLtp-4"
+            );
+            assert_eq!(serde_json::to_value(plataforma).unwrap(), "youtube");
+        }
+    }
+    #[test]
+    fn youtube_rejeita_query_v_duplicada_e_hosts_falsos() {
+        for url in [
+            "https://youtube.com/watch?v=YE7VzlLtp-4&v=YE7VzlLtp-4",
+            "https://youtube.com/watch?v=YE7VzlLtp-4&%76=jNQXAC9IVRw",
+            "https://youtube.com.evil/watch?v=YE7VzlLtp-4",
+            "https://www.youtu.be/YE7VzlLtp-4",
+            "https://youtube.com:443/watch?v=YE7VzlLtp-4",
+            "https://u@youtube.com/watch?v=YE7VzlLtp-4",
+            "https://youtube.com/shorts/YE7VzlLtp-4",
+            "https://youtu.be/live/YE7VzlLtp-4",
+            "https://youtube.com/live/YE7VzlLtp-4",
+            "https://youtube.com/embed/YE7VzlLtp-4",
+            "https://youtube.com/playlist?list=abc",
+            "https://youtube.com/watch?v=curto",
+            "https://youtube.com/watch?v=YE7VzlLtp%2F4",
+            "https://youtube.com//watch?v=YE7VzlLtp-4",
+            "https://youtube.com/watch//?v=YE7VzlLtp-4",
+            "https://youtu.be/YE7VzlLtp-4/extra",
+            "https://youtu.be//YE7VzlLtp-4",
+            "https://youtube.com/watch",
+            "https://youtube.com/watch?v=YE7VzlLtp-é",
+        ] {
+            assert!(validar(url).is_err(), "{url}");
+        }
+    }
     #[test]
     fn converte_http_para_https() {
         let (url, _) = validar("http://instagram.com/p/abc?foo=bar").unwrap();

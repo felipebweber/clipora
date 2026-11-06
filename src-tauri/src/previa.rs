@@ -55,6 +55,7 @@ pub struct Previa {
     pub plataforma: Plataforma,
     pub duracao_segundos: Option<f64>,
     pub capa_data_url: Option<String>,
+    pub qualidades_youtube: Option<Vec<u32>>,
 }
 #[derive(Deserialize)]
 struct Metadados {
@@ -228,6 +229,7 @@ pub async fn obter(
             plataforma,
             duracao_segundos: dados.duration,
             capa_data_url: imagem,
+            qualidades_youtube: None,
         })
     };
     tokio::select! { biased; _ = cancelado.changed() => Err(ErroClipora::novo("PREVIA_CANCELADA", None)), r = tarefa => r }

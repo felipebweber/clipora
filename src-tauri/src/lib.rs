@@ -8,6 +8,7 @@ mod pasta;
 mod previa;
 mod processos;
 mod versao;
+pub mod youtube;
 
 use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;

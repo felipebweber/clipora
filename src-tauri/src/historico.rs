@@ -218,6 +218,14 @@ fn chave_url(input: &str) -> Result<String, ErroClipora> {
         .filter(|s| !s.is_empty())
         .collect();
     match plataforma {
+        Plataforma::Youtube => {
+            let id = url
+                .query_pairs()
+                .find(|(k, _)| k == "v")
+                .map(|(_, v)| v.into_owned())
+                .ok_or_else(ausente)?;
+            Ok(format!("youtube:{id}"))
+        }
         Plataforma::Instagram => Ok(format!("instagram:{}", partes.last().unwrap_or(&""))),
         Plataforma::Tiktok if partes.len() == 3 && partes[1] == "video" => {
             Ok(format!("tiktok:{}", partes[2]))
@@ -307,6 +315,38 @@ mod tests {
             concluido_em: data,
             disponivel: false,
         }
+    }
+    #[test]
+    fn youtube_historico_aliases_preserva_registros_antigos() {
+        let dir = tempfile::tempdir().unwrap();
+        let arquivo = dir.path().join("historico.json");
+        let r = Repositorio::novo(arquivo.clone());
+        let antigo = item(dir.path(), "instagram-antigo", 1);
+        r.registrar(antigo.clone()).unwrap();
+        let bytes = std::fs::read(&arquivo).unwrap();
+        let r = Repositorio::novo(arquivo.clone());
+        assert_eq!(r.listar().unwrap()[0].download_id, "instagram-antigo");
+        assert_eq!(std::fs::read(&arquivo).unwrap(), bytes);
+        let mut yt = item(dir.path(), "youtube", 2);
+        yt.url_original = "https://youtu.be/YE7VzlLtp-4?si=x".into();
+        yt.url_normalizada = "https://www.youtube.com/watch?v=YE7VzlLtp-4".into();
+        yt.plataforma = serde_json::from_str("\"youtube\"").unwrap();
+        r.registrar(yt).unwrap();
+        let r = Repositorio::novo(arquivo);
+        assert_eq!(r.listar().unwrap().len(), 2);
+        assert_eq!(
+            r.consultar("http://m.youtube.com/watch?v=YE7VzlLtp-4&t=3&list=abc#x")
+                .unwrap()
+                .unwrap()
+                .download_id,
+            "youtube"
+        );
+        assert!(
+            r.consultar("https://youtu.be/jNQXAC9IVRw")
+                .unwrap()
+                .is_none()
+        );
+        assert!(Path::new(&antigo.caminho).exists());
     }
     #[test]
     fn persiste_reabre_ordena_e_limpa_sem_apagar() {
