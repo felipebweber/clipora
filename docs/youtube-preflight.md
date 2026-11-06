@@ -66,6 +66,36 @@ fixture JSON local detectou Deno `2.7.0+fb4db33` e EJS `0.8.0`, sem baixar mídi
 Isso valida a viabilidade do mecanismo local de conferência de atualizações,
 não os algoritmos que versões futuras do YouTube possam passar a exigir.
 
+## Diagnóstico de assinatura do runtime no macOS
+
+Uma cópia isolada de Deno2.7.0 foi reassinada ad-hoc com hardened runtime e sem
+entitlements. O original executou `console.log(42)` com saída0; a cópia sem
+entitlements caiu com saída-5 ao executar JavaScript. Reassinar outra cópia com
+somente `com.apple.security.cs.allow-jit=true` restaurou a execução e o smoke
+N/SIG do solver, ambos saída0 e sem stderr. Nenhuma cópia instalada do app foi
+alterada nesse diagnóstico.
+
+Evidências locais: `assinatura-javascript-resumo.json`,
+`assinatura-jit-minimo-resumo.json` e `ejs-smoke-assinado-jit-resumo.json`.
+
+A [assinatura do bundler Tauri CLI2.12.4](https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.12.4/crates/tauri-bundler/src/bundle/macos/sign.rs)
+aplica os entitlements do app a todos os alvos de assinatura; a
+[rotina codesign](https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.12.4/crates/tauri-macos-sign/src/keychain.rs)
+não preserva os anteriores automaticamente. Por isso o plano passou a distribuir
+Deno em recurso dedicado, como já ocorre com o yt-dlp, assinado pelo fluxo próprio
+antes de selar o app. A aceitação do pacote final deverá repetir o solver com o
+executável que estiver realmente dentro do pacote.
+
+## Identificador da versão executada
+
+O recurso oficial verificado de Deno 2.7.0 informa `deno 2.7.0+fb4db33
+(canary, release, aarch64-apple-darwin)` em `--version`; o yt-dlp também detectou
+`deno-2.7.0+fb4db33` no smoke local. A versão-base fixada no lock e no manifesto
+continua 2.7.0. A validação da integração deve aceitar o metadado de build SemVer
+após `+`, mantendo o hash e recusando outras versões, pré-releases ou prefixos
+parciais. Exigir igualdade literal com `2.7.0` recusou esse mesmo recurso no
+primeiro teste real do backend T3, antes de qualquer extração de rede.
+
 ## O que este teste conclui
 
 O conjunto proposto conseguiu obter e baixar anonimamente um vídeo normal em

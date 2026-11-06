@@ -1,6 +1,6 @@
 # Clipora
 
-Clipora é um aplicativo desktop em desenvolvimento para baixar um vídeo público por vez de links compatíveis do Instagram Reels e TikTok. O processamento ocorre no computador. Consulte o [guia do usuário](docs/usuario/README.md) e o [estado da distribuição](docs/distribuicao.md).
+Clipora é um aplicativo desktop em desenvolvimento para baixar um vídeo público por vez do Instagram Reels, TikTok e YouTube. No YouTube, aceita vídeos normais públicos sem login. O processamento ocorre no computador. Consulte o [guia do usuário](docs/usuario/README.md) e o [estado da distribuição](docs/distribuicao.md).
 
 O app mantém no próprio dispositivo um histórico dos downloads concluídos. Você pode abrir um vídeo pelo histórico ou pela tela de conclusão. Se colar um link já baixado, o Clipora avisa e permite abrir o arquivo disponível ou baixar outra cópia. O histórico começa vazio: downloads anteriores não são importados nem procurados nas pastas. Limpar o histórico remove somente os registros; os vídeos salvos permanecem. Links, títulos, datas e caminhos do histórico ficam localmente no dispositivo e não são enviados pelo Clipora.
 
@@ -16,6 +16,14 @@ O Clipora será publicado como open source sob **GPL-3.0-or-later** (GNU GPL ver
 
 ## Desenvolvimento
 
+Para preparar o runtime Deno usado pelo YouTube antes de executar ou empacotar o app:
+
+```sh
+node scripts/obter-deno.mjs
+```
+
+O app distribuído inclui esse runtime; quem usa o Clipora não precisa instalar Deno separadamente. Para os outros binários necessários ao desenvolvimento e ao pacote, consulte [a documentação de distribuição](docs/distribuicao.md).
+
 ```sh
 source "$HOME/.cargo/env"
 pnpm install
@@ -23,6 +31,10 @@ pnpm tauri dev
 ```
 
 `pnpm dev` inicia apenas o frontend no Vite.
+
+No YouTube, a prévia mostra apenas as alturas disponíveis para aquele vídeo. **Melhor disponível** é a escolha padrão; uma altura escolhida é respeitada sem troca silenciosa para outra qualidade. Se ela deixar de estar disponível antes do download, atualize a prévia e escolha novamente. O arquivo final é MP4 com áudio AAC; o vídeo pode usar AVC/H.264, VP9 ou AV1, e alguns players não reproduzem VP9 ou AV1.
+
+O Clipora não baixa Shorts, lives, Stories nem playlists inteiras. O suporte ao YouTube é para vídeos normais públicos, sem login.
 
 ## Compilação e testes
 

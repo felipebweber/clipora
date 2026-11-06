@@ -1,6 +1,6 @@
 # Guia do Clipora
 
-O Clipora baixa um vídeo público por vez de links compatíveis do Instagram Reels e do TikTok. O vídeo é processado no seu computador.
+O Clipora baixa um vídeo público por vez do Instagram Reels, TikTok e YouTube. No YouTube, use o link de um vídeo normal público; não é necessário entrar na sua conta. O vídeo é processado no seu computador.
 
 ## Instalação
 
@@ -14,14 +14,19 @@ Não instale um pacote cujo hash publicado não confira. Não há atualização 
 
 ## Baixar um vídeo
 
-1. Cole o link de um vídeo público do Instagram Reels ou TikTok no campo principal. O Clipora carrega a prévia quando o yt-dlp consegue acessar o link.
-2. Confira a prévia e selecione **Baixar**.
-3. Na primeira vez, escolha uma pasta de destino. O Clipora guarda essa preferência localmente. Altere-a em **Configurações** quando precisar.
-4. Acompanhe o progresso. Ao concluir, use **Abrir vídeo** para assistir ou **Abrir pasta** para localizar o arquivo.
+1. Cole o link de um vídeo público do Instagram Reels, TikTok ou YouTube no campo principal. Para o YouTube, use o endereço normal do vídeo, como `youtube.com/watch?v=...` ou `youtu.be/...`. O Clipora carrega a prévia quando consegue acessar o link sem login.
+2. Confira a prévia. Para vídeos do YouTube, o seletor **Qualidade** aparece com **Melhor disponível** e as alturas realmente disponíveis naquele vídeo. Escolha uma altura para pedir exatamente essa resolução; o Clipora não troca silenciosamente para outra. Para Instagram e TikTok, a qualidade continua automática.
+3. Selecione **Baixar**.
+4. Na primeira vez, escolha uma pasta de destino. O Clipora guarda essa preferência localmente. Altere-a em **Configurações** quando precisar.
+5. Acompanhe o progresso. Ao concluir, use **Abrir vídeo** para assistir ou **Abrir pasta** para localizar o arquivo.
 
-O Clipora salva um vídeo por vez e escolhe a melhor combinação de vídeo e áudio que o yt-dlp consegue obter. Quando necessário, o FFmpeg une as faixas sem transcodificá-las. Arquivos existentes não são sobrescritos.
+O Clipora salva um vídeo por vez. No Instagram e TikTok, escolhe automaticamente a melhor combinação de vídeo e áudio disponível. No YouTube, procura a melhor combinação dentro da altura escolhida; em **Melhor disponível**, prioriza a maior altura elegível. Quando necessário, o FFmpeg une as faixas sem transcodificá-las. Arquivos existentes não são sobrescritos.
 
-O nome do arquivo combina o perfil, o início da descrição (ou o título disponível) e o ID do vídeo, por exemplo: `@perfil - Como preparar café gelado [ID].mp4`. O Clipora ajusta caracteres incompatíveis e encurta textos longos. Se a plataforma não fornecer algum desses dados, usa os demais; sem título ou descrição, mantém o perfil e o ID. Downloads repetidos recebem um número, como ` (2)`, preservando o arquivo anterior.
+Os downloads do YouTube são arquivos MP4 com áudio AAC. O vídeo pode usar AVC/H.264, VP9 ou AV1. O contêiner MP4, por si só, não garante que todo aparelho ou player consiga reproduzir VP9 ou AV1; a reprodução depende dos codecs aceitos pelo seu sistema. Se a qualidade escolhida deixar de estar disponível entre a prévia e o download, o Clipora pede que você atualize a prévia e escolha outra. Depois de concluir, **Baixar novamente** na tela de conclusão preserva a escolha enquanto você continua nessa prévia. O histórico não guarda a qualidade: ao colar o link de novo e carregar uma nova prévia, a seleção volta para **Melhor disponível**.
+
+O Clipora aceita vídeos normais do YouTube. Shorts, transmissões ao vivo, Stories e playlists inteiras não são suportados. Links que exigem login, são privados ou estão indisponíveis não podem ser baixados por esse fluxo.
+
+No Instagram e TikTok, o nome do arquivo combina o perfil, o início da descrição (ou o título disponível) e o ID do vídeo, por exemplo: `@perfil - Como preparar café gelado [ID].mp4`. No YouTube, usa o título do vídeo e o ID; se o título não estiver disponível, usa o nome do canal e depois `Vídeo [ID]`. O Clipora ajusta caracteres incompatíveis e encurta textos longos. Downloads repetidos recebem um número, como ` (2)`, preservando o arquivo anterior.
 
 ## Histórico e links repetidos
 
@@ -31,6 +36,8 @@ Se o vídeo tiver sido movido, removido ou estiver inacessível, o registro cont
 
 Ao colar um link de um vídeo que já aparece no histórico, o Clipora mostra um aviso. Se a cópia ainda estiver disponível, você pode abri-la; também pode escolher **Baixar** para fazer outra cópia. O aviso não impede um novo download. Links curtos podem não ser reconhecidos como repetidos quando o Clipora não consegue relacioná-los ao mesmo vídeo.
 
+No YouTube, a escolha de qualidade não altera o aviso de link repetido: você pode abrir a cópia disponível ou baixar outra. O histórico não registra a qualidade usada; ao colar o link novamente, uma nova prévia começa em **Melhor disponível**.
+
 O histórico começa vazio. O Clipora não importa downloads antigos nem examina a pasta de destino para preencher a lista. Para limpar o histórico, confirme a ação apresentada no app. Isso apaga somente os registros da lista; os arquivos de vídeo continuam nas pastas onde foram salvos.
 
 Os registros do histórico — incluindo links, títulos, datas e caminhos dos arquivos — são guardados localmente no dispositivo e não são enviados pelo Clipora. Isso não altera o funcionamento do download: para obter a prévia ou o vídeo, o app acessa o serviço indicado pelo link.
@@ -38,6 +45,8 @@ Os registros do histórico — incluindo links, títulos, datas e caminhos dos a
 ## Atualizar o yt-dlp
 
 O Clipora verifica a versão do yt-dlp e exibe um aviso quando encontra uma atualização. A atualização só começa depois que você a solicita na área de configurações. Ela é baixada da release oficial do yt-dlp e verificada por assinatura GPG e SHA-256 antes de ser ativada. O arquivo fica no diretório de dados do usuário, fora do pacote do Clipora, para não alterar o aplicativo assinado. A versão anterior e a versão embutida continuam disponíveis como recuperação.
+
+Antes de ativar uma versão candidata, o Clipora também verifica localmente se ela funciona com o runtime usado pelo YouTube. Se não conseguir verificar essa compatibilidade, recusa a atualização e preserva a versão anterior. O runtime Deno necessário ao YouTube já vem no app; você não precisa instalá-lo à parte.
 
 Não atualize o yt-dlp baixando outro executável por fora nem use a opção de autoatualização do próprio yt-dlp. Para consultar os avisos e as fontes dos componentes, abra **Sobre e licenças** dentro do app.
 
