@@ -37,6 +37,8 @@ export type CodigoErro =
   | "ATUALIZACAO_FALHOU"
   | "YTDLP_INDISPONIVEL"
   | "LICENCAS_INDISPONIVEIS"
+  | "HISTORICO_INDISPONIVEL"
+  | "ARQUIVO_AUSENTE"
   | "ERRO_INTERNO";
 
 /** Lista em runtime dos códigos válidos, usada para validar erros vindos do
@@ -68,6 +70,8 @@ export const CODIGOS_ERRO = [
   "ATUALIZACAO_FALHOU",
   "YTDLP_INDISPONIVEL",
   "LICENCAS_INDISPONIVEIS",
+  "HISTORICO_INDISPONIVEL",
+  "ARQUIVO_AUSENTE",
   "ERRO_INTERNO",
 ] as const satisfies readonly CodigoErro[];
 
@@ -93,6 +97,18 @@ export type ErroClipora = {
 };
 
 export type Plataforma = "instagram" | "tiktok";
+
+export type ItemHistorico = {
+  downloadId: string;
+  urlOriginal: string;
+  urlNormalizada: string;
+  titulo: string | null;
+  plataforma: Plataforma;
+  caminho: string;
+  nomeArquivo: string;
+  concluidoEm: number;
+  disponivel: boolean;
+};
 
 export type Previa = {
   requisicaoId: number;

@@ -353,6 +353,58 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn download_normaliza_url_do_processo_e_preserva_original_no_historico() {
+        let dir = tempfile::tempdir().unwrap();
+        let raiz = dir.path().canonicalize().unwrap();
+        let bin = raiz.join("bin");
+        let registro = raiz.join("processos.jsonl");
+        let saida = std::process::Command::new("node")
+            .arg(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../tests/fixtures/preparar-bin.mjs"),
+            )
+            .arg(&bin)
+            .args(["--cenario", "sucesso", "--registro"])
+            .arg(&registro)
+            .output()
+            .unwrap();
+        assert!(saida.status.success());
+        let destino = raiz.join("videos");
+        fs::create_dir(&destino).unwrap();
+        let controle = Arc::new(Mutex::new(Dados::default()));
+        let historico = Arc::new(crate::historico::Repositorio::novo(
+            raiz.join("historico.json"),
+        ));
+        let original = "http://www.instagram.com/reel/AbC/?igsh=original";
+        let normalizada = "https://www.instagram.com/reel/AbC/?igsh=original";
+        executar(
+            controle.clone(),
+            historico.clone(),
+            Channel::new(|_| Ok(())),
+            "http-regressao".into(),
+            original.into(),
+            destino,
+            (bin.join("clipora-yt-dlp"), bin.join("clipora-ffmpeg")),
+        )
+        .await;
+        assert!(matches!(
+            controle.lock().unwrap().ultimo_resultado,
+            Some(ResultadoTerminal::Concluido { .. })
+        ));
+        let texto = fs::read_to_string(registro).unwrap();
+        let inicio = texto
+            .lines()
+            .map(|linha| serde_json::from_str::<serde_json::Value>(linha).unwrap())
+            .find(|v| v["programa"] == "yt-dlp" && v["evento"] == "inicio")
+            .unwrap();
+        assert_eq!(inicio["urls"][0], normalizada);
+        let itens = historico.listar().unwrap();
+        assert_eq!(itens[0].url_original, original);
+        assert_eq!(itens[0].url_normalizada, normalizada);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn nome_de_download_usa_descricao_e_perfil_legivel_por_plataforma() {
         let casos = [
             (
@@ -554,10 +606,31 @@ mod tests {
             "https://tiktok.com/@scout2015/video/6718335390845095173",
         ] {
             let pasta = tempfile::tempdir().unwrap();
+            let raiz = pasta.path().canonicalize().unwrap();
+            let historico_arquivo = raiz.join("historico.json");
+            let historico = Arc::new(crate::historico::Repositorio::novo(
+                historico_arquivo.clone(),
+            ));
             let controle = Arc::new(Mutex::new(Dados::default()));
             let canal = Channel::new(|_| Ok(()));
-            match executar_interno(&controle, &canal, url, pasta.path(), &bin, &ffmpeg, None).await
-            {
+            executar(
+                controle.clone(),
+                historico,
+                canal,
+                "aceitacao-real".into(),
+                url.into(),
+                raiz,
+                (bin.clone(), ffmpeg.clone()),
+            )
+            .await;
+            let resultado = match controle.lock().unwrap().ultimo_resultado.clone() {
+                Some(ResultadoTerminal::Concluido {
+                    caminho, renomeado, ..
+                }) => Ok((PathBuf::from(caminho), renomeado)),
+                Some(ResultadoTerminal::Erro { erro, .. }) => Err(erro),
+                None => panic!("Download real sem resultado terminal"),
+            };
+            match resultado {
                 Ok((arquivo, _)) => {
                     let saida = std::process::Command::new(&ffprobe)
                         .args([
@@ -585,6 +658,44 @@ mod tests {
                             && tipos.lines().any(|t| t == "audio"),
                         "ffprobe: {}",
                         String::from_utf8_lossy(&saida.stderr)
+                    );
+                    let reaberto = crate::historico::Repositorio::novo(historico_arquivo);
+                    let itens = reaberto.listar().unwrap();
+                    assert_eq!(itens.len(), 1);
+                    assert!(
+                        itens[0].disponivel,
+                        "MP4 real deve passar na validação de abertura"
+                    );
+                    assert_eq!(itens[0].url_original, url);
+                    assert_eq!(
+                        crate::caminho_download(&Controle::default(), &reaberto, "aceitacao-real")
+                            .unwrap(),
+                        arquivo
+                    );
+                    assert!(
+                        reaberto
+                            .consultar(&format!("{url}?utm_source=clipora-qa"))
+                            .unwrap()
+                            .is_some()
+                    );
+                    let movido = arquivo.with_extension("movido.mp4");
+                    fs::rename(&arquivo, &movido).unwrap();
+                    assert!(!reaberto.listar().unwrap()[0].disponivel);
+                    assert_eq!(
+                        crate::caminho_download(&Controle::default(), &reaberto, "aceitacao-real")
+                            .unwrap_err()
+                            .codigo,
+                        "ARQUIVO_AUSENTE"
+                    );
+                    fs::rename(&movido, &arquivo).unwrap();
+                    reaberto.limpar().unwrap();
+                    assert!(reaberto.listar().unwrap().is_empty());
+                    assert!(
+                        arquivo.is_file(),
+                        "Limpar histórico deve preservar vídeo real"
+                    );
+                    println!(
+                        "{url}: histórico reaberto, consulta equivalente, ID persistido, arquivo movido e limpeza sem apagar: aprovados"
                     );
                 }
                 Err(e) => panic!("{url}: ERRO {} {:?}", e.codigo, e.detalhe),
@@ -1214,15 +1325,216 @@ fn etapa(controle: &Arc<Mutex<Dados>>, canal: &Channel<Evento>, nome: &str, pct:
     });
 }
 
+fn concluir(
+    controle: &Arc<Mutex<Dados>>,
+    historico: &crate::historico::Repositorio,
+    id: &str,
+    url: &str,
+    resultado: &Result<(PathBuf, bool), ErroClipora>,
+) -> ResultadoTerminal {
+    // Canonicaliza somente o pai: aceita aliases legítimos sem seguir substituição
+    // do arquivo final por symlink. A validação na abertura rejeita esse arquivo.
+    let canonico = resultado
+        .as_ref()
+        .map(|(p, renomeado)| {
+            let caminho = p
+                .parent()
+                .and_then(|pai| pai.canonicalize().ok())
+                .zip(p.file_name())
+                .map(|(pai, nome)| pai.join(nome))
+                .unwrap_or_else(|| p.clone());
+            (caminho, *renomeado)
+        })
+        .map_err(Clone::clone);
+    let resultado = &canonico;
+    let terminal = match resultado {
+        Ok((caminho, renomeado)) => ResultadoTerminal::Concluido {
+            download_id: id.into(),
+            caminho: caminho.to_string_lossy().into_owned(),
+            nome_arquivo: caminho
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned(),
+            renomeado: *renomeado,
+        },
+        Err(erro) => ResultadoTerminal::Erro {
+            download_id: id.into(),
+            erro: erro.clone(),
+        },
+    };
+    if let Ok((caminho, _)) = resultado {
+        let previa = controle
+            .lock()
+            .ok()
+            .and_then(|d| d.ativo.as_ref().and_then(|a| a.previa.clone()));
+        if let Ok((normalizada, plataforma)) = crate::links::validar(url) {
+            let item = crate::historico::ItemHistorico {
+                download_id: id.into(),
+                url_original: previa
+                    .as_ref()
+                    .map(|p| p.url_original.clone())
+                    .unwrap_or_else(|| url.into()),
+                url_normalizada: previa
+                    .as_ref()
+                    .map(|p| p.url_normalizada.clone())
+                    .unwrap_or_else(|| normalizada.to_string()),
+                titulo: previa.and_then(|p| p.titulo),
+                plataforma,
+                caminho: caminho.to_string_lossy().into_owned(),
+                nome_arquivo: caminho
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned(),
+                concluido_em: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64,
+                disponivel: false,
+            };
+            // O repositório retém pendentes e comunica falha nas consultas, sem alterar o sucesso.
+            let _ = historico.registrar(item);
+        }
+    }
+    if let Ok(mut dados) = controle.lock() {
+        if let Ok((caminho, _)) = resultado {
+            dados.arquivos.insert(id.into(), caminho.clone());
+        }
+        dados.ativo = None;
+        dados.ultimo_resultado = Some(terminal.clone());
+        dados.tarefa = None;
+        dados.grupo = None;
+        dados.temporario = None;
+    }
+    terminal
+}
+
+#[cfg(test)]
+mod historico_tests {
+    use super::*;
+    #[test]
+    fn conclusao_preserva_original_da_previa_associada() {
+        let dir = tempfile::tempdir().unwrap();
+        let raiz = dir.path().canonicalize().unwrap();
+        let arquivo = raiz.join("Vídeo [abc].mp4");
+        fs::write(&arquivo, b"\x00\x00\x00\x18ftypisom").unwrap();
+        let original = "http://instagram.com/reel/abc/?igsh=colado";
+        let normalizada = "https://instagram.com/reel/abc/?igsh=colado";
+        let controle = Arc::new(Mutex::new(Dados::default()));
+        controle.lock().unwrap().ativo = Some(EstadoDownload {
+            download_id: "previa-original".into(),
+            percentual: None,
+            etapa: "finalizando".into(),
+            previa: Some(crate::previa::Previa {
+                requisicao_id: 1,
+                url_original: original.into(),
+                url_normalizada: normalizada.into(),
+                titulo: Some("Vídeo".into()),
+                plataforma: crate::links::Plataforma::Instagram,
+                duracao_segundos: None,
+                capa_data_url: None,
+            }),
+        });
+        let historico = crate::historico::Repositorio::novo(raiz.join("historico.json"));
+        concluir(
+            &controle,
+            &historico,
+            "previa-original",
+            normalizada,
+            &Ok((arquivo, false)),
+        );
+        let itens = historico.listar().unwrap();
+        assert_eq!(itens[0].url_original, original);
+        assert_eq!(itens[0].url_normalizada, normalizada);
+    }
+    #[cfg(unix)]
+    #[test]
+    fn conclusao_com_destino_alias_guarda_caminho_canonico() {
+        let dir = tempfile::tempdir().unwrap();
+        let raiz = dir.path().canonicalize().unwrap();
+        let destino = raiz.join("real");
+        fs::create_dir(&destino).unwrap();
+        let alias = raiz.join("alias");
+        std::os::unix::fs::symlink(&destino, &alias).unwrap();
+        let arquivo = destino.join("Vídeo [abc].mp4");
+        fs::write(
+            &arquivo,
+            b"\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isommp42",
+        )
+        .unwrap();
+        let controle = Arc::new(Mutex::new(Dados::default()));
+        let h = crate::historico::Repositorio::novo(raiz.join("historico.json"));
+        concluir(
+            &controle,
+            &h,
+            "alias",
+            "https://instagram.com/reel/abc/",
+            &Ok((alias.join("Vídeo [abc].mp4"), false)),
+        );
+        assert_eq!(
+            controle.lock().unwrap().arquivos.get("alias"),
+            Some(&arquivo)
+        );
+        assert_eq!(h.caminho("alias").unwrap(), arquivo);
+        assert!(h.listar().unwrap()[0].disponivel);
+        fs::remove_file(&arquivo).unwrap();
+        std::os::unix::fs::symlink(raiz.join("historico.json"), &arquivo).unwrap();
+        assert!(h.caminho("alias").is_err());
+    }
+    #[test]
+    fn so_sucesso_alimenta_historico_e_falha_de_persistencia_preserva_abertura() {
+        let dir = tempfile::tempdir().unwrap();
+        let raiz = dir.path().canonicalize().unwrap();
+        let arquivo = raiz.join("Vídeo [abc].mp4");
+        fs::write(
+            &arquivo,
+            b"\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isommp42",
+        )
+        .unwrap();
+        let controle = Arc::new(Mutex::new(Dados::default()));
+        let h = crate::historico::Repositorio::novo(raiz.join("historico.json"));
+        let url = "https://instagram.com/reel/abc/";
+        assert!(matches!(
+            concluir(
+                &controle,
+                &h,
+                "falha",
+                url,
+                &Err(err("DOWNLOAD_FALHOU", "rede"))
+            ),
+            ResultadoTerminal::Erro { .. }
+        ));
+        assert!(h.listar().unwrap().is_empty());
+        assert!(controle.lock().unwrap().arquivos.is_empty());
+        fs::write(raiz.join("historico.json"), b"corrompido").unwrap();
+        assert!(matches!(
+            concluir(&controle, &h, "sucesso", url, &Ok((arquivo.clone(), false))),
+            ResultadoTerminal::Concluido { .. }
+        ));
+        assert!(h.listar().is_err());
+        assert_eq!(
+            controle.lock().unwrap().arquivos.get("sucesso"),
+            Some(&arquivo)
+        );
+        assert!(crate::historico::validar_arquivo(&arquivo).is_ok());
+        fs::write(raiz.join("historico.json"), br#"{"versao":1,"itens":[]}"#).unwrap();
+        let itens = h.listar().unwrap();
+        assert_eq!(itens.len(), 1);
+        assert_eq!(itens[0].download_id, "sucesso");
+    }
+}
+
 pub async fn executar(
     controle: Arc<Mutex<Dados>>,
+    historico: Arc<crate::historico::Repositorio>,
     canal: Channel<Evento>,
     id: String,
     url: String,
     pasta: PathBuf,
-    bin: PathBuf,
-    ffmpeg: PathBuf,
+    ferramentas: (PathBuf, PathBuf),
 ) {
+    let (bin, ffmpeg) = ferramentas;
     let resultado = executar_interno(
         &controle,
         &canal,
@@ -1234,32 +1546,7 @@ pub async fn executar(
         None,
     )
     .await;
-    let terminal = match &resultado {
-        Ok((caminho, renomeado)) => Some(ResultadoTerminal::Concluido {
-            download_id: id.clone(),
-            caminho: caminho.to_string_lossy().into_owned(),
-            nome_arquivo: caminho
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned(),
-            renomeado: *renomeado,
-        }),
-        Err(erro) => Some(ResultadoTerminal::Erro {
-            download_id: id.clone(),
-            erro: erro.clone(),
-        }),
-    };
-    if let Ok(mut dados) = controle.lock() {
-        if let Ok((ref caminho, _)) = resultado {
-            dados.arquivos.insert(id, caminho.clone());
-        }
-        dados.ativo = None;
-        dados.ultimo_resultado = terminal;
-        dados.tarefa = None;
-        dados.grupo = None;
-        dados.temporario = None;
-    }
+    concluir(&controle, &historico, &id, &url, &resultado);
     match resultado {
         Ok((caminho, renomeado)) => {
             let nome_arquivo = caminho
@@ -1289,6 +1576,11 @@ async fn executar_interno(
 ) -> Result<(PathBuf, bool), ErroClipora> {
     use std::process::Stdio;
     use tokio::process::Command;
+    // O endereço colado fica disponível para o histórico; processos externos
+    // recebem exclusivamente a forma validada, incluindo o upgrade para HTTPS.
+    let (normalizada, _) =
+        crate::links::validar(url).map_err(|codigo| ErroClipora::novo(codigo, None))?;
+    let url = normalizada.as_str();
     etapa(controle, canal, "preparando", None);
     if !ffmpeg.is_file() {
         return Err(err("FFMPEG_INDISPONIVEL", "FFmpeg ausente"));

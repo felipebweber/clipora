@@ -1,5 +1,6 @@
 mod binarios;
 mod download;
+mod historico;
 mod instalacao;
 pub mod integridade;
 mod links;
@@ -168,6 +169,12 @@ async fn iniciar_download(
             return Err(previa::ErroClipora::novo("DOWNLOAD_EM_ANDAMENTO", None));
         }
     }
+    if !historico::id_valido(&download_id) {
+        return Err(previa::ErroClipora::novo(
+            "LINK_INVALIDO",
+            Some("ID de download inválido".into()),
+        ));
+    }
     let (normalizada, _) = links::validar(&url).map_err(|c| previa::ErroClipora::novo(c, None))?;
     let pasta = config_pasta(&app)?.obter();
     let codigo = match pasta.estado {
@@ -194,6 +201,9 @@ async fn iniciar_download(
         .map_err(|e| previa::ErroClipora::novo("FFMPEG_INDISPONIVEL", Some(e)))?;
     binarios::resolver(&app, "clipora-ffprobe")
         .map_err(|e| previa::ErroClipora::novo("FFMPEG_INDISPONIVEL", Some(e)))?;
+    let destino = destino
+        .canonicalize()
+        .map_err(|e| previa::ErroClipora::novo("PASTA_AUSENTE", Some(e.to_string())))?;
     let mut dados = controle
         .0
         .lock()
@@ -218,42 +228,129 @@ async fn iniciar_download(
     let shared = controle.0.clone();
     let tarefa = tauri::async_runtime::spawn(download::executar(
         shared,
+        app.state::<std::sync::Arc<historico::Repositorio>>()
+            .inner()
+            .clone(),
         on_evento,
         download_id,
-        normalizada.to_string(),
+        url,
         destino,
-        bin,
-        ffmpeg,
+        (bin, ffmpeg),
     ));
     dados.tarefa = Some(tarefa.inner().abort_handle());
     Ok(())
 }
 #[tauri::command]
-async fn abrir_pasta_download(
-    app: tauri::AppHandle,
-    controle: State<'_, download::Controle>,
-    download_id: String,
+async fn obter_historico(
+    historico: State<'_, std::sync::Arc<historico::Repositorio>>,
+) -> Result<Vec<historico::ItemHistorico>, previa::ErroClipora> {
+    let historico = historico.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || historico.listar())
+        .await
+        .map_err(|e| previa::ErroClipora::novo("HISTORICO_INDISPONIVEL", Some(e.to_string())))?
+}
+#[tauri::command]
+async fn consultar_historico(
+    historico: State<'_, std::sync::Arc<historico::Repositorio>>,
+    url: String,
+) -> Result<Option<historico::ItemHistorico>, previa::ErroClipora> {
+    let historico = historico.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || historico.consultar(&url))
+        .await
+        .map_err(|e| previa::ErroClipora::novo("HISTORICO_INDISPONIVEL", Some(e.to_string())))?
+}
+#[tauri::command]
+async fn limpar_historico(
+    historico: State<'_, std::sync::Arc<historico::Repositorio>>,
 ) -> Result<(), previa::ErroClipora> {
+    let historico = historico.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || historico.limpar())
+        .await
+        .map_err(|e| previa::ErroClipora::novo("HISTORICO_INDISPONIVEL", Some(e.to_string())))?
+}
+fn localizar_download(
+    controle: &download::Controle,
+    historico: &historico::Repositorio,
+    id: &str,
+) -> Result<std::path::PathBuf, previa::ErroClipora> {
+    if !historico::id_valido(id) {
+        return Err(previa::ErroClipora::novo("ARQUIVO_AUSENTE", None));
+    }
     let caminho = controle
         .0
         .lock()
         .map_err(|_| previa::ErroClipora::novo("ERRO_INTERNO", None))?
         .arquivos
-        .get(&download_id)
-        .cloned()
-        .ok_or_else(|| previa::ErroClipora::novo("ERRO_INTERNO", None))?;
-    if !caminho.is_file() {
-        let pasta = caminho
-            .parent()
-            .filter(|p| p.is_dir())
-            .ok_or_else(|| previa::ErroClipora::novo("PASTA_AUSENTE", None))?
-            .to_string_lossy()
-            .into_owned();
-        return app
-            .opener()
-            .open_path(pasta, None::<&str>)
-            .map_err(|e| previa::ErroClipora::novo("ERRO_INTERNO", Some(e.to_string())));
+        .get(id)
+        .cloned();
+    match caminho {
+        Some(caminho) => Ok(caminho),
+        None => historico.caminho_registrado(id),
     }
+}
+fn caminho_download(
+    controle: &download::Controle,
+    historico: &historico::Repositorio,
+    id: &str,
+) -> Result<std::path::PathBuf, previa::ErroClipora> {
+    if !historico::id_valido(id) {
+        return Err(previa::ErroClipora::novo("ARQUIVO_AUSENTE", None));
+    }
+    let caminho = controle
+        .0
+        .lock()
+        .map_err(|_| previa::ErroClipora::novo("ERRO_INTERNO", None))?
+        .arquivos
+        .get(id)
+        .cloned();
+    match caminho {
+        Some(caminho) => historico::validar_arquivo(&caminho),
+        None => historico.caminho(id),
+    }
+}
+enum DestinoPasta {
+    Revelar(std::path::PathBuf),
+}
+fn destino_pasta(
+    controle: &download::Controle,
+    historico: &historico::Repositorio,
+    id: &str,
+) -> Result<DestinoPasta, previa::ErroClipora> {
+    let caminho = localizar_download(controle, historico, id)?;
+    match std::fs::symlink_metadata(&caminho) {
+        Ok(_) => Ok(DestinoPasta::Revelar(historico::validar_arquivo(&caminho)?)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            let pai = caminho
+                .parent()
+                .ok_or_else(|| previa::ErroClipora::novo("PASTA_AUSENTE", None))?;
+            historico::validar_diretorio(pai)
+                .map(DestinoPasta::Revelar)
+                .map_err(|_| previa::ErroClipora::novo("PASTA_AUSENTE", None))
+        }
+        Err(_) => Err(previa::ErroClipora::novo("ARQUIVO_AUSENTE", None)),
+    }
+}
+#[tauri::command]
+async fn abrir_arquivo_download(
+    app: tauri::AppHandle,
+    controle: State<'_, download::Controle>,
+    historico: State<'_, std::sync::Arc<historico::Repositorio>>,
+    download_id: String,
+) -> Result<(), previa::ErroClipora> {
+    let caminho = caminho_download(&controle, &historico, &download_id)?;
+    app.opener()
+        .open_path(caminho.to_string_lossy(), None::<&str>)
+        .map_err(|e| previa::ErroClipora::novo("ERRO_INTERNO", Some(e.to_string())))
+}
+#[tauri::command]
+async fn abrir_pasta_download(
+    controle: State<'_, download::Controle>,
+    historico: State<'_, std::sync::Arc<historico::Repositorio>>,
+    download_id: String,
+) -> Result<(), previa::ErroClipora> {
+    // Revela também o diretório pai de arquivo ausente: nunca open_path em
+    // diretórios persistidos, pois um pacote .app poderia ser executado no macOS.
+    let DestinoPasta::Revelar(caminho) = destino_pasta(&controle, &historico, &download_id)?;
     tauri::async_runtime::spawn_blocking(move || tauri_plugin_opener::reveal_item_in_dir(caminho))
         .await
         .map_err(|e| previa::ErroClipora::novo("ERRO_INTERNO", Some(e.to_string())))?
@@ -347,6 +444,12 @@ pub fn run() {
         .setup(|app| {
             app.manage(previa::ControlePrevia::default());
             app.manage(download::Controle::default());
+            app.manage(std::sync::Arc::new(historico::Repositorio::novo(
+                app.path()
+                    .app_local_data_dir()
+                    .map(|p| p.join("historico.json"))
+                    .unwrap_or_default(),
+            )));
             app.manage(binarios::CacheYtdlp::default());
             let cache = app.state::<binarios::CacheYtdlp>().inner().clone();
             let handle = app.handle().clone();
@@ -373,7 +476,11 @@ pub fn run() {
             obter_pasta_destino,
             selecionar_pasta_destino,
             iniciar_download,
-            abrir_pasta_download
+            abrir_pasta_download,
+            abrir_arquivo_download,
+            obter_historico,
+            consultar_historico,
+            limpar_historico
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -387,6 +494,109 @@ pub fn run() {
 #[cfg(test)]
 mod licencas_tests {
     use super::*;
+    #[test]
+    fn abertura_por_id_preserva_pasta_quando_video_foi_removido() {
+        let dir = tempfile::tempdir().unwrap();
+        let raiz = dir.path().canonicalize().unwrap();
+        let arquivo = raiz.join("Vídeo [abc].mp4");
+        std::fs::write(
+            &arquivo,
+            b"\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isommp42",
+        )
+        .unwrap();
+        let controle = download::Controle::default();
+        let h = historico::Repositorio::novo(raiz.join("historico.json"));
+        controle
+            .0
+            .lock()
+            .unwrap()
+            .arquivos
+            .insert("a".into(), arquivo.clone());
+        assert!(matches!(
+            destino_pasta(&controle, &h, "a").unwrap(),
+            DestinoPasta::Revelar(_)
+        ));
+        std::fs::remove_file(&arquivo).unwrap();
+        assert!(
+            matches!(destino_pasta(&controle,&h,"a").unwrap(),DestinoPasta::Revelar(p) if p==raiz)
+        );
+        assert_eq!(
+            caminho_download(&controle, &h, "a").unwrap_err().codigo,
+            "ARQUIVO_AUSENTE"
+        );
+        assert!(destino_pasta(&controle, &h, "desconhecido").is_err());
+    }
+    #[test]
+    fn abertura_de_id_persistido_sem_mapa_e_fallback_validam_caminho() {
+        let dir = tempfile::tempdir().unwrap();
+        let raiz = dir.path().canonicalize().unwrap();
+        let arquivo = raiz.join("Vídeo [abc].mp4");
+        std::fs::write(
+            &arquivo,
+            b"\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isommp42",
+        )
+        .unwrap();
+        let h = historico::Repositorio::novo(raiz.join("historico.json"));
+        h.registrar(historico::ItemHistorico {
+            download_id: "persistido".into(),
+            url_original: "https://instagram.com/reel/abc".into(),
+            url_normalizada: "https://instagram.com/p/abc".into(),
+            titulo: None,
+            plataforma: links::Plataforma::Instagram,
+            caminho: arquivo.to_string_lossy().into(),
+            nome_arquivo: "Vídeo [abc].mp4".into(),
+            concluido_em: 1,
+            disponivel: true,
+        })
+        .unwrap();
+        let h = historico::Repositorio::novo(raiz.join("historico.json"));
+        let controle = download::Controle::default();
+        assert_eq!(
+            caminho_download(&controle, &h, "persistido").unwrap(),
+            arquivo
+        );
+        std::fs::remove_file(&arquivo).unwrap();
+        assert!(
+            matches!(destino_pasta(&controle,&h,"persistido").unwrap(),DestinoPasta::Revelar(p) if p==raiz)
+        );
+        assert_eq!(
+            caminho_download(&controle, &h, "persistido")
+                .unwrap_err()
+                .codigo,
+            "ARQUIVO_AUSENTE"
+        );
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(raiz.join("historico.json"), &arquivo).unwrap();
+            assert!(destino_pasta(&controle, &h, "persistido").is_err());
+        }
+    }
+    #[test]
+    fn pasta_app_persistida_com_video_ausente_so_pode_ser_revelada() {
+        let dir = tempfile::tempdir().unwrap();
+        let raiz = dir.path().canonicalize().unwrap();
+        let pacote = raiz.join("Armadilha.app");
+        std::fs::create_dir(&pacote).unwrap();
+        let arquivo = pacote.join("Vídeo [abc].mp4");
+        let h = historico::Repositorio::novo(raiz.join("historico.json"));
+        h.registrar(historico::ItemHistorico {
+            download_id: "persistido".into(),
+            url_original: "https://instagram.com/reel/abc".into(),
+            url_normalizada: "https://instagram.com/reel/abc".into(),
+            titulo: None,
+            plataforma: links::Plataforma::Instagram,
+            caminho: arquivo.to_string_lossy().into(),
+            nome_arquivo: "Vídeo [abc].mp4".into(),
+            concluido_em: 1,
+            disponivel: false,
+        })
+        .unwrap();
+        let controle = download::Controle::default();
+        assert!(
+            matches!(destino_pasta(&controle,&h,"persistido").unwrap(),DestinoPasta::Revelar(p) if p==pacote)
+        );
+        assert!(caminho_download(&controle, &h, "persistido").is_err());
+    }
     #[test]
     fn le_json_e_texto_completo_e_exige_ambos() {
         let dir = tempfile::tempdir().unwrap();

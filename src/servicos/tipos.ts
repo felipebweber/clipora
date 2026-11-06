@@ -1,6 +1,7 @@
 import type {
   EstadoPersistido,
   Licencas,
+  ItemHistorico,
   TipoLinkLicenca,
   EventoAtualizacao,
   EventoDownload,
@@ -22,6 +23,10 @@ import type {
  * do runtime do Tauri. A escolha entre as duas acontece em `./index.ts`.
  */
 export interface ServicoClipora {
+  obter_historico(): Promise<ItemHistorico[]>;
+  consultar_historico(args: { url: string }): Promise<ItemHistorico | null>;
+  limpar_historico(): Promise<void>;
+  abrir_arquivo_download(args: { downloadId: string }): Promise<void>;
   obter_previa(args: { url: string; requisicaoId: number }): Promise<Previa>;
 
   iniciar_download(args: {

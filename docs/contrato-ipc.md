@@ -5,10 +5,11 @@ Contrato para integração; salvo indicação contrária, comandos futuros ainda
 ## Tipos TypeScript
 
 ```ts
-type CodigoErro = 'LINK_INVALIDO' | 'PLATAFORMA_NAO_SUPORTADA' | 'PREVIA_CANCELADA' | 'TEMPO_ESGOTADO' | 'SEM_CONEXAO' | 'LOGIN_NECESSARIO' | 'CONTEUDO_PRIVADO_OU_REMOVIDO' | 'LIMITE_DE_ACESSO' | 'CONTEUDO_NAO_SUPORTADO' | 'PREVIA_INDISPONIVEL' | 'PASTA_NAO_DEFINIDA' | 'PASTA_AUSENTE' | 'PASTA_SEM_PERMISSAO' | 'ESPACO_INSUFICIENTE' | 'FFMPEG_INDISPONIVEL' | 'ARQUIVO_INCOMPLETO' | 'DOWNLOAD_EM_ANDAMENTO' | 'DOWNLOAD_FALHOU' | 'ATUALIZACAO_EM_ANDAMENTO' | 'ATUALIZACAO_INTEGRIDADE' | 'ATUALIZACAO_NAO_SUPORTADA' | 'ATUALIZACAO_FALHOU' | 'YTDLP_INDISPONIVEL' | 'LICENCAS_INDISPONIVEIS' | 'ERRO_INTERNO';
+type CodigoErro = 'LINK_INVALIDO' | 'PLATAFORMA_NAO_SUPORTADA' | 'PREVIA_CANCELADA' | 'TEMPO_ESGOTADO' | 'SEM_CONEXAO' | 'LOGIN_NECESSARIO' | 'CONTEUDO_PRIVADO_OU_REMOVIDO' | 'LIMITE_DE_ACESSO' | 'CONTEUDO_NAO_SUPORTADO' | 'PREVIA_INDISPONIVEL' | 'PASTA_NAO_DEFINIDA' | 'PASTA_AUSENTE' | 'PASTA_SEM_PERMISSAO' | 'ESPACO_INSUFICIENTE' | 'FFMPEG_INDISPONIVEL' | 'ARQUIVO_INCOMPLETO' | 'DOWNLOAD_EM_ANDAMENTO' | 'DOWNLOAD_FALHOU' | 'ATUALIZACAO_EM_ANDAMENTO' | 'ATUALIZACAO_INTEGRIDADE' | 'ATUALIZACAO_NAO_SUPORTADA' | 'ATUALIZACAO_FALHOU' | 'YTDLP_INDISPONIVEL' | 'LICENCAS_INDISPONIVEIS' | 'HISTORICO_INDISPONIVEL' | 'ARQUIVO_AUSENTE' | 'ERRO_INTERNO';
 type ErroClipora = { codigo: CodigoErro; mensagem: string; detalhe?: string };
 type Plataforma = 'instagram' | 'tiktok';
 type Previa = { requisicaoId: number; urlOriginal: string; urlNormalizada: string; titulo: string | null; plataforma: Plataforma; duracaoSegundos: number | null; capaDataUrl: string | null };
+type ItemHistorico = { downloadId: string; urlOriginal: string; urlNormalizada: string; titulo: string | null; plataforma: Plataforma; caminho: string; nomeArquivo: string; concluidoEm: number; disponivel: boolean };
 type EtapaDownload = 'preparando' | 'baixando_video' | 'baixando_audio' | 'unindo' | 'finalizando';
 type EventoDownload =
   | { tipo: 'progresso'; etapa: EtapaDownload; percentual: number | null; bytesBaixados?: number; bytesTotais?: number }
@@ -30,6 +31,10 @@ type Comandos = {
   iniciar_download: (args: { downloadId: string; url: string; onEvento: Channel<EventoDownload> }) => Promise<void>;
   obter_estado: () => Promise<Estado>;
   abrir_pasta_download: (args: { downloadId: string }) => Promise<void>;
+  abrir_arquivo_download: (args: { downloadId: string }) => Promise<void>;
+  obter_historico: () => Promise<ItemHistorico[]>;
+  consultar_historico: (args: { url: string }) => Promise<ItemHistorico | null>;
+  limpar_historico: () => Promise<void>;
   obter_pasta_destino: () => Promise<PastaDestino>;
   selecionar_pasta_destino: () => Promise<string | null>;
   verificar_ytdlp: () => Promise<VerificacaoYtdlp>;
@@ -48,7 +53,7 @@ use serde::Serialize;
 use tauri::ipc::Channel;
 #[derive(Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum CodigoErro { LinkInvalido, PlataformaNaoSuportada, PreviaCancelada, TempoEsgotado, SemConexao, LoginNecessario, ConteudoPrivadoOuRemovido, LimiteDeAcesso, ConteudoNaoSuportado, PreviaIndisponivel, PastaNaoDefinida, PastaAusente, PastaSemPermissao, EspacoInsuficiente, FfmpegIndisponivel, ArquivoIncompleto, DownloadEmAndamento, DownloadFalhou, AtualizacaoEmAndamento, AtualizacaoIntegridade, AtualizacaoNaoSuportada, AtualizacaoFalhou, YtdlpIndisponivel, LicencasIndisponiveis, ErroInterno }
+enum CodigoErro { LinkInvalido, PlataformaNaoSuportada, PreviaCancelada, TempoEsgotado, SemConexao, LoginNecessario, ConteudoPrivadoOuRemovido, LimiteDeAcesso, ConteudoNaoSuportado, PreviaIndisponivel, PastaNaoDefinida, PastaAusente, PastaSemPermissao, EspacoInsuficiente, FfmpegIndisponivel, ArquivoIncompleto, DownloadEmAndamento, DownloadFalhou, AtualizacaoEmAndamento, AtualizacaoIntegridade, AtualizacaoNaoSuportada, AtualizacaoFalhou, YtdlpIndisponivel, LicencasIndisponiveis, HistoricoIndisponivel, ArquivoAusente, ErroInterno }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ErroClipora { codigo: CodigoErro, mensagem: String, #[serde(skip_serializing_if = "Option::is_none")] detalhe: Option<String> }
@@ -58,6 +63,9 @@ enum Plataforma { Instagram, Tiktok }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Previa { requisicao_id: u64, url_original: String, url_normalizada: String, titulo: Option<String>, plataforma: Plataforma, duracao_segundos: Option<f64>, capa_data_url: Option<String> }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ItemHistorico { download_id: String, url_original: String, url_normalizada: String, titulo: Option<String>, plataforma: Plataforma, caminho: String, nome_arquivo: String, concluido_em: u64, disponivel: bool }
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 enum EtapaDownload { Preparando, BaixandoVideo, BaixandoAudio, Unindo, Finalizando }
@@ -103,6 +111,10 @@ async fn obter_previa(url: String, requisicao_id: u64) -> Result<Previa, ErroCli
 async fn iniciar_download(download_id: String, url: String, on_evento: Channel<EventoDownload>) -> Result<(), ErroClipora>;
 fn obter_estado() -> Result<Estado, ErroClipora>;
 async fn abrir_pasta_download(download_id: String) -> Result<(), ErroClipora>;
+async fn abrir_arquivo_download(download_id: String) -> Result<(), ErroClipora>;
+fn obter_historico() -> Result<Vec<ItemHistorico>, ErroClipora>;
+fn consultar_historico(url: String) -> Result<Option<ItemHistorico>, ErroClipora>;
+fn limpar_historico() -> Result<(), ErroClipora>;
 fn obter_pasta_destino() -> Result<PastaDestino, ErroClipora>;
 async fn selecionar_pasta_destino() -> Result<Option<String>, ErroClipora>;
 async fn verificar_ytdlp() -> Result<VerificacaoYtdlp, ErroClipora>;
@@ -123,6 +135,18 @@ O frontend gera `requisicaoId` e ignora `PREVIA_CANCELADA`. A última chamada re
 2. Diálogo nativo aberto pelo Rust valida diretório e escrita real e persiste em `app_config_dir`. Cancelamento retorna `null` e mantém a pasta anterior; nesse caso não repetir o download. Se selecionada, repetir com o mesmo ID e ouvinte lógico, criando um **novo `Channel<EventoDownload>` para cada chamada IPC/tentativa**. O Channel da chamada rejeitada foi descartado pelo Rust e não pode ser reutilizado; o frontend reanexa o ouvinte lógico ao novo canal.
 3. Eventos são ordenados no canal, com percentual global calculado no backend e limitado a aproximadamente 10/s. O evento terminal é `concluido` ou `erro`; conclusão exige saída zero, arquivo final existente e não vazio, sem `.part`. Saída zero sem arquivo válido (inexistente, vazio, `.part`, mensagem `already downloaded` ou caminho fora da pasta) retorna `ARQUIVO_INCOMPLETO`. Após recarga, `obter_estado` recupera o download ativo e estado da atualização.
 4. Backend forma `@perfil - descrição [id].mp4`, usando até oito palavras da descrição; na ausência dela, usa título significativo. Títulos genéricos como `Video by …` são omitidos. Sem rótulo, usa `@perfil [id].mp4`; sem perfil, usa o rótulo ou `Vídeo [id].mp4`. No Instagram, prefere `channel`, depois `uploader_id` textual e `uploader`; no TikTok, `uploader`, depois `channel` e `uploader_id`. Um perfil legível precede IDs numéricos. Normaliza um `@`, espaços, controles e caracteres incompatíveis, preserva Unicode e limita o nome completo a 255 bytes, reservando extensão e o maior sufixo de colisão. O ID entre colchetes evita nomes de dispositivo reservados no Windows. Usa ` (2)`, ` (3)` etc. em caso de colisão; baixa em pasta temporária no mesmo volume e finaliza com reserva exclusiva sem sobrescrever. `renomeado` indica colisão. `abrir_pasta_download` revela exclusivamente arquivo produzido pelo backend, identificado por ID, sem aceitar caminho do frontend.
+
+## Histórico local e abertura por ID (implementados)
+
+`obter_historico` retorna somente downloads concluídos nesta evolução, ordenados por `concluidoEm` decrescente (Unix em milissegundos). `disponivel` é recalculado a cada consulta e não garante abertura futura. `titulo` pode ser `null` sem prévia. O arquivo local é `app_local_data_dir()/historico.json`, formato `{ versao: 1, itens: ItemHistorico[] }`; a disponibilidade armazenada nunca é confiada. Não há capas, servidor, importação de vídeos antigos ou varredura do disco.
+
+Registro, leitura do JSON e limpeza compartilham mutex. Stats/leitura de cada vídeo e cálculo de disponibilidade ocorrem fora do mutex, sobre um snapshot; uma consulta em volume lento não impede registro/limpeza. Gravação usa temporário exclusivo no mesmo diretório, flush/sync e substituição atômica. JSON corrompido, versão desconhecida ou registros inválidos retornam `HISTORICO_INDISPONIVEL` e não são sobrescritos por registrar/limpar. O usuário pode reparar/restaurar o arquivo local e tentar novamente. Falha ao gravar mantém registros pendentes em memória para retentativa por `obter_historico` ou `consultar_historico`; consultas continuam rejeitando até a persistência funcionar. Esses pendentes não sobrevivem ao encerramento do aplicativo.
+
+Falha no histórico preserva o evento e `ultimoResultado` de conclusão. A UI recarrega o histórico após concluir, inclusive em recuperação de estado, e comunica o erro separadamente. O mapa de arquivos em memória permite abrir a conclusão mesmo com histórico corrompido. `limpar_historico` remove apenas registros e pendentes anteriores à limpeza, sem apagar vídeos nem invalidar a conclusão em memória; confirmação é responsabilidade da interface.
+
+`consultar_historico` valida a URL e compara ID do Instagram entre `/p/`, `/reel/`, `/reels/` e `/<usuario>/reel/`, ignorando HTTP, aliases www/m, rastreamento e fragmentos. TikTok canônico compara o ID numérico, independentemente do usuário. Links curtos comparam host/endereço salvo sem rastreamento; www/m de `tiktok.com/t/` são aliases. `vm` e `vt` e tokens curtos diferentes não são presumidos equivalentes. Consulta compara URL original e normalizada; se uma URL resolvida estiver disponível nesta última, também participa. A prévia atual **não resolve links curtos**: um download por link curto ainda não corresponde ao link canônico ou a outro token curto apenas por representar o mesmo vídeo. Retorna a cópia disponível mais recente, ou a mais recente indisponível quando todas faltarem, ou `null`. Não bloqueia novos downloads. A UI deve descartar respostas obsoletas após troca de URL ou limpeza.
+
+Abertura aceita exclusivamente `downloadId` opaco (1–128 caracteres ASCII alfanuméricos, `_` ou `-`), nunca caminhos do frontend. IDs persistidos, plataforma, URLs, caminho absoluto e nome/extensão coerentes são validados. Na conclusão, somente o diretório pai é canonicalizado e esse caminho é usado no histórico e no mapa em memória: aliases legítimos como `/tmp` e `/var` funcionam sem seguir symlink no arquivo final. Abrir vídeo/revelar exige arquivo regular `.mp4` com cabeçalho de contêiner `ftyp`, acessível e sem componentes symlink. A validação é repetida imediatamente antes de delegar ao aplicativo padrão, sem shell. ID desconhecido ou vídeo indisponível retorna `ARQUIVO_AUSENTE`. Se o vídeo foi removido e o diretório original ainda existe e é válido, `abrir_pasta_download` preserva o fallback de revelar essa pasta no gerenciador de arquivos (nunca `open_path` em diretório persistido, inclusive `.app`); se também faltar, retorna `PASTA_AUSENTE`. Não procura arquivos movidos e não abre symlinks substituídos. “Produzido pelo Clipora” significa o caminho que o próprio processo gravou e que ainda passa nessa checagem. Não há assinatura do arquivo nem verificação completa/criptográfica do conteúdo de vídeo; o cabeçalho é uma checagem de formato, não atestado de origem ou integridade. O JSON é dado local não autenticado: registros manipulados são validados por essas regras, sem garantia contra um processo local capaz de substituir dados/arquivos e satisfazer as mesmas regras.
 
 ## Atualização
 

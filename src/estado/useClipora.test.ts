@@ -23,6 +23,10 @@ function previaFalsa(requisicaoId: number, overrides: Partial<Previa> = {}): Pre
 function criarServicoControlavel() {
   const resolucoesPrevia = new Map<number, { resolve: (p: Previa) => void; reject: (e: unknown) => void }>();
   const servico: ServicoClipora = {
+    obter_historico: vi.fn().mockResolvedValue([]),
+    consultar_historico: vi.fn().mockResolvedValue(null),
+    limpar_historico: vi.fn().mockResolvedValue(undefined),
+    abrir_arquivo_download: vi.fn().mockResolvedValue(undefined),
     obter_previa: vi.fn(({ requisicaoId }: { url: string; requisicaoId: number }) => {
       return new Promise<Previa>((resolve, reject) => {
         resolucoesPrevia.set(requisicaoId, { resolve, reject });
@@ -202,6 +206,20 @@ describe("useClipora: fluxo de pasta de destino ao baixar", () => {
 
     expect(servico.iniciar_download).toHaveBeenCalledTimes(1);
     expect(result.current.estado).toEqual({ tipo: "pronto", previa });
+  });
+});
+
+describe("useClipora: URL original no download", () => {
+  it("envia a URL original, mantendo ao backend a escolha da forma normalizada", async () => {
+    const { servico } = criarServicoControlavel();
+    const original = "http://www.instagram.com/reel/AbC/?utm_source=share";
+    const normalizada = "https://www.instagram.com/reel/AbC/?utm_source=share";
+    vi.mocked(servico.obter_previa).mockResolvedValue(previaFalsa(1, { urlOriginal: original, urlNormalizada: normalizada }));
+    const { result } = renderHook(() => useClipora(servico));
+    await act(async () => { result.current.aoAlterarLink(original); await Promise.resolve(); });
+    await waitFor(() => expect(result.current.estado.tipo).toBe("pronto"));
+    act(() => result.current.baixar());
+    expect(servico.iniciar_download).toHaveBeenCalledWith(expect.objectContaining({ url: original }));
   });
 });
 

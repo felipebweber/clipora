@@ -2,6 +2,8 @@
 
 Clipora é um aplicativo desktop em desenvolvimento para baixar um vídeo público por vez de links compatíveis do Instagram Reels e TikTok. O processamento ocorre no computador. Consulte o [guia do usuário](docs/usuario/README.md) e o [estado da distribuição](docs/distribuicao.md).
 
+O app mantém no próprio dispositivo um histórico dos downloads concluídos. Você pode abrir um vídeo pelo histórico ou pela tela de conclusão. Se colar um link já baixado, o Clipora avisa e permite abrir o arquivo disponível ou baixar outra cópia. O histórico começa vazio: downloads anteriores não são importados nem procurados nas pastas. Limpar o histórico remove somente os registros; os vídeos salvos permanecem. Links, títulos, datas e caminhos do histórico ficam localmente no dispositivo e não são enviados pelo Clipora.
+
 ## Licença escolhida
 
 O Clipora será publicado como open source sob **GPL-3.0-or-later** (GNU GPL versão 3 ou posterior), conforme decisão de Felipe em 2026-11-06. A aprovação e os itens a conferir antes da publicação estão em [Licenças, seção 6.1](docs/licencas.md#61-decisão-aprovada--2026-11-06). Os componentes de terceiros mantêm suas próprias licenças.

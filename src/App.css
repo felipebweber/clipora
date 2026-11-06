@@ -372,6 +372,97 @@ button:focus-visible {
   margin-top: 0.5rem !important;
 }
 
+.historico-painel {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--cor-borda);
+  padding-top: 0.75rem;
+}
+
+.historico-painel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.historico-painel summary:focus-visible {
+  outline: 3px solid var(--cor-destaque);
+  outline-offset: 3px;
+  border-radius: 0.2rem;
+}
+
+.historico-conteudo,
+.historico-duplicado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.historico-item {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--cor-borda);
+}
+
+.historico-dados {
+  min-width: 0;
+  flex: 1 1 12rem;
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+}
+
+.historico-dados span,
+.historico-duplicado p {
+  margin: 0;
+  color: var(--cor-texto-suave);
+  font-size: 0.9rem;
+}
+
+.historico-indisponivel {
+  color: var(--cor-erro-texto) !important;
+}
+
+.historico-painel button,
+.historico-duplicado button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--cor-borda-controle);
+  border-radius: 0.4rem;
+  background-color: var(--cor-superficie);
+  color: var(--cor-texto);
+}
+
+.historico-confirmacao,
+.historico-erro {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 0.5rem;
+  background-color: var(--cor-superficie);
+}
+
+.historico-confirmacao p,
+.historico-erro p {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+.historico-duplicado {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 0.5rem;
+  background-color: var(--cor-superficie);
+}
+
 /* Tela "Sobre e licenças" (diálogo modal). */
 .dialogo-fundo {
   position: fixed;

@@ -99,6 +99,140 @@ describe("App (fluxo completo com o serviço simulado)", () => {
   });
 });
 
+describe("App: histórico local", () => {
+  it("exibe a duplicidade sem bloquear o novo download e oculta a ação durante atualização", async () => {
+    const usuario = userEvent.setup();
+    const url = "https://www.instagram.com/reel/abc123/";
+    const servico = criarSimulado({ verificacaoYtdlpInicial: COM_ATUALIZACAO, atrasoPassoDownloadMs: 80 });
+    servico.definirPastaParaTeste({ caminho: "/d", estado: "valida" });
+    await servico.iniciar_download({ downloadId: "anterior", url, onEvento: () => {} });
+    render(<App servico={servico} />);
+
+    await colarLinkEAguardarPrevia(usuario, url);
+    expect(await screen.findByText(/este vídeo já está no histórico/i)).toBeInTheDocument();
+    const baixarNovamente = screen.getByRole("button", { name: /baixar novamente/i });
+    expect(baixarNovamente).toBeEnabled();
+
+    await usuario.click(within(avisoAtualizacao()).getByRole("button", { name: /^atualizar$/i }));
+    await waitFor(() => expect(baixarNovamente).toBeDisabled());
+    expect(botaoBaixar()).toBeDisabled();
+  }, 10_000);
+
+  it("mantém falha de abertura da conclusão visível com o painel recolhido", async () => {
+    const usuario = userEvent.setup();
+    const servico = criarSimulado();
+    servico.definirPastaParaTeste({ caminho: "/d", estado: "valida" });
+    vi.spyOn(servico, "abrir_arquivo_download").mockRejectedValue({ codigo: "ARQUIVO_AUSENTE", mensagem: "missing" });
+    render(<App servico={servico} />);
+    await colarLinkEAguardarPrevia(usuario, "https://www.instagram.com/reel/abc/");
+    await usuario.click(botaoBaixar());
+    await usuario.click(await screen.findByRole("button", { name: /abrir vídeo/i }, { timeout: 3000 }));
+    expect(await screen.findByText(/não foi possível abrir o vídeo/i)).toBeInTheDocument();
+    expect(screen.getByText(/histórico de downloads/i).closest("details")).not.toHaveAttribute("open");
+  }, 10_000);
+
+  it("mostra erro ao carregar lista fora da seção recolhida e permite tentar de novo", async () => {
+    const usuario = userEvent.setup();
+    const servico = criarSimulado({ falhaHistorico: "HISTORICO_INDISPONIVEL" });
+    render(<App servico={servico} />);
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(/não foi possível carregar o histórico/i);
+    expect(screen.getByText(/histórico de downloads/i).closest("details")).not.toHaveAttribute("open");
+    await usuario.click(within(alerta).getByRole("button", { name: /tentar novamente/i }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+
+  it("permite iniciar outro download pelo aviso de duplicidade", async () => {
+    const usuario = userEvent.setup();
+    const url = "https://www.tiktok.com/@p/video/12345";
+    const servico = criarSimulado();
+    servico.definirPastaParaTeste({ caminho: "/d", estado: "valida" });
+    await servico.iniciar_download({ downloadId: "anterior", url, onEvento: () => {} });
+    const iniciar = vi.spyOn(servico, "iniciar_download");
+    render(<App servico={servico} />);
+    await colarLinkEAguardarPrevia(usuario, url);
+    await usuario.click(await screen.findByRole("button", { name: /baixar novamente/i }));
+    await waitFor(() => expect(iniciar).toHaveBeenCalledTimes(1));
+    expect(iniciar.mock.calls[0][0].url).toBe(url);
+    await screen.findByText(/download concluído/i, {}, { timeout: 3000 });
+  }, 10_000);
+
+  it("recupera falha de registro no histórico sem repetir o download", async () => {
+    const usuario = userEvent.setup();
+    const servico = criarSimulado({ falhasPersistenciaHistoricoRestantes: 2 });
+    servico.definirPastaParaTeste({ caminho: "/d", estado: "valida" });
+    const downloads = vi.spyOn(servico, "iniciar_download");
+    render(<App servico={servico} />);
+    await colarLinkEAguardarPrevia(usuario, "https://www.instagram.com/reel/abc/");
+    await usuario.click(botaoBaixar());
+
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(/não foi possível registrar este download no histórico/i);
+    expect(screen.getByText(/download concluído/i)).toBeInTheDocument();
+    await usuario.click(within(alerta).getByRole("button", { name: /tentar novamente/i }));
+    await usuario.click(await screen.findByText("Histórico de downloads (1)"));
+    expect(within(screen.getByRole("article")).getByText("Vídeo simulado de instagram.mp4")).toBeInTheDocument();
+    expect(downloads).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/download concluído/i)).toBeInTheDocument();
+  }, 10_000);
+
+  it("mantém registros e confirmação visíveis se limpar falhar", async () => {
+    const usuario = userEvent.setup();
+    const servico = criarSimulado();
+    servico.definirPastaParaTeste({ caminho: "/d", estado: "valida" });
+    await servico.iniciar_download({ downloadId: "preservado", url: "https://instagram.com/reel/abc/", onEvento: () => {} });
+    vi.spyOn(servico, "limpar_historico").mockRejectedValue({ codigo: "HISTORICO_INDISPONIVEL", mensagem: "disk" });
+    render(<App servico={servico} />);
+    expect(await screen.findByText(/histórico de downloads \(1\)/i)).toBeInTheDocument();
+    await usuario.click(screen.getByText(/histórico de downloads/i));
+    await usuario.click(screen.getByRole("button", { name: /limpar histórico/i }));
+    await usuario.click(screen.getByRole("button", { name: /confirmar limpeza/i }));
+    expect(await screen.findByText(/não foi possível limpar o histórico/i)).toBeInTheDocument();
+    expect(screen.getByText("Vídeo simulado de instagram.mp4")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /confirmar limpeza/i })).toBeInTheDocument();
+  }, 10_000);
+
+  it("não apaga o erro de limpeza quando consulta da prévia termina com sucesso", async () => {
+    const usuario = userEvent.setup();
+    const url = "https://instagram.com/reel/existente/";
+    const servico = criarSimulado();
+    servico.definirPastaParaTeste({ caminho: "/d", estado: "valida" });
+    await servico.obter_previa({ url, requisicaoId: 1 });
+    await servico.iniciar_download({ downloadId: "existente", url, onEvento: () => {} });
+    const limparReal = servico.limpar_historico.bind(servico);
+    vi.spyOn(servico, "limpar_historico")
+      .mockRejectedValueOnce({ codigo: "HISTORICO_INDISPONIVEL", mensagem: "write denied" })
+      .mockImplementation(limparReal);
+    render(<App servico={servico} />);
+    await colarLinkEAguardarPrevia(usuario, url);
+    await usuario.click(screen.getByText(/histórico de downloads/i));
+    await usuario.click(screen.getByRole("button", { name: /limpar histórico/i }));
+    await usuario.click(screen.getByRole("button", { name: /confirmar limpeza/i }));
+
+    expect(await screen.findByText(/não foi possível limpar o histórico/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /confirmar limpeza/i })).toBeInTheDocument();
+    expect(within(screen.getByRole("article")).getByText("Vídeo simulado de instagram.mp4")).toBeInTheDocument();
+    // A consulta disparada após a limpeza ocorreu e encontrou o mesmo item;
+    // isso não significa que a escrita da limpeza tenha sido bem-sucedida.
+    expect(await screen.findByText(/este vídeo já está no histórico/i)).toBeInTheDocument();
+    expect(screen.getByText(/não foi possível limpar o histórico/i)).toBeInTheDocument();
+
+    await usuario.click(screen.getByRole("button", { name: /confirmar limpeza/i }));
+    expect(await screen.findByText(/nenhum vídeo baixado ainda/i)).toBeInTheDocument();
+    expect(screen.queryByText(/não foi possível limpar o histórico/i)).not.toBeInTheDocument();
+  }, 10_000);
+
+  it("comunica falha de consulta de duplicidade sem bloquear o download", async () => {
+    const usuario = userEvent.setup();
+    const servico = criarSimulado();
+    vi.spyOn(servico, "consultar_historico").mockRejectedValue({ codigo: "HISTORICO_INDISPONIVEL", mensagem: "disk" });
+    render(<App servico={servico} />);
+    await colarLinkEAguardarPrevia(usuario, "https://www.instagram.com/reel/abc/");
+    expect(await screen.findByText(/não foi possível conferir se este vídeo já está no histórico/i)).toBeInTheDocument();
+    expect(botaoBaixar()).toBeEnabled();
+  });
+});
+
 describe("App: teclado e foco (M5)", () => {
   it(
     "fluxo só com teclado: o foco segue para o progresso e depois para 'Abrir pasta'",
@@ -120,7 +254,7 @@ describe("App: teclado e foco (M5)", () => {
       const progresso = screen.getByLabelText(/download em andamento/i);
       expect(progresso).toHaveFocus();
 
-      const abrir = await screen.findByRole("button", { name: /abrir pasta/i }, { timeout: 5000 });
+      const abrir = await screen.findByRole("button", { name: /abrir vídeo/i }, { timeout: 5000 });
       expect(abrir).toHaveFocus();
     },
     10_000,
@@ -304,6 +438,10 @@ describe("App: recuperação ao abrir (obter_estado)", () => {
   it("reconhece conclusão do mesmo download no polling depois de recarregar", async () => {
     const servico = criarSimulado();
     let ativo = true;
+    vi.spyOn(servico, "obter_historico").mockImplementation(async () => ativo ? [] : [{
+      downloadId: "d-em-andamento", urlOriginal: "https://instagram.com/reel/clip/", urlNormalizada: "https://instagram.com/reel/clip/",
+      titulo: "clip", plataforma: "instagram", caminho: "/Downloads/clip.mp4", nomeArquivo: "clip.mp4", concluidoEm: 1, disponivel: true,
+    }]);
     vi.spyOn(servico, "obter_estado").mockImplementation(
       async (): Promise<EstadoPersistido> => ({
         download: ativo ? { downloadId: "d-em-andamento", etapa: "unindo", percentual: 90 } : null,
@@ -325,6 +463,7 @@ describe("App: recuperação ao abrir (obter_estado)", () => {
     ativo = false;
     expect(await screen.findByText("Download concluído: clip.mp4")).toBeInTheDocument();
     expect(screen.getByText(/salvo com um nome diferente/i)).toBeInTheDocument();
+    expect(await screen.findByText("Histórico de downloads (1)")).toBeInTheDocument();
   });
 
   it("recupera a conclusão persistida e abre a pasta do mesmo download", async () => {

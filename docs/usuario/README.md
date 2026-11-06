@@ -17,11 +17,23 @@ Não instale um pacote cujo hash publicado não confira. Não há atualização 
 1. Cole o link de um vídeo público do Instagram Reels ou TikTok no campo principal. O Clipora carrega a prévia quando o yt-dlp consegue acessar o link.
 2. Confira a prévia e selecione **Baixar**.
 3. Na primeira vez, escolha uma pasta de destino. O Clipora guarda essa preferência localmente. Altere-a em **Configurações** quando precisar.
-4. Acompanhe o progresso. Ao concluir, use **Abrir pasta** para localizar o arquivo.
+4. Acompanhe o progresso. Ao concluir, use **Abrir vídeo** para assistir ou **Abrir pasta** para localizar o arquivo.
 
 O Clipora salva um vídeo por vez e escolhe a melhor combinação de vídeo e áudio que o yt-dlp consegue obter. Quando necessário, o FFmpeg une as faixas sem transcodificá-las. Arquivos existentes não são sobrescritos.
 
 O nome do arquivo combina o perfil, o início da descrição (ou o título disponível) e o ID do vídeo, por exemplo: `@perfil - Como preparar café gelado [ID].mp4`. O Clipora ajusta caracteres incompatíveis e encurta textos longos. Se a plataforma não fornecer algum desses dados, usa os demais; sem título ou descrição, mantém o perfil e o ID. Downloads repetidos recebem um número, como ` (2)`, preservando o arquivo anterior.
+
+## Histórico e links repetidos
+
+Quando o download termina, o Clipora guarda um registro no histórico local. A lista fica no próprio dispositivo e mostra os downloads concluídos, do mais recente ao mais antigo. Use **Abrir vídeo** na conclusão ou no histórico para abrir o arquivo no aplicativo padrão do sistema. O histórico também permite revelar o vídeo na pasta onde foi salvo.
+
+Se o vídeo tiver sido movido, removido ou estiver inacessível, o registro continua na lista e o Clipora informa que o arquivo não está disponível. Você pode tentar baixar o vídeo novamente. O app não procura automaticamente por arquivos movidos em outras pastas.
+
+Ao colar um link de um vídeo que já aparece no histórico, o Clipora mostra um aviso. Se a cópia ainda estiver disponível, você pode abri-la; também pode escolher **Baixar** para fazer outra cópia. O aviso não impede um novo download. Links curtos podem não ser reconhecidos como repetidos quando o Clipora não consegue relacioná-los ao mesmo vídeo.
+
+O histórico começa vazio. O Clipora não importa downloads antigos nem examina a pasta de destino para preencher a lista. Para limpar o histórico, confirme a ação apresentada no app. Isso apaga somente os registros da lista; os arquivos de vídeo continuam nas pastas onde foram salvos.
+
+Os registros do histórico — incluindo links, títulos, datas e caminhos dos arquivos — são guardados localmente no dispositivo e não são enviados pelo Clipora. Isso não altera o funcionamento do download: para obter a prévia ou o vídeo, o app acessa o serviço indicado pelo link.
 
 ## Atualizar o yt-dlp
 

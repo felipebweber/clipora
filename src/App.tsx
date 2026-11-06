@@ -3,6 +3,7 @@ import { AvisoAtualizacao } from "./componentes/AvisoAtualizacao";
 import { CampoLink } from "./componentes/CampoLink";
 import { ConfiguracoesPainel } from "./componentes/ConfiguracoesPainel";
 import { ErroAviso } from "./componentes/ErroAviso";
+import { HistoricoPainel } from "./componentes/HistoricoPainel";
 import { PreviaCard } from "./componentes/PreviaCard";
 import { ProgressoDownloadView } from "./componentes/ProgressoDownload";
 import { SobreLicencas } from "./componentes/SobreLicencas";
@@ -10,6 +11,7 @@ import { permiteNovaTentativa } from "./erros/mensagens";
 import type { EstadoApp } from "./estado/maquina";
 import { useAtualizacaoYtdlp } from "./estado/useAtualizacaoYtdlp";
 import { useClipora } from "./estado/useClipora";
+import { useHistorico } from "./estado/useHistorico";
 import { usePastaDestino } from "./estado/usePastaDestino";
 import { servico as servicoPadrao } from "./servicos";
 import type { ServicoClipora } from "./servicos/tipos";
@@ -61,6 +63,9 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
 
   const erroAtual = estado.tipo === "erro" ? estado.erro : null;
   const previaAtual = previaDoEstado(estado);
+  const previaPronta = estado.tipo === "pronto" ? estado.previa : null;
+  const historico = useHistorico(servico, previaPronta);
+  const ultimoDownloadConcluido = useRef<string | null>(null);
   const baixarHabilitado = podeSolicitarDownload && !atualizacao.emAndamento;
 
   // Gestão de foco: quando o elemento focado some (Baixar ao iniciar o
@@ -72,6 +77,7 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
   const refProgresso = useRef<HTMLDivElement>(null);
   const refErro = useRef<HTMLButtonElement>(null);
   const refAbrirPasta = useRef<HTMLButtonElement>(null);
+  const refAbrirArquivo = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!focoPerdido()) return;
     const alvo = {
@@ -79,11 +85,17 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
       carregando_previa: refCampo,
       pronto: refBaixar.current && !refBaixar.current.disabled ? refBaixar : refCampo,
       baixando: refProgresso,
-      concluido: refAbrirPasta,
+      concluido: refAbrirArquivo,
       erro: refErro,
     }[estado.tipo];
     alvo.current?.focus();
   }, [estado.tipo]);
+
+  useEffect(() => {
+    if (estado.tipo !== "concluido" || ultimoDownloadConcluido.current === estado.downloadId) return;
+    ultimoDownloadConcluido.current = estado.downloadId;
+    void historico.recarregar("registrar");
+  }, [estado, historico.recarregar]);
 
   // Tela "Sobre e licenças": modal; o resto da janela fica inerte enquanto
   // ela está aberta e o foco volta ao botão que a abriu.
@@ -172,6 +184,9 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
               Já existia um arquivo com esse nome; este foi salvo com um nome diferente.
             </p>
           )}
+          <button type="button" ref={refAbrirArquivo} onClick={() => void historico.abrirArquivo(estado.downloadId)}>
+            Abrir vídeo
+          </button>
           <button type="button" ref={refAbrirPasta} onClick={abrirPasta}>
             Abrir pasta
           </button>
@@ -183,6 +198,31 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
           {aviso}
         </p>
       )}
+
+      {historico.erro && (
+        <div className="historico-erro" role="alert">
+          <p>{historico.erro}</p>
+          {historico.contextoErro !== "limpar" && (
+            <button type="button" onClick={() => void historico.recarregar(historico.contextoErro === "registrar" ? "registrar" : "carregar")}>Tentar novamente</button>
+          )}
+        </div>
+      )}
+      {historico.avisoAcao && <p className="aviso" role="status">{historico.avisoAcao}</p>}
+      {historico.erroConsultaDuplicidade && (
+        <p className="aviso" role="status">{historico.erroConsultaDuplicidade}</p>
+      )}
+
+      <HistoricoPainel
+        itens={historico.itens}
+        carregando={historico.carregando}
+        erro={historico.erro}
+        baixarDesabilitado={!baixarHabilitado}
+        duplicado={historico.duplicado}
+        aoLimpar={() => historico.limpar()}
+        aoAbrirArquivo={(id) => void historico.abrirArquivo(id)}
+        aoAbrirPasta={(id) => void historico.abrirPasta(id)}
+        aoBaixarNovamente={baixar}
+      />
 
       <ConfiguracoesPainel
         pasta={pasta}

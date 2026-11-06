@@ -255,7 +255,9 @@ export function useClipora(
     const downloadId = gerarIdDownload();
     setAviso(null);
     dispatch({ tipo: "download_iniciado", downloadId });
-    void executarDownload(downloadId, previaPronta.urlNormalizada);
+    // O Rust valida este endereço e deriva urlNormalizada da prévia associada;
+    // preservar o original permite registrar as duas formas no histórico.
+    void executarDownload(downloadId, previaPronta.urlOriginal);
   }, [previaPronta, executarDownload]);
 
   /** "Tentar novamente": repete a ação que falhou. */
@@ -265,7 +267,7 @@ export function useClipora(
     if (estado.origem === "download" && estado.previa) {
       const downloadId = gerarIdDownload();
       dispatch({ tipo: "download_iniciado", downloadId });
-      void executarDownload(downloadId, estado.previa.urlNormalizada);
+      void executarDownload(downloadId, estado.previa.urlOriginal);
       return;
     }
     const texto = textoLink.trim();

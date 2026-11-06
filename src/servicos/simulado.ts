@@ -6,6 +6,7 @@ import type {
   EventoDownload,
   ErroClipora,
   Licencas,
+  ItemHistorico,
   PastaDestino,
   TipoLinkLicenca,
   Plataforma,
@@ -62,6 +63,13 @@ export class ServicoCliporaSimulado implements ServicoClipora {
     string,
     { caminho: string; nomeArquivo: string }
   >();
+  private readonly arquivosSimuladosAusentes = new Set<string>();
+  private readonly historico = new Map<string, ItemHistorico>();
+  private readonly historicoPendente = new Map<string, ItemHistorico>();
+  private readonly previasPorOriginal = new Map<string, Previa>();
+  private readonly falhaHistorico: CodigoErro | null;
+  private falhasPersistenciaHistoricoRestantes: number;
+  private sequenciaHistorico = 0;
 
   private atualizando = false;
   private readonly falhaAtualizacao: CodigoErro | null;
@@ -85,6 +93,8 @@ export class ServicoCliporaSimulado implements ServicoClipora {
       falhaAtualizacao?: CodigoErro;
       /** Simula o arquivo de licenças ausente (como em dev sem o gerador). */
       licencasIndisponiveis?: boolean;
+      falhaHistorico?: CodigoErro;
+      falhasPersistenciaHistoricoRestantes?: number;
     } = {},
   ) {
     this.atrasoPreviaMs = opcoes.atrasoPreviaMs ?? 400;
@@ -94,6 +104,8 @@ export class ServicoCliporaSimulado implements ServicoClipora {
     if (opcoes.verificacaoYtdlpInicial) this.verificacaoYtdlp = opcoes.verificacaoYtdlpInicial;
     this.falhaAtualizacao = opcoes.falhaAtualizacao ?? null;
     this.licencasIndisponiveis = opcoes.licencasIndisponiveis ?? false;
+    this.falhaHistorico = opcoes.falhaHistorico ?? null;
+    this.falhasPersistenciaHistoricoRestantes = opcoes.falhasPersistenciaHistoricoRestantes ?? 0;
   }
 
   async obter_previa({
@@ -141,7 +153,9 @@ export class ServicoCliporaSimulado implements ServicoClipora {
             reject(erroSimulado);
             return;
           }
-          resolve(this.gerarPreviaFalsa(url, requisicaoId));
+          const previa = this.gerarPreviaFalsa(url, requisicaoId);
+          this.previasPorOriginal.set(url, previa);
+          resolve(previa);
         });
       }, this.atrasoPreviaMs);
 
@@ -253,7 +267,23 @@ export class ServicoCliporaSimulado implements ServicoClipora {
 
       const nomeArquivo = this.nomeArquivoFalso(url);
       const caminho = `${this.pastaAtual.caminho}/${nomeArquivo}`;
+      const previa = this.previasPorOriginal.get(url);
+      const plataforma: Plataforma = previa?.plataforma ?? (url.includes("tiktok") ? "tiktok" : "instagram");
       this.downloadsConcluidos.set(downloadId, { caminho, nomeArquivo });
+      if (url.includes("arquivo-ausente")) this.arquivosSimuladosAusentes.add(downloadId);
+      const item: ItemHistorico = {
+        downloadId,
+        urlOriginal: url,
+        urlNormalizada: previa?.urlNormalizada ?? normalizarEsquema(url),
+        titulo: previa?.titulo ?? `Vídeo simulado de ${plataforma}`,
+        plataforma,
+        caminho,
+        nomeArquivo,
+        concluidoEm: Date.now() + ++this.sequenciaHistorico,
+        disponivel: !this.arquivosSimuladosAusentes.has(downloadId),
+      };
+      this.historicoPendente.set(downloadId, item);
+      try { this.persistirHistoricoPendente(); } catch { /* sucesso do vídeo permanece independente do histórico */ }
       this.ultimoResultado = { downloadId, tipo: "concluido", caminho, nomeArquivo, renomeado: false };
       this.downloadAtivo = null;
       onEvento({ tipo: "concluido", caminho, nomeArquivo, renomeado: false });
@@ -277,6 +307,52 @@ export class ServicoCliporaSimulado implements ServicoClipora {
       atualizacaoEmAndamento: this.atualizando,
       ultimoResultado: this.ultimoResultado,
     };
+  }
+
+  async obter_historico(): Promise<ItemHistorico[]> {
+    this.exigirHistoricoDisponivel();
+    this.persistirHistoricoPendente();
+    return [...this.historico.values()].sort((a, b) => b.concluidoEm - a.concluidoEm).map((item) => ({ ...item }));
+  }
+
+  async consultar_historico({ url }: { url: string }): Promise<ItemHistorico | null> {
+    this.exigirHistoricoDisponivel();
+    const chave = chaveVideo(url);
+    this.persistirHistoricoPendente();
+    const encontrados = [...this.historico.values()]
+      .filter((item) => [item.urlOriginal, item.urlNormalizada].some((salva) => chaveVideo(salva) === chave))
+      .sort((a, b) => b.concluidoEm - a.concluidoEm);
+    const item = encontrados.find((candidato) => candidato.disponivel) ?? encontrados[0];
+    return item ? { ...item } : null;
+  }
+
+  async limpar_historico(): Promise<void> {
+    this.exigirHistoricoDisponivel();
+    this.historico.clear();
+    this.historicoPendente.clear();
+    // downloadsConcluidos representa os arquivos físicos simulados e fica intacto.
+  }
+
+  async abrir_arquivo_download({ downloadId }: { downloadId: string }): Promise<void> {
+    if (!this.downloadsConcluidos.has(downloadId) || this.arquivosSimuladosAusentes.has(downloadId)) {
+      throw { codigo: "ARQUIVO_AUSENTE", mensagem: "unknown downloadId" } satisfies ErroClipora;
+    }
+  }
+
+  private exigirHistoricoDisponivel(): void {
+    if (this.falhaHistorico) {
+      throw { codigo: this.falhaHistorico, mensagem: "simulated history failure" } satisfies ErroClipora;
+    }
+  }
+
+  private persistirHistoricoPendente(): void {
+    this.exigirHistoricoDisponivel();
+    if (this.falhasPersistenciaHistoricoRestantes > 0 && this.historicoPendente.size > 0) {
+      this.falhasPersistenciaHistoricoRestantes--;
+      throw { codigo: "HISTORICO_INDISPONIVEL", mensagem: "simulated history write failure" } satisfies ErroClipora;
+    }
+    for (const [id, item] of this.historicoPendente) this.historico.set(id, item);
+    this.historicoPendente.clear();
   }
 
   async abrir_pasta_download({ downloadId }: { downloadId: string }): Promise<void> {
@@ -379,6 +455,41 @@ export class ServicoCliporaSimulado implements ServicoClipora {
   definirPastaParaTeste(pasta: PastaDestino): void {
     this.pastaAtual = pasta;
   }
+}
+
+function chaveVideo(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const autoridade = url.split("://")[1]?.split(/[/?#]/)[0] ?? "";
+    const partes = parsed.pathname.split("/").filter(Boolean);
+    const host = parsed.hostname.toLowerCase();
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.port || autoridade.includes(":") || autoridade.includes("@")) throw new Error();
+    const plataforma = host.includes("tiktok") ? "tiktok" : "instagram";
+    if (plataforma === "instagram") {
+      if (!["instagram.com", "www.instagram.com", "m.instagram.com"].includes(host)) throw new Error();
+      const perfil = partes.length === 3 && partes[1] === "reel";
+      const post = partes.length === 2 && ["reel", "reels", "p"].includes(partes[0]);
+      if (!perfil && !post) throw new Error();
+      return "instagram:" + partes[partes.length - 1];
+    } else {
+      if (!["tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com"].includes(host)) throw new Error();
+      const hostCanonico = ["tiktok.com", "www.tiktok.com", "m.tiktok.com"].includes(host);
+      if (hostCanonico && partes.length === 3 && partes[0].length > 1 && partes[0].startsWith("@") && partes[1] === "video" && /^\d+$/.test(partes[2])) {
+        return "tiktok:" + partes[2];
+      }
+      if (hostCanonico && partes.length === 2 && partes[0] === "t") return "curto:tiktok.com/" + partes.join("/");
+      if (["vm.tiktok.com", "vt.tiktok.com"].includes(host) && partes.length === 1) {
+        return "curto:" + host + "/" + partes[0];
+      }
+      throw new Error();
+    }
+  } catch {
+    throw { codigo: "LINK_INVALIDO", mensagem: "unsupported video URL" } satisfies ErroClipora;
+  }
+}
+
+function normalizarEsquema(url: string): string {
+  return url.startsWith("http://") ? "https://" + url.slice("http://".length) : url;
 }
 
 /** Amostra no formato de src-tauri/binaries/licencas/licencas.json (formato 1). */

@@ -5,6 +5,7 @@ import type {
   EventoAtualizacao,
   EventoDownload,
   Licencas,
+  ItemHistorico,
   PastaDestino,
   TipoLinkLicenca,
   Previa,
@@ -38,6 +39,22 @@ export class ServicoCliporaTauri implements ServicoClipora {
 
   obter_previa({ url, requisicaoId }: { url: string; requisicaoId: number }): Promise<Previa> {
     return this.chamar<Previa>("obter_previa", { url, requisicaoId });
+  }
+
+  obter_historico(): Promise<ItemHistorico[]> {
+    return this.chamar<ItemHistorico[]>("obter_historico");
+  }
+
+  consultar_historico({ url }: { url: string }): Promise<ItemHistorico | null> {
+    return this.chamar<ItemHistorico | null>("consultar_historico", { url });
+  }
+
+  limpar_historico(): Promise<void> {
+    return this.chamar<void>("limpar_historico");
+  }
+
+  abrir_arquivo_download({ downloadId }: { downloadId: string }): Promise<void> {
+    return this.chamar<void>("abrir_arquivo_download", { downloadId });
   }
 
   iniciar_download({

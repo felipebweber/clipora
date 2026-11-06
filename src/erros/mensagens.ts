@@ -43,6 +43,8 @@ export const MENSAGENS_ERRO: Record<CodigoErro, string> = {
     "A atualização falhou e a versão anterior continua em uso. Verifique sua conexão e tente novamente.",
   LICENCAS_INDISPONIVEIS:
     "As informações de licença não foram encontradas neste aplicativo. Reinstale o Clipora para restaurá-las.",
+  HISTORICO_INDISPONIVEL: "Não foi possível atualizar o histórico. Tente novamente.",
+  ARQUIVO_AUSENTE: "Este vídeo não está mais disponível no local salvo. Tente baixá-lo novamente.",
   YTDLP_INDISPONIVEL:
     "O componente necessário para obter o vídeo está indisponível. Reinstale o Clipora ou atualize o yt-dlp quando o aviso de nova versão aparecer.",
   ERRO_INTERNO:
