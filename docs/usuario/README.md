@@ -21,6 +21,8 @@ Não instale um pacote cujo hash publicado não confira. Não há atualização 
 
 O Clipora salva um vídeo por vez e escolhe a melhor combinação de vídeo e áudio que o yt-dlp consegue obter. Quando necessário, o FFmpeg une as faixas sem transcodificá-las. Arquivos existentes não são sobrescritos.
 
+O nome do arquivo combina o perfil, o início da descrição (ou o título disponível) e o ID do vídeo, por exemplo: `@perfil - Como preparar café gelado [ID].mp4`. O Clipora ajusta caracteres incompatíveis e encurta textos longos. Se a plataforma não fornecer algum desses dados, usa os demais; sem título ou descrição, mantém o perfil e o ID. Downloads repetidos recebem um número, como ` (2)`, preservando o arquivo anterior.
+
 ## Atualizar o yt-dlp
 
 O Clipora verifica a versão do yt-dlp e exibe um aviso quando encontra uma atualização. A atualização só começa depois que você a solicita na área de configurações. Ela é baixada da release oficial do yt-dlp e verificada por assinatura GPG e SHA-256 antes de ser ativada. O arquivo fica no diretório de dados do usuário, fora do pacote do Clipora, para não alterar o aplicativo assinado. A versão anterior e a versão embutida continuam disponíveis como recuperação.

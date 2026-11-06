@@ -3,46 +3,144 @@ use std::{
     path::{Path, PathBuf},
 };
 
-fn nome_base(titulo: &str, id: &str) -> String {
-    fn limpar(s: &str, limite: usize) -> String {
-        let texto: String = s
-            .chars()
-            .filter_map(|c| {
-                if c.is_control() {
-                    None
-                } else if "<>:\"/\\|?*".contains(c) {
-                    Some('_')
-                } else {
-                    Some(c)
-                }
-            })
-            .take(120)
-            .collect();
-        let texto: String = texto
-            .chars()
-            .scan(0usize, |n, c| {
-                *n += c.len_utf8();
-                if *n <= limite { Some(c) } else { None }
-            })
-            .collect();
-        let mut texto = texto
-            .trim_matches(|c: char| c == '.' || c.is_whitespace())
-            .to_string();
-        if texto.is_empty() {
-            texto = "Vídeo".into();
-        }
-        let upper = texto.split('.').next().unwrap_or("").to_ascii_uppercase();
-        if [
-            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
-            "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
-        ]
-        .contains(&upper.as_str())
-        {
-            texto.insert(0, '_');
-        }
-        texto
+const NOME_MAX_BYTES: usize = 255 - " (100000).mp4".len();
+const DESCRICAO_MAX_PALAVRAS: usize = 8;
+
+#[derive(Default)]
+struct MetadadosNome {
+    titulo: Option<String>,
+    descricao: Option<String>,
+    uploader_id: Option<String>,
+    uploader: Option<String>,
+    channel: Option<String>,
+}
+
+fn texto_nome(valor: Option<&str>) -> Option<String> {
+    let valor = valor?.trim();
+    if valor.is_empty() || matches!(valor.to_ascii_lowercase().as_str(), "na" | "n/a" | "null") {
+        return None;
     }
-    format!("{} [{}]", limpar(titulo, 160), limpar(id, 64))
+    let texto: String = valor
+        .chars()
+        .map(|c| {
+            if c.is_control() || "<>:\"/\\|?*".contains(c) {
+                ' '
+            } else {
+                c
+            }
+        })
+        .collect();
+    let texto = texto.split_whitespace().collect::<Vec<_>>().join(" ");
+    let texto = texto.trim_matches(|c: char| c == '.').trim().to_string();
+    (!texto.is_empty()).then_some(texto)
+}
+
+fn campo_json_texto(valor: &str) -> Option<String> {
+    texto_nome(campo_json_string(valor).as_deref())
+}
+
+fn campo_json_string(valor: &str) -> Option<String> {
+    if valor == "NA" || valor.is_empty() {
+        return None;
+    }
+    let valor: serde_json::Value = serde_json::from_str(valor).ok()?;
+    match valor {
+        serde_json::Value::String(s) => Some(s),
+        serde_json::Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    }
+}
+
+fn limitar_bytes(texto: &str, limite: usize) -> &str {
+    if texto.len() <= limite {
+        return texto;
+    }
+    let mut fim = limite;
+    while !texto.is_char_boundary(fim) {
+        fim -= 1;
+    }
+    &texto[..fim]
+}
+
+fn perfil_nome(metadados: &MetadadosNome, plataforma: crate::links::Plataforma) -> Option<String> {
+    let candidatos = match plataforma {
+        crate::links::Plataforma::Instagram => [
+            metadados.channel.as_deref(),
+            metadados.uploader_id.as_deref(),
+            metadados.uploader.as_deref(),
+        ],
+        crate::links::Plataforma::Tiktok => [
+            metadados.uploader.as_deref(),
+            metadados.channel.as_deref(),
+            metadados.uploader_id.as_deref(),
+        ],
+    };
+    let mut fallback = None;
+    for candidato in candidatos.into_iter().flatten() {
+        let Some(limpo) = texto_nome(Some(candidato)) else {
+            continue;
+        };
+        let nome = limpo.trim_start_matches('@').trim().to_string();
+        if nome.is_empty() {
+            continue;
+        }
+        if nome.chars().any(|c| !c.is_ascii_digit()) {
+            return Some(nome);
+        }
+        fallback.get_or_insert(nome);
+    }
+    fallback
+}
+
+fn nome_generico(titulo: &str) -> bool {
+    let titulo = titulo.to_lowercase();
+    ["video by ", "vídeo por ", "vídeo de ", "video de "]
+        .iter()
+        .any(|prefixo| titulo.starts_with(prefixo))
+}
+
+fn nome_base(metadados: &MetadadosNome, id: &str, plataforma: crate::links::Plataforma) -> String {
+    let id = texto_nome(Some(id)).unwrap_or_else(|| "sem-id".into());
+    let id = limitar_bytes(&id, 64).to_string();
+    let max_prefixo = NOME_MAX_BYTES.saturating_sub(id.len() + 3);
+    let perfil = perfil_nome(metadados, plataforma);
+    let descricao = metadados
+        .descricao
+        .as_deref()
+        .and_then(|s| texto_nome(Some(s)))
+        .map(|s| {
+            s.split_whitespace()
+                .take(DESCRICAO_MAX_PALAVRAS)
+                .collect::<Vec<_>>()
+                .join(" ")
+        });
+    let titulo = metadados
+        .titulo
+        .as_deref()
+        .and_then(|s| texto_nome(Some(s)))
+        .filter(|s| !nome_generico(s));
+    let rotulo = descricao.or(titulo);
+
+    let prefixo = match (perfil, rotulo) {
+        (Some(perfil), Some(rotulo)) => {
+            let perfil = format!("@{}", perfil.trim_start_matches('@'));
+            let perfil = limitar_bytes(&perfil, 80.min(max_prefixo.saturating_sub(3)));
+            let restante = max_prefixo.saturating_sub(perfil.len() + 3);
+            let rotulo = limitar_bytes(&rotulo, restante).trim_end();
+            if rotulo.is_empty() {
+                perfil.to_string()
+            } else {
+                format!("{perfil} - {rotulo}")
+            }
+        }
+        (Some(perfil), None) => {
+            let perfil = format!("@{}", perfil.trim_start_matches('@'));
+            limitar_bytes(&perfil, max_prefixo).to_string()
+        }
+        (None, Some(rotulo)) => limitar_bytes(&rotulo, max_prefixo).trim_end().to_string(),
+        (None, None) => limitar_bytes("Vídeo", max_prefixo).to_string(),
+    };
+    format!("{prefixo} [{id}]")
 }
 fn finalizar(origem: &Path, destino: &Path, nome: &str) -> io::Result<(PathBuf, bool)> {
     finalizar_com(origem, destino, nome, |a, b| fs::hard_link(a, b))
@@ -218,6 +316,195 @@ impl Progresso {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    fn preparar_fixture_metadados(dir: &Path, metadados: serde_json::Value) -> PathBuf {
+        let script =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/preparar-bin.mjs");
+        let saida = std::process::Command::new("node")
+            .arg(script)
+            .arg(dir)
+            .output()
+            .expect("Node deve estar disponível para o fixture");
+        assert!(
+            saida.status.success(),
+            "preparar-bin: {}",
+            String::from_utf8_lossy(&saida.stderr)
+        );
+        let cenario = dir.join("metadados-download.json");
+        fs::write(
+            &cenario,
+            serde_json::to_vec(&serde_json::json!({
+                "base": "sucesso",
+                "metadados": metadados,
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            dir.join("clipora-falso.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "CLIPORA_FALSO_CENARIO_ARQUIVO": cenario,
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        dir.to_path_buf()
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn nome_de_download_usa_descricao_e_perfil_legivel_por_plataforma() {
+        let casos = [
+            (
+                "https://instagram.com/reel/DfS6bDVMRQ8/",
+                serde_json::json!({
+                    "title": "Video by yogue.prem",
+                    "description": "🔥🔥🔥",
+                    "uploader": "PREM RAS KAUR",
+                    "uploader_id": "4848895582",
+                    "channel": "yogue.prem",
+                }),
+                "@yogue.prem - 🔥🔥🔥 [DfS6bDVMRQ8].mp4",
+            ),
+            (
+                "https://www.tiktok.com/@barudakhb_/video/6718335390845095173",
+                serde_json::json!({
+                    "title": "Video by barudakhb_",
+                    "description": "🔥🔥🔥",
+                    "uploader": "barudakhb_",
+                    "uploader_id": "6974687867511718913",
+                    "channel": "Baruda Khb",
+                }),
+                "@barudakhb_ - 🔥🔥🔥 [6718335390845095173].mp4",
+            ),
+            (
+                "https://instagram.com/reel/naomipq/",
+                serde_json::json!({
+                    "title": "Video by naomipq",
+                    "description": "Olá",
+                    "uploader": "B E A U T Y  F O R  A S H E S",
+                    "uploader_id": "naomipq",
+                    "channel": null,
+                }),
+                "@naomipq - Olá [naomipq].mp4",
+            ),
+        ];
+        for (url, metadados, esperado) in casos {
+            let bin_dir = tempfile::tempdir().unwrap();
+            let bin_dir = preparar_fixture_metadados(bin_dir.path(), metadados);
+            let destino = tempfile::tempdir().unwrap();
+            let controle = Arc::new(Mutex::new(Dados::default()));
+            let canal = Channel::new(|_| Ok(()));
+            let (arquivo, _) = executar_interno(
+                &controle,
+                &canal,
+                url,
+                destino.path(),
+                &bin_dir.join("clipora-yt-dlp"),
+                &bin_dir.join("clipora-ffmpeg"),
+                Some("sucesso"),
+            )
+            .await
+            .unwrap();
+            assert_eq!(arquivo.file_name().unwrap(), esperado, "{url}");
+            if url.contains("instagram.com") {
+                let original = fs::read(&arquivo).unwrap();
+                let (colisao, renomeado) = executar_interno(
+                    &controle,
+                    &canal,
+                    url,
+                    destino.path(),
+                    &bin_dir.join("clipora-yt-dlp"),
+                    &bin_dir.join("clipora-ffmpeg"),
+                    Some("sucesso"),
+                )
+                .await
+                .unwrap();
+                assert!(renomeado);
+                assert_eq!(
+                    colisao.file_name().unwrap().to_string_lossy(),
+                    esperado.replace(".mp4", " (2).mp4")
+                );
+                assert_eq!(fs::read(&arquivo).unwrap(), original);
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn nome_de_download_cobre_fallbacks_e_texto_sanitizado() {
+        let casos = [
+            (
+                "https://instagram.com/reel/titleonly/",
+                serde_json::json!({
+                    "title": " Café   da manhã ", "description": null,
+                    "uploader_id": null, "uploader": null, "channel": null,
+                }),
+                Some("Café da manhã [titleonly].mp4"),
+            ),
+            (
+                "https://instagram.com/reel/perfilonly/",
+                serde_json::json!({
+                    "title": "Video by @perfil", "description": " \n ",
+                    "uploader_id": "123456", "uploader": "@@perfil", "channel": null,
+                }),
+                Some("@perfil [perfilonly].mp4"),
+            ),
+            (
+                "https://instagram.com/reel/semmeta/",
+                serde_json::json!({
+                    "title": null, "description": "NA", "uploader_id": "NA",
+                    "uploader": null, "channel": null,
+                }),
+                Some("Vídeo [semmeta].mp4"),
+            ),
+            (
+                "https://instagram.com/reel/unicode/",
+                serde_json::json!({
+                    "title": "Video by yogue.prem",
+                    "description": " Café\tgelado\ncom: canela | leite ",
+                    "uploader_id": "4848895582", "uploader": "PREM RAS KAUR",
+                    "channel": "@@yogue.prem",
+                }),
+                Some("@yogue.prem - Café gelado com canela leite [unicode].mp4"),
+            ),
+            (
+                "https://instagram.com/reel/longo/",
+                serde_json::json!({
+                    "title": "Video by cozinha", "description": (0..8).map(|_| "🎬".repeat(80)).collect::<Vec<_>>().join(" "),
+                    "uploader_id": "123456", "uploader": null, "channel": "cozinha",
+                }),
+                None,
+            ),
+        ];
+        for (url, metadados, esperado) in casos {
+            let bin_temp = tempfile::tempdir().unwrap();
+            let bin_dir = preparar_fixture_metadados(bin_temp.path(), metadados);
+            let destino = tempfile::tempdir().unwrap();
+            let controle = Arc::new(Mutex::new(Dados::default()));
+            let canal = Channel::new(|_| Ok(()));
+            let (arquivo, _) = executar_interno(
+                &controle,
+                &canal,
+                url,
+                destino.path(),
+                &bin_dir.join("clipora-yt-dlp"),
+                &bin_dir.join("clipora-ffmpeg"),
+                Some("sucesso"),
+            )
+            .await
+            .unwrap();
+            if let Some(esperado) = esperado {
+                assert_eq!(arquivo.file_name().unwrap(), esperado, "{url}");
+            }
+            assert!(
+                arquivo.file_name().unwrap().to_string_lossy().len() <= 255,
+                "nome excede limite de bytes: {}",
+                arquivo.file_name().unwrap().to_string_lossy().len()
+            );
+        }
+    }
+
     #[test]
     fn estado_de_download_expõe_previa_ou_null_para_reidratar_a_tela() {
         let estado = EstadoDownload {
@@ -653,16 +940,27 @@ mod tests {
     }
     #[test]
     fn nome_unicode_longo_cabe_em_um_componente() {
-        assert!(
-            nome_base(&"🎬".repeat(150), &"a".repeat(120)).len() + " (100000).mp4".len() <= 255
+        let metadados = MetadadosNome {
+            descricao: Some("🎬 ".repeat(500)),
+            ..Default::default()
+        };
+        let nome = nome_base(
+            &metadados,
+            &"a".repeat(120),
+            crate::links::Plataforma::Instagram,
         );
+        assert!(nome.len() + " (100000).mp4".len() <= 255);
     }
     #[test]
     fn nome_sanitizado_e_colisao_preserva_originais() {
         let dir = tempfile::tempdir().unwrap();
         let origem = dir.path().join("origem.mp4");
         std::fs::write(&origem, b"novo").unwrap();
-        let nome = nome_base("Título: teste", "123");
+        let metadados = MetadadosNome {
+            titulo: Some("Título: teste".into()),
+            ..Default::default()
+        };
+        let nome = nome_base(&metadados, "123", crate::links::Plataforma::Instagram);
         std::fs::write(dir.path().join(format!("{nome}.mp4")), b"original").unwrap();
         std::fs::write(dir.path().join(format!("{nome} (2).mp4")), b"segundo").unwrap();
         let (finalizado, renomeado) = finalizar(&origem, dir.path(), &nome).unwrap();
@@ -1027,7 +1325,7 @@ async fn executar_interno(
     let modelo = temp.path().join("%(id)s.%(ext)s");
     let mut comando = Command::new(bin);
     comando.args(["--ignore-config", "--no-update", "--no-playlist", "--ffmpeg-location"]).arg(ffmpeg)
-        .args(["-f", "bv*+ba/b", "--merge-output-format", "mp4", "--remux-video", "mp4", "--newline", "--progress", "--progress-template", "download:download:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress._percent_str)s:%(info.vcodec)s:%(info.acodec)s", "--progress-template", "postprocess:postprocess:%(progress.status)s", "--print", "after_move:CLIPORA_RESULT:%(filepath)j\t%(title)j\t%(id)j", "-o"]).arg(modelo).arg("--").arg(url)
+        .args(["-f", "bv*+ba/b", "--merge-output-format", "mp4", "--remux-video", "mp4", "--newline", "--progress", "--progress-template", "download:download:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress._percent_str)s:%(info.vcodec)s:%(info.acodec)s", "--progress-template", "postprocess:postprocess:%(progress.status)s", "--print", "after_move:CLIPORA_RESULT:%(filepath)j\t%(title)j\t%(id)j\t%(description)j\t%(uploader_id)j\t%(uploader)j\t%(channel)j", "-o"]).arg(modelo).arg("--").arg(url)
         .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
     #[cfg(test)]
     if let Some(cenario) = cenario {
@@ -1089,7 +1387,7 @@ async fn executar_interno(
     let mut stdout_aberto = true;
     let mut stderr_aberto = true;
     let mut detalhe = String::new();
-    let mut resultado = None;
+    let mut resultado: Option<Vec<String>> = None;
     let mut ja_baixado = false;
     let mut progresso = Progresso::default();
     let mut ultimo = std::time::Instant::now() - std::time::Duration::from_secs(1);
@@ -1117,16 +1415,12 @@ async fn executar_interno(
             ja_baixado = true;
         }
         if !eh_stderr && let Some(resto) = linha.strip_prefix("CLIPORA_RESULT:") {
-            let valores: Vec<_> = resto.split('\t').collect();
-            if valores.len() == 3 {
+            let valores: Vec<_> = resto.split('\t').map(str::to_owned).collect();
+            if valores.len() == 7 {
                 if resultado.is_some() {
                     return Err(err("CONTEUDO_NAO_SUPORTADO", "múltiplos arquivos"));
                 }
-                resultado = Some((
-                    valores[0].to_string(),
-                    valores[1].to_string(),
-                    valores[2].to_string(),
-                ));
+                resultado = Some(valores);
             }
         }
         if linha.starts_with("postprocess:")
@@ -1171,14 +1465,19 @@ async fn executar_interno(
     if ja_baixado {
         return Err(err("ARQUIVO_INCOMPLETO", "already downloaded"));
     }
-    let (caminho, titulo, id) =
-        resultado.ok_or_else(|| err("ARQUIVO_INCOMPLETO", "after_move ausente"))?;
+    let valores = resultado.ok_or_else(|| err("ARQUIVO_INCOMPLETO", "after_move ausente"))?;
     let caminho: String =
-        serde_json::from_str(&caminho).map_err(|e| err("ARQUIVO_INCOMPLETO", e.to_string()))?;
-    let titulo: String =
-        serde_json::from_str(&titulo).map_err(|e| err("ARQUIVO_INCOMPLETO", e.to_string()))?;
-    let id: String =
-        serde_json::from_str(&id).map_err(|e| err("ARQUIVO_INCOMPLETO", e.to_string()))?;
+        serde_json::from_str(&valores[0]).map_err(|e| err("ARQUIVO_INCOMPLETO", e.to_string()))?;
+    let metadados = MetadadosNome {
+        titulo: campo_json_texto(&valores[1]),
+        descricao: campo_json_texto(&valores[3]),
+        uploader_id: campo_json_texto(&valores[4]),
+        uploader: campo_json_texto(&valores[5]),
+        channel: campo_json_texto(&valores[6]),
+    };
+    let id = campo_json_string(&valores[2])
+        .and_then(|s| texto_nome(Some(&s)))
+        .ok_or_else(|| err("ARQUIVO_INCOMPLETO", "id ausente no after_move"))?;
     let caminho = PathBuf::from(caminho)
         .canonicalize()
         .map_err(|e| err("ARQUIVO_INCOMPLETO", e.to_string()))?;
@@ -1197,6 +1496,8 @@ async fn executar_interno(
         return Err(err("ARQUIVO_INCOMPLETO", "arquivo inválido ou parcial"));
     }
     etapa(controle, canal, "finalizando", Some(95.0));
-    finalizar(&caminho, destino, &nome_base(&titulo, &id))
+    let (_, plataforma) = crate::links::validar(url)
+        .map_err(|codigo| err(codigo, "URL inválida ao formar o nome"))?;
+    finalizar(&caminho, destino, &nome_base(&metadados, &id, plataforma))
         .map_err(|e| err("DOWNLOAD_FALHOU", e.to_string()))
 }
