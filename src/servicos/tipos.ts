@@ -23,8 +23,6 @@ import type {
  * do runtime do Tauri. A escolha entre as duas acontece em `./index.ts`.
  */
 export interface ServicoClipora {
-  /** False no Tauri até o handoff da integração de tentativa/runtime da T3. */
-  readonly youtubeDownloadIntegrado?: boolean;
   obter_historico(): Promise<ItemHistorico[]>;
   consultar_historico(args: { url: string }): Promise<ItemHistorico | null>;
   limpar_historico(): Promise<void>;

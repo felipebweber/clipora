@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createElement } from "react";
 import type { EventoAtualizacao, EventoDownload } from "../tipos/contrato";
 
 // Channel falso: guarda as instâncias criadas para o teste poder "enviar"
@@ -38,6 +41,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 import { ServicoCliporaTauri } from "./tauri";
+import App from "../App";
 
 beforeEach(() => {
   invokeMock.mockReset();
@@ -113,7 +117,6 @@ describe("ServicoCliporaTauri: nomes de comando e payloads exatos do contrato", 
     const servico = new ServicoCliporaTauri();
     await expect(servico.obter_previa({ url: "https://youtu.be/YE7VzlLtp-4", requisicaoId: 5 }))
       .resolves.toMatchObject({ qualidadesYoutube: null });
-    expect(servico.youtubeDownloadIntegrado).toBe(false);
 
     invokeMock.mockResolvedValue(null);
     await servico.iniciar_download({ downloadId: "yt", url: "https://youtu.be/YE7VzlLtp-4", alturaYoutube: 720, onEvento: () => {} });
@@ -147,6 +150,74 @@ describe("ServicoCliporaTauri: nomes de comando e payloads exatos do contrato", 
       versaoEsperada: "2025.01.01",
       onEvento: canaisCriados[0],
     });
+  });
+});
+
+describe("integração da UI YouTube com o serviço Tauri", () => {
+  const url = "https://youtu.be/YE7VzlLtp-4";
+
+  function configurarTransporte(qualidadesYoutube: number[] | null) {
+    invokeMock.mockImplementation(async (comando: string, args?: Record<string, any>) => {
+      switch (comando) {
+        case "obter_estado":
+          return { download: null, atualizacaoEmAndamento: false, ultimoResultado: null };
+        case "obter_pasta_destino":
+          return { caminho: "/Downloads", estado: "valida" };
+        case "verificar_ytdlp":
+          return { versaoAtual: "2026.10.26", versaoDisponivel: null, atualizacaoDisponivel: false, origem: "empacotada", erroVerificacao: null };
+        case "obter_historico":
+          return [];
+        case "consultar_historico":
+          return null;
+        case "obter_previa":
+          return {
+            requisicaoId: args?.requisicaoId,
+            urlOriginal: args?.url,
+            urlNormalizada: "https://www.youtube.com/watch?v=YE7VzlLtp-4",
+            titulo: "Vídeo público",
+            plataforma: "youtube",
+            duracaoSegundos: 12,
+            capaDataUrl: null,
+            qualidadesYoutube,
+          };
+        case "iniciar_download":
+          args?.onEvento.emit({ tipo: "concluido", caminho: "/Downloads/video.mp4", nomeArquivo: "video.mp4", renomeado: false });
+          return null;
+        default:
+          return null;
+      }
+    });
+  }
+
+  it("envia a altura escolhida pelo IPC real quando a prévia tem catálogo válido", async () => {
+    configurarTransporte([1080, 720]);
+    const usuario = userEvent.setup();
+    render(createElement(App, { servico: new ServicoCliporaTauri() }));
+
+    const campo = screen.getByLabelText(/link do instagram reels.*tiktok.*youtube/i);
+    await usuario.type(campo, url);
+    const seletor = await screen.findByRole("combobox", { name: "Qualidade" });
+    await usuario.selectOptions(seletor, "720");
+    const baixar = await screen.findByRole("button", { name: /^baixar$/i });
+    await waitFor(() => expect(baixar).toBeEnabled());
+    await usuario.click(baixar);
+
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
+      "iniciar_download",
+      expect.objectContaining({ downloadId: expect.any(String), url, alturaYoutube: 720, onEvento: expect.anything() }),
+    ));
+    expect(await screen.findByText("Download concluído: video.mp4")).toBeInTheDocument();
+  });
+
+  it("mantém YouTube bloqueado quando backend legado não fornece catálogo", async () => {
+    configurarTransporte(null);
+    const usuario = userEvent.setup();
+    render(createElement(App, { servico: new ServicoCliporaTauri() }));
+
+    await usuario.type(screen.getByLabelText(/link do instagram reels.*tiktok.*youtube/i), url);
+    expect(await screen.findByText(/qualidades deste vídeo não estão disponíveis/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^baixar$/i })).toBeDisabled();
+    expect(invokeMock).not.toHaveBeenCalledWith("iniciar_download", expect.anything());
   });
 });
 

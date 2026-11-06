@@ -43,7 +43,6 @@ import type { ServicoClipora } from "./tipos";
  * (ATUALIZACAO_EM_ANDAMENTO / DOWNLOAD_EM_ANDAMENTO).
  */
 export class ServicoCliporaSimulado implements ServicoClipora {
-  readonly youtubeDownloadIntegrado = true;
   private readonly atrasoPreviaMs: number;
   private readonly tempoLimitePreviaMs: number;
   private readonly atrasoPassoDownloadMs: number;

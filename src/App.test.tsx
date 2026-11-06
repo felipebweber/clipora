@@ -302,21 +302,15 @@ describe("App: qualidade do YouTube", () => {
     expect(screen.queryByRole("button", { name: /baixar novamente/i })).not.toBeInTheDocument();
   });
 
-  it("não habilita tentativa real antes da integração T3 nem inventa catálogo ausente", async () => {
+  it("não inventa catálogo nem habilita YouTube quando o backend legado não o fornece", async () => {
     const usuario = userEvent.setup();
     const servico = criarSimulado();
-    Object.defineProperty(servico, "youtubeDownloadIntegrado", { value: false });
     render(<App servico={servico} />);
-    await usuario.type(campoLink(), "https://youtube.com/watch?v=YE7VzlLtp-4");
-    expect(await screen.findByRole("combobox", { name: "Qualidade" })).toBeInTheDocument();
-    expect(botaoBaixar()).toBeDisabled();
-    expect(screen.getByText(/download do youtube ainda não está integrado/i)).toBeInTheDocument();
-
-    await usuario.clear(campoLink());
     await usuario.type(campoLink(), "https://youtu.be/YE7VzlLtp-4?sem-qualidades");
     expect(await screen.findByText(/qualidades deste vídeo não estão disponíveis/i)).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Qualidade" })).not.toBeInTheDocument();
     expect(botaoBaixar()).toBeDisabled();
+    expect(screen.queryByText(/ainda não está integrado/i)).not.toBeInTheDocument();
   }, 10_000);
 });
 
@@ -652,7 +646,10 @@ describe("App: revisão de experiência (etapa 8)", () => {
       />,
     );
     await usuario.click(await screen.findByRole("button", { name: /^atualizar$/i }));
-    await within(avisoAtualizacao()).findByRole("alert", {}, { timeout: 3000 });
+    const alerta = await within(avisoAtualizacao()).findByRole("alert", {}, { timeout: 3000 });
+    expect(alerta).toHaveTextContent(
+      "Não foi possível confirmar a compatibilidade desta atualização com o Clipora. A versão atual do yt-dlp continua em uso. Atualize ou reinstale o Clipora para tentar novamente.",
+    );
     expect(within(avisoAtualizacao()).queryByRole("button")).not.toBeInTheDocument();
   });
 });

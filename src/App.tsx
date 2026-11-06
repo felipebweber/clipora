@@ -73,7 +73,6 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
   const historico = useHistorico(servico, previaPronta);
   const ultimoDownloadConcluido = useRef<string | null>(null);
   const previaYoutubeSemCatalogo = estado.tipo === "pronto" && estado.previa.plataforma === "youtube" && !catalogoYoutubeValido(estado.previa.qualidadesYoutube);
-  const youtubeAguardandoIntegracao = estado.tipo === "pronto" && estado.previa.plataforma === "youtube" && servico.youtubeDownloadIntegrado !== true;
   const baixarHabilitado = podeSolicitarDownload && !atualizacao.emAndamento;
 
   // Gestão de foco: quando o elemento focado some (Baixar ao iniciar o
@@ -165,10 +164,6 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
       {previaYoutubeSemCatalogo && (
         <p className="status" role="status">As qualidades deste vídeo não estão disponíveis. Atualize a prévia para tentar novamente.</p>
       )}
-      {youtubeAguardandoIntegracao && (
-        <p className="status" role="status">O download do YouTube ainda não está integrado nesta versão do Clipora.</p>
-      )}
-
       {estado.tipo === "pronto" && (
         <>
           <button

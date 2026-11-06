@@ -38,7 +38,7 @@ export const MENSAGENS_ERRO: Record<CodigoErro, string> = {
   ATUALIZACAO_INTEGRIDADE:
     "A atualização não pôde ser verificada com segurança e foi cancelada. A versão atual continua em uso; tente novamente mais tarde.",
   ATUALIZACAO_NAO_SUPORTADA:
-    "A atualização do yt-dlp não é possível neste sistema. Instale a versão mais recente do Clipora para recebê-la.",
+    "Não foi possível confirmar a compatibilidade desta atualização com o Clipora. A versão atual do yt-dlp continua em uso. Atualize ou reinstale o Clipora para tentar novamente.",
   ATUALIZACAO_FALHOU:
     "A atualização falhou e a versão anterior continua em uso. Verifique sua conexão e tente novamente.",
   LICENCAS_INDISPONIVEIS:

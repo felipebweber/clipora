@@ -235,7 +235,6 @@ describe("useClipora: qualidade exata do YouTube", () => {
 
   it("captura a altura escolhida no payload do download sem misturá-la com links de outras plataformas", async () => {
     const { servico } = criarServicoControlavel();
-    Object.defineProperty(servico, "youtubeDownloadIntegrado", { value: true });
     vi.mocked(servico.obter_previa).mockResolvedValue(previaYoutube(1));
     const { result } = renderHook(() => useClipora(servico));
     await act(async () => { result.current.aoAlterarLink(url); await Promise.resolve(); });
@@ -256,7 +255,6 @@ describe("useClipora: qualidade exata do YouTube", () => {
 
   it("preserva 720p na retentativa após escolher uma pasta", async () => {
     const { servico } = criarServicoControlavel();
-    Object.defineProperty(servico, "youtubeDownloadIntegrado", { value: true });
     vi.mocked(servico.obter_previa)
       .mockResolvedValueOnce(previaYoutube(1))
       .mockResolvedValueOnce(previaYoutube(2, [1080]));
@@ -277,7 +275,6 @@ describe("useClipora: qualidade exata do YouTube", () => {
 
   it("atualiza o catálogo após QUALIDADE_INDISPONIVEL e volta a Melhor disponível", async () => {
     const { servico } = criarServicoControlavel();
-    Object.defineProperty(servico, "youtubeDownloadIntegrado", { value: true });
     vi.mocked(servico.obter_previa)
       .mockResolvedValueOnce(previaYoutube(1))
       .mockResolvedValueOnce(previaYoutube(2, [1080]));
@@ -296,7 +293,6 @@ describe("useClipora: qualidade exata do YouTube", () => {
 
   it("mantém a qualidade selecionada no resultado concluído", async () => {
     const { servico } = criarServicoControlavel();
-    Object.defineProperty(servico, "youtubeDownloadIntegrado", { value: true });
     vi.mocked(servico.obter_previa).mockResolvedValue(previaYoutube(1));
     vi.mocked(servico.iniciar_download).mockImplementation(async ({ onEvento }) => {
       onEvento({ tipo: "concluido", caminho: "/d/v.mp4", nomeArquivo: "v.mp4", renomeado: false });
@@ -309,7 +305,7 @@ describe("useClipora: qualidade exata do YouTube", () => {
     expect(result.current.estado).toMatchObject({ tipo: "concluido", alturaYoutube: 720 });
   });
 
-  it("não permite baixar YouTube quando o backend ainda não integrou a tentativa ou não há catálogo", async () => {
+  it("não permite baixar YouTube quando a prévia do backend legado não inclui catálogo", async () => {
     const { servico } = criarServicoControlavel();
     vi.mocked(servico.obter_previa).mockResolvedValue(previaYoutube(1, null));
     const { result } = renderHook(() => useClipora(servico));

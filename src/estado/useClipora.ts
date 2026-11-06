@@ -257,7 +257,7 @@ export function useClipora(
 
   const baixarHabilitado = previaPronta !== null &&
     (previaPronta.plataforma !== "youtube" ||
-      (catalogoYoutubeValido(previaPronta.qualidadesYoutube) && servicoClipora.youtubeDownloadIntegrado === true));
+      catalogoYoutubeValido(previaPronta.qualidadesYoutube));
 
   const baixar = useCallback(() => {
     // Só baixa a prévia pronta que corresponde ao texto atual do campo.
@@ -276,7 +276,7 @@ export function useClipora(
     estado.previa !== null &&
     textoLink.trim() === estado.previa.urlOriginal &&
     (estado.previa.plataforma !== "youtube" ||
-      (catalogoYoutubeValido(estado.previa.qualidadesYoutube) && servicoClipora.youtubeDownloadIntegrado === true));
+      catalogoYoutubeValido(estado.previa.qualidadesYoutube));
 
   const baixarNovamente = useCallback(() => {
     if (estado.tipo !== "concluido" || !estado.previa || !podeBaixarNovamente) return;

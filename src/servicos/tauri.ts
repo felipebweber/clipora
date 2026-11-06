@@ -29,8 +29,6 @@ import type { ServicoClipora } from "./tipos";
  * exceção) vira `ERRO_INTERNO`.
  */
 export class ServicoCliporaTauri implements ServicoClipora {
-  readonly youtubeDownloadIntegrado = false;
-
   private async chamar<T>(comando: string, args?: Record<string, unknown>): Promise<T> {
     try {
       return await invoke<T>(comando, args);
