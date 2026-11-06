@@ -395,7 +395,10 @@ async fn atualizar_ytdlp(
         .app_local_data_dir()
         .map_err(|e| previa::ErroClipora::novo("ERRO_INTERNO", Some(e.to_string())))?
         .join("bin/yt-dlp");
-    let resultado = instalacao::atualizar(&raiz, &versao_esperada, &on_evento).await?;
+    let deno = binarios::resolver_motor(&app).map_err(|e| {
+        motor_youtube::erro_atualizacao_nao_suportada(format!("motor Deno indisponível: {e}"))
+    })?;
+    let resultado = instalacao::atualizar(&raiz, &versao_esperada, &on_evento, &deno).await?;
     // Validação completa fora do runtime assíncrono; registra a cópia recém-instalada.
     let _ = cache
         .resolver(&app)

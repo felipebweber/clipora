@@ -179,6 +179,28 @@ async fn executar_args(
 pub(crate) async fn executar_limitado(
     bin: &Path,
     args: Vec<std::ffi::OsString>,
+    cancelado: watch::Receiver<bool>,
+    prazo: std::time::Duration,
+    limite: usize,
+) -> Result<Resultado, &'static str> {
+    executar_limitado_com_entrada(bin, args, None, cancelado, prazo, limite).await
+}
+
+pub(crate) async fn executar_com_entrada_limitado(
+    bin: &Path,
+    args: Vec<std::ffi::OsString>,
+    entrada: Vec<u8>,
+    cancelado: watch::Receiver<bool>,
+    prazo: std::time::Duration,
+    limite: usize,
+) -> Result<Resultado, &'static str> {
+    executar_limitado_com_entrada(bin, args, Some(entrada), cancelado, prazo, limite).await
+}
+
+async fn executar_limitado_com_entrada(
+    bin: &Path,
+    args: Vec<std::ffi::OsString>,
+    entrada: Option<Vec<u8>>,
     mut cancelado: watch::Receiver<bool>,
     prazo: std::time::Duration,
     limite: usize,
@@ -189,7 +211,11 @@ pub(crate) async fn executar_limitado(
     }
     let mut cmd = Command::new(bin);
     cmd.args(args)
-        .stdin(Stdio::null())
+        .stdin(if entrada.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
@@ -227,11 +253,28 @@ pub(crate) async fn executar_limitado(
     }
     let stdout = filho.stdout.take().ok_or("ERRO_INTERNO")?;
     let stderr = filho.stderr.take().ok_or("ERRO_INTERNO")?;
+    let stdin = entrada
+        .as_ref()
+        .map(|_| filho.stdin.take().ok_or("ERRO_INTERNO"))
+        .transpose()?;
     let trabalho = async {
-        let (stdout, stderr, status) =
-            tokio::try_join!(ler(stdout, limite), ler(stderr, limite), async {
-                filho.wait().await.map_err(|_| "PREVIA_INDISPONIVEL")
-            })?;
+        use tokio::io::AsyncWriteExt;
+        let enviar_entrada = async {
+            if let (Some(mut stdin), Some(bytes)) = (stdin, entrada) {
+                stdin
+                    .write_all(&bytes)
+                    .await
+                    .map_err(|_| "PREVIA_INDISPONIVEL")?;
+                stdin.shutdown().await.map_err(|_| "PREVIA_INDISPONIVEL")?;
+            }
+            Ok::<(), &'static str>(())
+        };
+        let (stdout, stderr, status, ()) = tokio::try_join!(
+            ler(stdout, limite),
+            ler(stderr, limite),
+            async { filho.wait().await.map_err(|_| "PREVIA_INDISPONIVEL") },
+            enviar_entrada
+        )?;
         Ok(Resultado {
             stdout,
             stderr,
@@ -294,6 +337,52 @@ pub(crate) async fn metadados_youtube(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn executar_com_entrada_encaminha_stdin_e_limita_saidas() {
+        let (_tx, rx) = watch::channel(false);
+        let resultado = executar_com_entrada_limitado(
+            Path::new("/bin/cat"),
+            vec![],
+            b"smoke local\n".to_vec(),
+            rx,
+            std::time::Duration::from_secs(2),
+            128,
+        )
+        .await
+        .unwrap();
+        assert!(resultado.sucesso);
+        assert_eq!(resultado.stdout, b"smoke local\n");
+        assert!(resultado.stderr.is_empty());
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn limite_de_saida_recusa_processo_acima_do_teto() {
+        let (_tx, rx) = watch::channel(false);
+        let resultado = executar_limitado(
+            Path::new("/bin/sh"),
+            vec!["-c".into(), "yes x".into()],
+            rx,
+            std::time::Duration::from_secs(2),
+            64,
+        )
+        .await;
+        assert!(matches!(resultado, Err("PREVIA_INDISPONIVEL")));
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn timeout_do_runner_retorna_codigo_especifico() {
+        let (_tx, rx) = watch::channel(false);
+        let resultado = executar_limitado(
+            Path::new("/bin/sleep"),
+            vec!["20".into()],
+            rx,
+            std::time::Duration::from_millis(50),
+            64,
+        )
+        .await;
+        assert!(matches!(resultado, Err("TEMPO_ESGOTADO")));
+    }
     #[cfg(unix)]
     #[tokio::test]
     async fn cancelamento_interrompe_processo_em_execucao() {

@@ -1,0 +1,24 @@
+{
+  "id": "local-smoke",
+  "title": "Clipora smoke local",
+  "extractor": "generic",
+  "extractor_key": "Generic",
+  "webpage_url": "https://example.invalid/local-smoke",
+  "_type": "video",
+  "ext": "mp4",
+  "vcodec": "avc1.42001e",
+  "acodec": "mp4a.40.2",
+  "height": 240,
+  "width": 320,
+  "formats": [
+    {
+      "format_id": "1",
+      "url": "https://example.invalid/local-smoke.mp4",
+      "ext": "mp4",
+      "vcodec": "avc1.42001e",
+      "acodec": "mp4a.40.2",
+      "height": 240,
+      "width": 320
+    }
+  ]
+}

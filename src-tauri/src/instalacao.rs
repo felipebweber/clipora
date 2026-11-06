@@ -383,6 +383,72 @@ fn extrair(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn verificador_teste(resultado: &'static str) -> VerificadorCompatibilidade {
+        std::sync::Arc::new(move |_, _| {
+            Box::pin(async move {
+                match resultado {
+                    "ok" => Ok(()),
+                    "integridade" => Err(crate::previa::ErroClipora {
+                        codigo: "ATUALIZACAO_INTEGRIDADE".into(),
+                        mensagem: "Integridade inválida".into(),
+                        detalhe: Some("hash do fixture divergente".into()),
+                    }),
+                    "motor" => Err(crate::previa::ErroClipora::novo(
+                        "MOTOR_YOUTUBE_INDISPONIVEL",
+                        Some("Deno fixture ausente".into()),
+                    )),
+                    "timeout" => Err(crate::previa::ErroClipora::novo(
+                        "TEMPO_ESGOTADO",
+                        Some("smoke local expirou".into()),
+                    )),
+                    _ => Err(crate::motor_youtube::erro_atualizacao_nao_suportada(
+                        "solver incompatível no fixture",
+                    )),
+                }
+            })
+        })
+    }
+
+    fn preparar_instalacao_valida(dir: &Path, versao: &str, bytes: &[u8]) {
+        fs::create_dir_all(dir).unwrap();
+        let executavel = dir.join(if cfg!(windows) {
+            "yt-dlp.exe"
+        } else {
+            "yt-dlp"
+        });
+        fs::write(&executavel, bytes).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&executavel, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let manifesto = Manifesto {
+            versao: versao.into(),
+            executavel: if cfg!(windows) {
+                "yt-dlp.exe".into()
+            } else {
+                "yt-dlp".into()
+            },
+            asset: String::new(),
+            sha256_zip: String::new(),
+            sha256_somas: String::new(),
+            sha256_assinatura: String::new(),
+            arquivos: BTreeMap::from([(
+                if cfg!(windows) {
+                    "yt-dlp.exe".into()
+                } else {
+                    "yt-dlp".into()
+                },
+                format!("{:x}", Sha256::digest(bytes)),
+            )]),
+        };
+        fs::write(
+            dir.join("clipora-yt-dlp.json"),
+            serde_json::to_vec(&manifesto).unwrap(),
+        )
+        .unwrap();
+    }
+
     #[test]
     fn espaco_insuficiente_e_identificado_antes_do_download() {
         assert!(!espaco_suficiente(ESPACO_MINIMO_ATUALIZACAO - 1));
@@ -409,7 +475,15 @@ mod tests {
         let versao = release["tag_name"].as_str().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let canal = tauri::ipc::Channel::new(|_| Ok(()));
-        let resultado = atualizar(dir.path(), versao, &canal)
+        let deno_nome = if cfg!(windows) {
+            "clipora-deno.exe"
+        } else {
+            "clipora-deno"
+        };
+        let deno = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("binaries/deno")
+            .join(deno_nome);
+        let resultado = atualizar(dir.path(), versao, &canal, &deno)
             .await
             .expect("atualização real falhou");
         assert_eq!(resultado.versao_instalada, versao);
@@ -505,6 +579,10 @@ mod tests {
             "versao",
             "binario",
             "traversal",
+            "solver-incompativel",
+            "motor-ausente",
+            "smoke-timeout",
+            "candidato-adulterado",
         ] {
             let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
             listener.set_nonblocking(true).unwrap();
@@ -585,9 +663,40 @@ mod tests {
                 )
                 .unwrap();
                 fs::write(dir.path().join("atual"), "2026.10.26\n").unwrap();
+            } else if matches!(
+                caso,
+                "solver-incompativel" | "motor-ausente" | "smoke-timeout" | "candidato-adulterado"
+            ) {
+                preparar_instalacao_valida(
+                    &dir.path().join("2026.10.25"),
+                    "2026.10.25",
+                    b"versao anterior comprovada",
+                );
+                preparar_instalacao_valida(
+                    &dir.path().join("2026.10.24"),
+                    "2026.10.24",
+                    b"versao anterior reserva",
+                );
+                fs::write(dir.path().join("atual"), "2026.10.25\n").unwrap();
+                fs::write(dir.path().join("anterior"), "2026.10.24\n").unwrap();
             }
             let canal = tauri::ipc::Channel::new(|_| Ok(()));
-            let result = atualizar_com(dir.path(), "2026.10.26", &canal, &fontes).await;
+            let resposta_verificador = match caso {
+                "motor-ausente" => "motor",
+                "smoke-timeout" => "timeout",
+                "candidato-adulterado" => "integridade",
+                "solver-incompativel" => "incompativel",
+                _ => "ok",
+            };
+            let result = atualizar_com(
+                dir.path(),
+                "2026.10.26",
+                &canal,
+                Path::new("/runtime/deno-fixture"),
+                &fontes,
+                verificador_teste(resposta_verificador),
+            )
+            .await;
             match caso {
                 "sucesso" => {
                     result.expect("atualização local");
@@ -599,6 +708,49 @@ mod tests {
                 "traversal" => {
                     assert_eq!(result.err().unwrap().codigo, "ATUALIZACAO_INTEGRIDADE");
                     assert!(!dir.path().join("escape").exists());
+                }
+                "solver-incompativel" | "motor-ausente" | "smoke-timeout" => {
+                    let erro = result.err().unwrap();
+                    assert_eq!(erro.codigo, "ATUALIZACAO_NAO_SUPORTADA", "{caso}");
+                    assert!(
+                        erro.mensagem
+                            .contains("versão atual do yt-dlp continua em uso")
+                    );
+                    assert_eq!(
+                        fs::read_to_string(dir.path().join("atual")).unwrap(),
+                        "2026.10.25\n"
+                    );
+                    assert_eq!(
+                        fs::read_to_string(dir.path().join("anterior")).unwrap(),
+                        "2026.10.24\n"
+                    );
+                    assert_eq!(
+                        resolver_atual(dir.path()).unwrap(),
+                        dir.path().join("2026.10.25/yt-dlp")
+                    );
+                    assert_eq!(
+                        resolver_versao(dir.path(), "2026.10.24").unwrap(),
+                        dir.path().join("2026.10.24/yt-dlp")
+                    );
+                    assert!(!dir.path().join("2026.10.26").exists());
+                    assert!(
+                        !fs::read_dir(dir.path())
+                            .unwrap()
+                            .flatten()
+                            .any(|e| e.file_name().to_string_lossy().starts_with(".tmp-"))
+                    );
+                }
+                "candidato-adulterado" => {
+                    assert_eq!(result.err().unwrap().codigo, "ATUALIZACAO_INTEGRIDADE");
+                    assert_eq!(
+                        resolver_atual(dir.path()).unwrap(),
+                        dir.path().join("2026.10.25/yt-dlp")
+                    );
+                    assert_eq!(
+                        fs::read_to_string(dir.path().join("anterior")).unwrap(),
+                        "2026.10.24\n"
+                    );
+                    assert!(!dir.path().join("2026.10.26").exists());
                 }
                 _ => assert_eq!(
                     result.err().unwrap().codigo,
@@ -623,11 +775,18 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let canal = tauri::ipc::Channel::new(|_| Ok(()));
         assert_eq!(
-            atualizar_com(dir.path(), "2026.10.26", &canal, &fontes)
-                .await
-                .err()
-                .unwrap()
-                .codigo,
+            atualizar_com(
+                dir.path(),
+                "2026.10.26",
+                &canal,
+                Path::new("/runtime/deno-fixture"),
+                &fontes,
+                verificador_teste("ok"),
+            )
+            .await
+            .err()
+            .unwrap()
+            .codigo,
             "ATUALIZACAO_FALHOU"
         );
         assert!(!dir.path().join("atual").exists());
@@ -1029,9 +1188,13 @@ pub async fn atualizar(
     raiz: &Path,
     esperada: &str,
     canal: &tauri::ipc::Channel<EventoAtualizacao>,
+    deno: &Path,
 ) -> Result<ResultadoAtualizacao, crate::previa::ErroClipora> {
-    let (asset, exe) = asset_plataforma()
-        .ok_or_else(|| crate::previa::ErroClipora::novo("ATUALIZACAO_NAO_SUPORTADA", None))?;
+    let (asset, exe) = asset_plataforma().ok_or_else(|| {
+        crate::motor_youtube::erro_atualizacao_nao_suportada(
+            "não há asset yt-dlp para esta plataforma",
+        )
+    })?;
     let fontes = Fontes {
         api: "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest",
         base: "https://github.com/yt-dlp/yt-dlp/releases/download",
@@ -1040,7 +1203,15 @@ pub async fn atualizar(
         asset,
         exe,
     };
-    atualizar_com(raiz, esperada, canal, &fontes).await
+    atualizar_com(
+        raiz,
+        esperada,
+        canal,
+        deno,
+        &fontes,
+        verificador_compatibilidade_real(),
+    )
+    .await
 }
 struct Fontes<'a> {
     api: &'a str,
@@ -1050,11 +1221,30 @@ struct Fontes<'a> {
     asset: &'a str,
     exe: &'a str,
 }
+
+type VerificadorCompatibilidade = std::sync::Arc<
+    dyn Fn(
+            PathBuf,
+            PathBuf,
+        )
+            -> futures_util::future::BoxFuture<'static, Result<(), crate::previa::ErroClipora>>
+        + Send
+        + Sync,
+>;
+
+fn verificador_compatibilidade_real() -> VerificadorCompatibilidade {
+    std::sync::Arc::new(|yt_dlp, deno| {
+        Box::pin(async move { crate::motor_youtube::conferir_candidato(&yt_dlp, &deno).await })
+    })
+}
+
 async fn atualizar_com(
     raiz: &Path,
     esperada: &str,
     canal: &tauri::ipc::Channel<EventoAtualizacao>,
+    deno: &Path,
     fontes: &Fontes<'_>,
+    verificar_compatibilidade: VerificadorCompatibilidade,
 ) -> Result<ResultadoAtualizacao, crate::previa::ErroClipora> {
     let falha =
         |codigo: &str, detalhe: String| crate::previa::ErroClipora::novo(codigo, Some(detalhe));
@@ -1167,20 +1357,31 @@ async fn atualizar_com(
     } else {
         "yt-dlp"
     });
-    let mut cmd = tokio::process::Command::new(exe);
-    cmd.args(["--ignore-config", "--no-update", "--version"])
-        .stdin(std::process::Stdio::null())
-        .kill_on_drop(true);
-    #[cfg(windows)]
-    cmd.creation_flags(0x08000000);
-    let output = tokio::time::timeout(std::time::Duration::from_secs(60), cmd.output())
-        .await
-        .map_err(|e| falha("ATUALIZACAO_FALHOU", e.to_string()))?
-        .map_err(|e| falha("ATUALIZACAO_FALHOU", e.to_string()))?;
-    if !output.status.success() || String::from_utf8_lossy(&output.stdout).trim() != esperada {
+    let (_tx, rx) = tokio::sync::watch::channel(false);
+    let output = crate::processos::executar_limitado(
+        &exe,
+        ["--ignore-config", "--no-update", "--version"]
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        rx,
+        std::time::Duration::from_secs(10),
+        1024 * 1024,
+    )
+    .await
+    .map_err(|e| falha("ATUALIZACAO_FALHOU", e.to_string()))?;
+    if !output.sucesso || String::from_utf8_lossy(&output.stdout).trim() != esperada {
         return Err(falha(
             "ATUALIZACAO_FALHOU",
             "versão do executável divergente ou não executável".into(),
+        ));
+    }
+    if let Err(e) = verificar_compatibilidade(exe.clone(), deno.to_path_buf()).await {
+        if e.codigo == "ATUALIZACAO_INTEGRIDADE" {
+            return Err(e);
+        }
+        return Err(crate::motor_youtube::erro_atualizacao_nao_suportada(
+            e.detalhe.unwrap_or(e.mensagem),
         ));
     }
     let resultado = ativar(raiz, temp.path(), esperada, || {

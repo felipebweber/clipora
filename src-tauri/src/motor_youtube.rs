@@ -134,6 +134,332 @@ pub async fn verificar_motor(deno: &Path) -> Result<(), ErroClipora> {
     Ok(())
 }
 
+const LIMITE_SAIDA_COMPATIBILIDADE: usize = 1024 * 1024;
+const LIMITE_ENTRADA_DENO: usize = 1024 * 1024;
+
+pub(crate) fn erro_atualizacao_nao_suportada(detalhe: impl ToString) -> ErroClipora {
+    ErroClipora {
+        codigo: "ATUALIZACAO_NAO_SUPORTADA".into(),
+        mensagem: "Não foi possível confirmar a compatibilidade desta atualização com o Clipora. A versão atual do yt-dlp continua em uso. Atualize ou reinstale o Clipora para tentar novamente.".into(),
+        detalhe: Some(detalhe.to_string()),
+    }
+}
+
+fn erro_atualizacao_integridade(detalhe: impl ToString) -> ErroClipora {
+    ErroClipora {
+        codigo: "ATUALIZACAO_INTEGRIDADE".into(),
+        mensagem: "O arquivo de atualização não passou na verificação de integridade.".into(),
+        detalhe: Some(detalhe.to_string()),
+    }
+}
+
+fn hash_arquivo(path: &Path) -> Result<String, ErroClipora> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    let mut arquivo = std::fs::File::open(path).map_err(erro_atualizacao_integridade)?;
+    let mut h = Sha256::new();
+    let mut bloco = [0u8; 65536];
+    loop {
+        let n = arquivo
+            .read(&mut bloco)
+            .map_err(erro_atualizacao_integridade)?;
+        if n == 0 {
+            break;
+        }
+        h.update(&bloco[..n]);
+    }
+    Ok(format!("{:x}", h.finalize()))
+}
+
+fn arquivo_regular(path: &Path) -> Result<std::fs::Metadata, ErroClipora> {
+    let meta = std::fs::symlink_metadata(path).map_err(erro_atualizacao_nao_suportada)?;
+    if !meta.is_file() || meta.file_type().is_symlink() {
+        return Err(erro_atualizacao_nao_suportada(format!(
+            "arquivo regular esperado: {}",
+            path.display()
+        )));
+    }
+    Ok(meta)
+}
+
+fn diretorio_regular(path: &Path) -> Result<(), ErroClipora> {
+    let meta = std::fs::symlink_metadata(path).map_err(erro_atualizacao_nao_suportada)?;
+    if !meta.is_dir() || meta.file_type().is_symlink() {
+        return Err(erro_atualizacao_nao_suportada(format!(
+            "diretório do solver inválido: {}",
+            path.display()
+        )));
+    }
+    Ok(())
+}
+
+fn ler_solver_candidato(executavel: &Path) -> Result<(Vec<u8>, Vec<u8>), ErroClipora> {
+    let nome_esperado = if cfg!(windows) {
+        "yt-dlp.exe"
+    } else {
+        "yt-dlp"
+    };
+    if !executavel.is_absolute()
+        || executavel.file_name().and_then(|n| n.to_str()) != Some(nome_esperado)
+    {
+        return Err(erro_atualizacao_nao_suportada(
+            "caminho do executável candidato inválido",
+        ));
+    }
+    let raiz = executavel
+        .parent()
+        .ok_or_else(|| erro_atualizacao_nao_suportada("diretório do candidato ausente"))?
+        .canonicalize()
+        .map_err(erro_atualizacao_nao_suportada)?;
+    let executavel = raiz.join(nome_esperado);
+    arquivo_regular(&executavel)?;
+
+    let manifesto_path = raiz.join("clipora-yt-dlp.json");
+    let manifesto_meta = arquivo_regular(&manifesto_path)?;
+    if manifesto_meta.len() > LIMITE_SAIDA_COMPATIBILIDADE as u64 {
+        return Err(erro_atualizacao_nao_suportada(
+            "manifesto do candidato excede o limite",
+        ));
+    }
+    let manifesto: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(&manifesto_path).map_err(erro_atualizacao_nao_suportada)?,
+    )
+    .map_err(erro_atualizacao_nao_suportada)?;
+    let arquivos = manifesto
+        .get("arquivos")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| erro_atualizacao_nao_suportada("mapa de arquivos ausente no manifesto"))?;
+
+    let relativo = "_internal/yt_dlp_ejs/yt/solver";
+    let mut pasta = raiz.clone();
+    for componente in ["_internal", "yt_dlp_ejs", "yt", "solver"] {
+        pasta.push(componente);
+        diretorio_regular(&pasta)?;
+    }
+    let ler = |nome: &str| -> Result<Vec<u8>, ErroClipora> {
+        let path = pasta.join(nome);
+        let meta = arquivo_regular(&path)?;
+        if meta.len() > 512 * 1024 {
+            return Err(erro_atualizacao_nao_suportada(format!(
+                "solver excede o limite: {nome}"
+            )));
+        }
+        let caminho_manifesto = format!("{relativo}/{nome}");
+        let hash_esperado = arquivos
+            .get(&caminho_manifesto)
+            .and_then(serde_json::Value::as_str)
+            .filter(|h| h.len() == 64 && h.bytes().all(|b| b.is_ascii_hexdigit()))
+            .ok_or_else(|| {
+                erro_atualizacao_nao_suportada(format!(
+                    "solver não coberto pelo manifesto: {caminho_manifesto}"
+                ))
+            })?;
+        let hash_real = hash_arquivo(&path)?;
+        if !hash_real.eq_ignore_ascii_case(hash_esperado) {
+            return Err(erro_atualizacao_integridade(format!(
+                "hash divergente: {caminho_manifesto}"
+            )));
+        }
+        std::fs::read(&path).map_err(erro_atualizacao_integridade)
+    };
+    let lib = ler("lib.min.js")?;
+    let core = ler("core.min.js")?;
+    // A atualização valida assinatura/hash do ZIP antes da extração. O
+    // executável empacotado pode receber assinatura de código depois de o
+    // manifesto de distribuição ser gerado; aqui os hashes exigidos são dos
+    // scripts EJS que serão efetivamente enviados ao runtime.
+    Ok((lib, core))
+}
+
+fn runtime_deno_compativel(token: &str) -> bool {
+    token
+        .strip_prefix("deno-")
+        .is_some_and(|versao| versao_cli_compativel(&format!("deno {versao}")))
+}
+
+fn diagnostico_candidato_compativel(texto: &str) -> Result<(), ErroClipora> {
+    let linhas: Vec<_> = texto.lines().collect();
+    let runtimes: Vec<_> = linhas
+        .iter()
+        .filter_map(|linha| linha.trim().strip_prefix("[debug] JS runtimes:"))
+        .flat_map(|lista| lista.split(',').map(str::trim).filter(|t| !t.is_empty()))
+        .collect();
+    // --no-js-runtimes seguido por deno:<absoluto> deve deixar exatamente
+    // um runtime ativo; qualquer linha/lista diferente é prova ambígua.
+    let runtime = runtimes.len() == 1 && runtime_deno_compativel(runtimes[0]);
+    let bibliotecas: Vec<_> = linhas
+        .iter()
+        .filter_map(|linha| linha.trim().strip_prefix("[debug] Optional libraries:"))
+        .collect();
+    let ejs = bibliotecas.len() == 1
+        && bibliotecas[0]
+            .split(',')
+            .map(str::trim)
+            .any(|lib| lib.starts_with("yt_dlp_ejs-"));
+    let aviso_incompativel = linhas.iter().any(|linha| {
+        let linha = linha.trim().to_ascii_lowercase();
+        (linha.starts_with("warning:") || linha.starts_with("[warning]"))
+            && ["deno", "ejs", "solver", "javascript", "js runtime"]
+                .iter()
+                .any(|marca| linha.contains(marca))
+    });
+    if runtime && ejs && !aviso_incompativel {
+        Ok(())
+    } else {
+        Err(erro_atualizacao_nao_suportada(format!(
+            "prova local incompleta: runtime={runtime}, ejs={ejs}, aviso_incompativel={aviso_incompativel}"
+        )))
+    }
+}
+
+async fn smoke_deno_solver(
+    deno: &Path,
+    lib: &[u8],
+    core: &[u8],
+    prazo: std::time::Duration,
+) -> Result<(), ErroClipora> {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../../tests/fixtures/youtube/ejs-smoke.json"))
+            .map_err(erro_atualizacao_nao_suportada)?;
+    let json_input = serde_json::to_string(&fixture).map_err(erro_atualizacao_nao_suportada)?;
+    let script = format!(
+        "{}\nObject.assign(globalThis, lib);\n{}\nconst input = {{type: fixture.type, preprocessed_player: fixture.preprocessed_player, requests: fixture.requests}};\nconst solver = jsc(input);\nconst ast = lib.meriyah.parse(fixture.parserProgram);\nconst parser = lib.astring.generate(ast).trim();\nconsole.log(JSON.stringify({{solver, parser}}));\n",
+        String::from_utf8_lossy(lib),
+        String::from_utf8_lossy(core)
+    );
+    // O objeto fixture é criado no harness usando JSON seguro, sem interpolação de conteúdo JS.
+    let script = format!("const fixture = {json_input};\n{script}");
+    if script.len() > LIMITE_ENTRADA_DENO {
+        return Err(erro_atualizacao_nao_suportada(
+            "entrada do smoke Deno excede 1 MiB",
+        ));
+    }
+    let args: Vec<std::ffi::OsString> = [
+        "run",
+        "--ext=js",
+        "--no-code-cache",
+        "--no-prompt",
+        "--no-remote",
+        "--no-lock",
+        "--node-modules-dir=none",
+        "--no-config",
+        "--no-npm",
+        "--cached-only",
+        "-",
+    ]
+    .into_iter()
+    .map(Into::into)
+    .collect();
+    let (_tx, rx) = tokio::sync::watch::channel(false);
+    let saida = crate::processos::executar_com_entrada_limitado(
+        deno,
+        args,
+        script.into_bytes(),
+        rx,
+        prazo,
+        LIMITE_SAIDA_COMPATIBILIDADE,
+    )
+    .await
+    .map_err(|e| erro_atualizacao_nao_suportada(format!("smoke Deno: {e}")))?;
+    if !saida.sucesso {
+        return Err(erro_atualizacao_nao_suportada(format!(
+            "smoke Deno recusado: {}",
+            String::from_utf8_lossy(&saida.stderr)
+        )));
+    }
+    let resultado: serde_json::Value = serde_json::from_slice(&saida.stdout)
+        .map_err(|e| erro_atualizacao_nao_suportada(format!("saída inválida do solver: {e}")))?;
+    let respostas = resultado["solver"]["responses"].as_array();
+    if resultado["solver"]["type"] != "result"
+        || respostas != fixture["expected"].as_array()
+        || resultado["parser"].as_str() != fixture["parserExpected"].as_str()
+    {
+        return Err(erro_atualizacao_nao_suportada(
+            "respostas N/SIG ou parse/generate divergentes",
+        ));
+    }
+    Ok(())
+}
+
+async fn smoke_ytdlp_local(
+    executavel: &Path,
+    deno: &Path,
+    prazo: std::time::Duration,
+) -> Result<(), ErroClipora> {
+    let dir = tempfile::tempdir().map_err(erro_atualizacao_nao_suportada)?;
+    let info = dir.path().join("info-local.json");
+    std::fs::write(
+        &info,
+        include_bytes!("../../tests/fixtures/youtube/info-local.json"),
+    )
+    .map_err(erro_atualizacao_nao_suportada)?;
+    let mut args: Vec<std::ffi::OsString> = [
+        "--ignore-config",
+        "--no-update",
+        "--no-playlist",
+        "--no-plugin-dirs",
+        "--no-cache-dir",
+        "--no-cookies",
+        "--no-cookies-from-browser",
+        "--no-remote-components",
+        "--no-js-runtimes",
+        "--js-runtimes",
+    ]
+    .into_iter()
+    .map(Into::into)
+    .collect();
+    args.push(format!("deno:{}", deno.display()).into());
+    args.extend(
+        ["--verbose", "--simulate", "--load-info-json"]
+            .into_iter()
+            .map(Into::into),
+    );
+    args.push(info.into_os_string());
+    args.extend(["--skip-download".into(), "--".into()]);
+    let (_tx, rx) = tokio::sync::watch::channel(false);
+    let saida = crate::processos::executar_limitado(
+        executavel,
+        args,
+        rx,
+        prazo,
+        LIMITE_SAIDA_COMPATIBILIDADE,
+    )
+    .await
+    .map_err(|e| erro_atualizacao_nao_suportada(format!("smoke yt-dlp local: {e}")))?;
+    let texto = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&saida.stdout),
+        String::from_utf8_lossy(&saida.stderr)
+    );
+    if !saida.sucesso {
+        return Err(erro_atualizacao_nao_suportada(format!(
+            "simulação local recusada: {}",
+            texto.chars().take(512).collect::<String>()
+        )));
+    }
+    diagnostico_candidato_compativel(&texto)
+}
+
+async fn conferir_candidato_interno(yt_dlp: &Path, deno: &Path) -> Result<(), ErroClipora> {
+    verificar_motor(deno)
+        .await
+        .map_err(|e| erro_atualizacao_nao_suportada(e.detalhe.unwrap_or(e.mensagem)))?;
+    let (lib, core) = ler_solver_candidato(yt_dlp)?;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(20);
+    let restante = || deadline.saturating_duration_since(tokio::time::Instant::now());
+    smoke_deno_solver(deno, &lib, &core, restante()).await?;
+    smoke_ytdlp_local(yt_dlp, deno, restante()).await?;
+    Ok(())
+}
+
+pub async fn conferir_candidato(yt_dlp: &Path, deno: &Path) -> Result<(), ErroClipora> {
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(20);
+    tokio::time::timeout_at(deadline, conferir_candidato_interno(yt_dlp, deno))
+        .await
+        .map_err(|_| erro_atualizacao_nao_suportada("tempo total excedido (20 s)"))??;
+    Ok(())
+}
+
 #[cfg(all(test, unix))]
 pub(crate) fn fixture_motor(dir: &Path) -> std::path::PathBuf {
     use sha2::{Digest, Sha256};
@@ -153,6 +479,102 @@ pub(crate) fn fixture_motor(dir: &Path) -> std::path::PathBuf {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+    #[test]
+    fn diagnostico_requer_runtime_base_com_metadata_ejs_e_sem_aviso_incompativel() {
+        let compativel = "[debug] Optional libraries: brotli, yt_dlp_ejs-0.8.0\n[debug] JS runtimes: deno-2.7.0+fb4db33\n";
+        diagnostico_candidato_compativel(compativel).unwrap();
+        for invalido in [
+            "[debug] Optional libraries: yt_dlp_ejs-0.8.0\n[debug] JS runtimes: deno-2.7.01\n",
+            "[debug] Optional libraries: yt_dlp_ejs-0.8.0\n[debug] JS runtimes: deno-2.7.0-rc.1\n",
+            "[debug] Optional libraries: yt_dlp_ejs-0.8.0\n[debug] JS runtimes: deno-2.7.0+fb4db33, node-20.0.0\n",
+            "[debug] JS runtimes: deno-2.7.0+fb4db33\n",
+            "[debug] Optional libraries: yt_dlp_ejs-0.8.0\n[debug] JS runtimes: deno-2.7.0+fb4db33\nWARNING: Deno runtime is incompatible\n",
+        ] {
+            assert!(
+                diagnostico_candidato_compativel(invalido).is_err(),
+                "diagnóstico deveria ser recusado: {invalido}"
+            );
+        }
+    }
+
+    #[test]
+    fn solver_do_candidato_precisa_ser_regular_e_coberto_pelo_manifesto() {
+        use sha2::{Digest, Sha256};
+        let d = tempfile::tempdir().unwrap();
+        let exe = d.path().join(if cfg!(windows) {
+            "yt-dlp.exe"
+        } else {
+            "yt-dlp"
+        });
+        std::fs::write(&exe, b"yt-dlp fixture").unwrap();
+        let solver = d.path().join("_internal/yt_dlp_ejs/yt/solver");
+        std::fs::create_dir_all(&solver).unwrap();
+        std::fs::write(solver.join("lib.min.js"), b"lib fixture").unwrap();
+        std::fs::write(solver.join("core.min.js"), b"core fixture").unwrap();
+        let digest = |bytes: &[u8]| format!("{:x}", Sha256::digest(bytes));
+        let arquivos = serde_json::json!({
+            if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" }: digest(b"yt-dlp fixture"),
+            "_internal/yt_dlp_ejs/yt/solver/lib.min.js": digest(b"lib fixture"),
+            "_internal/yt_dlp_ejs/yt/solver/core.min.js": digest(b"core fixture")
+        });
+        std::fs::write(
+            d.path().join("clipora-yt-dlp.json"),
+            serde_json::to_vec(&serde_json::json!({"arquivos": arquivos})).unwrap(),
+        )
+        .unwrap();
+        assert!(ler_solver_candidato(&exe).is_ok());
+        std::fs::write(solver.join("lib.min.js"), b"tampered").unwrap();
+        assert_eq!(
+            ler_solver_candidato(&exe).unwrap_err().codigo,
+            "ATUALIZACAO_INTEGRIDADE"
+        );
+        std::fs::write(solver.join("lib.min.js"), b"lib fixture").unwrap();
+        #[cfg(unix)]
+        {
+            let externo = d.path().join("lib-externo.js");
+            std::fs::write(&externo, b"lib fixture").unwrap();
+            std::fs::remove_file(solver.join("lib.min.js")).unwrap();
+            std::os::unix::fs::symlink(&externo, solver.join("lib.min.js")).unwrap();
+            assert_eq!(
+                ler_solver_candidato(&exe).unwrap_err().codigo,
+                "ATUALIZACAO_NAO_SUPORTADA"
+            );
+        }
+        #[cfg(unix)]
+        std::fs::remove_file(solver.join("lib.min.js")).unwrap();
+        #[cfg(unix)]
+        std::fs::remove_dir_all(solver).unwrap();
+        #[cfg(unix)]
+        assert_eq!(
+            ler_solver_candidato(&exe).unwrap_err().codigo,
+            "ATUALIZACAO_NAO_SUPORTADA"
+        );
+    }
+
+    #[test]
+    #[ignore = "smoke real local do candidato yt-dlp e Deno, sem rede nem mídia"]
+    fn conferir_candidato_real_offline() {
+        let raiz = Path::new(env!("CARGO_MANIFEST_DIR")).join("binaries");
+        let yt_dlp = raiz.join("yt-dlp").join(if cfg!(windows) {
+            "yt-dlp.exe"
+        } else {
+            "yt-dlp"
+        });
+        let deno = raiz.join("deno").join(if cfg!(windows) {
+            "clipora-deno.exe"
+        } else {
+            "clipora-deno"
+        });
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime
+            .block_on(conferir_candidato(&yt_dlp, &deno))
+            .unwrap();
+        println!("compatibilidade local confirmada: {}", yt_dlp.display());
+    }
+
     #[test]
     fn versao_deno_aceita_apenas_base_fixada_e_metadata_build_semver() {
         for linha in [

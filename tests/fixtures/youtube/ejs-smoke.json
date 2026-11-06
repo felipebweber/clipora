@@ -1,0 +1,14 @@
+{
+  "type": "preprocessed",
+  "preprocessed_player": "_result.n = (n) => n.split(\"\").reverse().join(\"\"); _result.sig = (sig) => \"ok:\" + sig;",
+  "requests": [
+    { "type": "n", "challenges": ["abc"] },
+    { "type": "sig", "challenges": ["abc"] }
+  ],
+  "expected": [
+    { "type": "result", "data": { "abc": "cba" } },
+    { "type": "result", "data": { "abc": "ok:abc" } }
+  ],
+  "parserProgram": "const a = 1;",
+  "parserExpected": "const a = 1;"
+}
