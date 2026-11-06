@@ -474,6 +474,8 @@ Continuam pendentes: primeiro run do CI no remoto, execução dos pacotes Window
 
 **Decisão registrada em 2026-11-06:** o Clipora será open source, com código público, sob **GPL-3.0-or-later**. A aprovação e a lista de conferência antes da publicação estão em [licencas.md §6.1](licencas.md#61-decisão-aprovada--2026-11-06).
 
+**Ordem definida pelo usuário em 2026-11-06:** testar o aplicativo no **Windows e no Linux antes de enviar o código ao repositório remoto**. Até concluir esses testes e registrar os resultados em `docs/verificacao.md`, manter os commits locais e não fazer push nem publicar o código. O CI remoto não substitui essa validação prévia; preparar e testar os pacotes nos respectivos sistemas sem depender de um push.
+
 Lista consolidada para liberar o lançamento; nenhuma escolha abaixo foi presumida. A preparação local e a revisão de código não substituem o primeiro CI remoto, a instalação nos outros sistemas ou a assinatura com credenciais reais.
 
 | Decisão | O que falta definir ou disponibilizar |

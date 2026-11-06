@@ -159,6 +159,7 @@ Esta decisão se refere ao código próprio do Clipora. yt-dlp, FFmpeg e as dema
 
 Antes de disponibilizar o repositório público e os instaladores, conferir:
 
+- [ ] Testar o aplicativo no Windows e no Linux e registrar os resultados em `docs/verificacao.md` **antes de enviar o código ao remoto**, conforme ordem definida pelo usuário em 2026-11-06.
 - [ ] Adicionar `LICENSE` na raiz com o texto integral da GPLv3 e a declaração de aplicação da versão 3 **ou posterior**, incluindo autoria e ano.
 - [ ] Sincronizar os metadados de licença em `package.json` e `src-tauri/Cargo.toml` com `GPL-3.0-or-later`.
 - [ ] Atualizar os avisos e o acesso à licença na tela Sobre/Licenças e nos pacotes.
