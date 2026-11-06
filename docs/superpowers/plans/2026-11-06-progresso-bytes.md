@@ -35,5 +35,5 @@ Interfaces:Progresso::ler(&mut self,linha:&str)->Option<Option<f64>>, parte indi
 Files:src/componentes/ProgressoDownload.tsx,src/componentes/componentes.test.tsx,src/servicos/simulado.ts,docs/verificacao.md.
 Interfaces:mesmo percentual number|null; representa bytes globais da transferência. preparando/unindo/finalizando indeterminados inclusive backend legado com90/95.
 - [x] RED/GREEN UI: transferência50 mostra50% transferido; unindo/finalizando não exibem90/95 nem valor; tamanho desconhecido indeterminado. Simulador alinhado.
-- [x] Frontend323/typecheck/build,Rust93/0/9ignorados,clippy/fmt,actionlint,sintaxe; revisão Lince semachados. Entregas prontas para commit seletivo pelo Timoneiro.
-- [ ] Pacote do commit em worktreeisolado com Deno arm64 do pacote05a507c; conferência forte, cópia .maestri/artefatos/; abrir Finder para o usuário.
+- [x] Frontend323/typecheck/build,Rust93/0/9ignorados,clippy/fmt,actionlint,sintaxe; revisão Lince semachados. Commit seletivo b9969cf pelo Timoneiro.
+- [x] Pacote de b9969cf em worktreeisolado com Deno arm64 do pacote05a507c; conferência forte, cópia .maestri/artefatos/; conferência completa exit0,244,50MiB. Finder preparado para o usuário testar.
