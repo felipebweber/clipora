@@ -15,7 +15,7 @@ Responsável: Estaleiro (distribuição). Complementa [distribuicao.md](distribu
 | **FFmpeg (build próprio mínimo, recomendado)** | **LGPL v2.1+** (sem `--enable-gpl` e sem `--enable-nonfree`) | Publicar o código-fonte exato, a linha de `configure` e eventuais patches junto dos binários; avisos no site e na tela “Sobre” |
 | FFmpeg de terceiros com `--enable-gpl` (gyan.dev, evermeet.cx, BtbN `gpl`) | GPL v2+ (ou v3 com `--enable-version3`) | Iguais às da GPL; **evitar** |
 | FFmpeg com `--enable-nonfree` | **Não redistribuível** | Proibido distribuir |
-| Código do Clipora (Tauri, Rust, React) | A definir pelo usuário | Avisos das dependências, gerados por `scripts/gerar-licencas.mjs` e incluídos em cada pacote |
+| Código do Clipora (Tauri, Rust, React) | **GPL-3.0-or-later**, aprovada pelo usuário em 2026-11-06 (§6) | Incluir a licença e disponibilizar o código-fonte correspondente ao distribuir binários; preservar os avisos das dependências |
 
 Como o Clipora executa o yt-dlp e o FFmpeg como **processos separados** (linha de comando), sem ligá-los ao executável do app, a interpretação usual (FAQ da GPL sobre “agregação”) é que a licença do Clipora **não** fica sujeita à GPL/LGPL. As obrigações recaem sobre a redistribuição desses binários. **[validar com assessoria jurídica se houver uso comercial]**
 
@@ -147,11 +147,30 @@ A tela foi implementada por Vitral em `src/componentes/SobreLicencas.tsx` e est�
 
 ---
 
-## 6. Decisões pendentes do usuário
-1. **Licença do próprio Clipora** (proprietária, MIT, GPL…) e se o código será público. Isso afeta, por exemplo, a elegibilidade à SignPath Foundation.
-2. **Distribuição gratuita ou comercial**. No caso comercial, recomenda-se revisão jurídica (GPLv3 do yt-dlp, patentes de codecs, termos de uso do Instagram/TikTok).
-3. **Onde hospedar** os instaladores e o código-fonte correspondente (mesmo servidor, exigência prática da LGPL/GPL), por quanto tempo manter e quem responde a pedidos de código-fonte (contato para a oferta escrita, se usada).
-4. **EULA ou termos de uso**: haverá? Se sim, precisa das cláusulas da seção 3.2 e não pode restringir o yt-dlp nem o FFmpeg.
-5. **FFmpeg**: confirmar o build próprio mínimo LGPL (recomendado) em vez de builds prontos.
-6. **Espelhar ou não** o código-fonte dos componentes GPL de terceiros embutidos no binário PyInstaller do yt-dlp (opção conservadora: espelhar).
-7. **Texto final** da tela “Sobre / Licenças” (funcionalidade já implementada; ver §5.3) e da página de download (aviso do FFmpeg em português).
+## 6. Licença do Clipora e decisões de publicação
+
+### 6.1 Decisão aprovada — 2026-11-06
+
+Felipe confirmou que o Clipora será **open source, com código público**, e aceitou a recomendação de adotar **GNU General Public License, versão 3 ou posterior**. Identificador SPDX: **`GPL-3.0-or-later`** (não `GPL-3.0-only`).
+
+O objetivo da escolha é permitir uso, modificação e redistribuição, inclusive comercial, mantendo sob a GPL as versões derivadas distribuídas e garantindo acesso ao código-fonte correspondente. Modificações privadas não exigem publicação. Referência: [texto da GPLv3](https://www.gnu.org/licenses/gpl-3.0.html).
+
+Esta decisão se refere ao código próprio do Clipora. yt-dlp, FFmpeg e as demais dependências mantêm suas licenças e obrigações; a escolha não substitui os avisos nem a disponibilização das fontes correspondentes desses componentes.
+
+Antes de disponibilizar o repositório público e os instaladores, conferir:
+
+- [ ] Adicionar `LICENSE` na raiz com o texto integral da GPLv3 e a declaração de aplicação da versão 3 **ou posterior**, incluindo autoria e ano.
+- [ ] Sincronizar os metadados de licença em `package.json` e `src-tauri/Cargo.toml` com `GPL-3.0-or-later`.
+- [ ] Atualizar os avisos e o acesso à licença na tela Sobre/Licenças e nos pacotes.
+- [ ] Disponibilizar o código-fonte correspondente de cada versão distribuída, incluindo os scripts necessários à compilação e os componentes de terceiros conforme as seções anteriores.
+
+O registro desta aprovação não significa que os itens acima já foram implementados ou que o projeto já foi publicado.
+
+### 6.2 Decisões ainda pendentes do usuário
+
+1. **Distribuição gratuita ou comercial**. No caso comercial, recomenda-se revisão jurídica (GPLv3 do yt-dlp, patentes de codecs, termos de uso do Instagram/TikTok).
+2. **Onde hospedar** os instaladores e o código-fonte correspondente (mesmo servidor, exigência prática da LGPL/GPL), por quanto tempo manter e quem responde a pedidos de código-fonte (contato para a oferta escrita, se usada).
+3. **EULA ou termos de uso**: haverá? Se sim, precisa das cláusulas da seção 3.2 e não pode restringir o yt-dlp nem o FFmpeg.
+4. **FFmpeg**: confirmar o build próprio mínimo LGPL (recomendado) em vez de builds prontos.
+5. **Espelhar ou não** o código-fonte dos componentes GPL de terceiros embutidos no binário PyInstaller do yt-dlp (opção conservadora: espelhar).
+6. **Texto final** da tela “Sobre / Licenças” (funcionalidade já implementada; ver §5.3) e da página de download (aviso do FFmpeg em português).

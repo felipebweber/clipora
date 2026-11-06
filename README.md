@@ -2,6 +2,10 @@
 
 Clipora é um aplicativo desktop em desenvolvimento para baixar um vídeo público por vez de links compatíveis do Instagram Reels e TikTok. O processamento ocorre no computador. Consulte o [guia do usuário](docs/usuario/README.md) e o [estado da distribuição](docs/distribuicao.md).
 
+## Licença escolhida
+
+O Clipora será publicado como open source sob **GPL-3.0-or-later** (GNU GPL versão 3 ou posterior), conforme decisão de Felipe em 2026-11-06. A aprovação e os itens a conferir antes da publicação estão em [Licenças, seção 6.1](docs/licencas.md#61-decisão-aprovada--2026-11-06). Os componentes de terceiros mantêm suas próprias licenças.
+
 ## Pré-requisitos
 
 - Node.js e pnpm (ambiente verificado: Node v26.12.1 e pnpm 10.32.1).

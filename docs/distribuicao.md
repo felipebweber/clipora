@@ -472,14 +472,16 @@ Continuam pendentes: primeiro run do CI no remoto, execução dos pacotes Window
 
 ## 9. Decisões pendentes do usuário
 
+**Decisão registrada em 2026-11-06:** o Clipora será open source, com código público, sob **GPL-3.0-or-later**. A aprovação e a lista de conferência antes da publicação estão em [licencas.md §6.1](licencas.md#61-decisão-aprovada--2026-11-06).
+
 Lista consolidada para liberar o lançamento; nenhuma escolha abaixo foi presumida. A preparação local e a revisão de código não substituem o primeiro CI remoto, a instalação nos outros sistemas ou a assinatura com credenciais reais.
 
 | Decisão | O que falta definir ou disponibilizar |
 |---|---|
-| Licença e termos | Licença do próprio Clipora; EULA/termos e texto final de Sobre/Licenças e da página de download. |
+| Termos e avisos | EULA/termos e texto final de Sobre/Licenças e da página de download. A licença do Clipora já foi escolhida: GPL-3.0-or-later. |
 | Identidade | Confirmar ou substituir o identificador provisório `app.clipora.desktop` antes de distribuir. |
 | Sistemas, arquiteturas e formatos | Confirmar mínimos finais, Windows/Linux arm64, macOS universal ou pacotes separados e inclusão de RPM. A matriz atual é pretendida; somente macOS arm64 foi exercitado nesta máquina. |
-| Repositório e publicação | Escolher remoto, plano/visibilidade e hospedagem dos instaladores e fontes correspondentes de yt-dlp/FFmpeg, incluindo a política de espelhamento. Isso libera executar o CI e preparar a publicação. |
+| Repositório e publicação | Escolher remoto, plano de hospedagem e hospedagem dos instaladores e fontes correspondentes de yt-dlp/FFmpeg, incluindo a política de espelhamento. O código será público, conforme decisão de 2026-11-06. Isso libera executar o CI e preparar a publicação. |
 | Apple | Disponibilizar conta Apple Developer, Developer ID e credenciais de notarização quando desejar distribuição assinada. O pacote local não foi notarizado. |
 | Windows | Escolher Azure Artifact Signing, certificado OV/SignPath ou distribuição sem assinatura. O provedor escolhido precisa da implementação e validação da assinatura de todo o onedir, incluindo `.pyd` e manifesto pós-assinatura; a variável de assinatura está bloqueada explicitamente enquanto isso faltar. |
 | Validação em outros sistemas | Disponibilizar Windows, Linux e Mac Intel para instalar e exercitar cada pacote. Rosetta pode auxiliar testes de compatibilidade, mas não constitui teste em hardware Intel. |
