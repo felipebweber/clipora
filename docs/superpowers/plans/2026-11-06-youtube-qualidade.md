@@ -183,13 +183,13 @@ Assets oficiais em `https://github.com/denoland/deno/releases/download/v2.7.0/` 
 
 **Files:** `docs/{verificacao,distribuicao,licencas}.md`, `docs/usuario/README.md`, `README.md`, `scripts/{conferir-pacote,test-conferir-pacote}.mjs`; evidências em `.maestri/`.
 
-- [ ] Lince revisa o diff completo contra desenho/contrato e os cinco riscos do plano. Corrigir defeitos e repetir somente os testes afetados antes da rodada completa.
+- [x] Lince revisa o diff completo contra desenho/contrato e os cinco riscos do plano. Corrigir defeitos e repetir somente os testes afetados antes da rodada completa. Feito por tarefa e no conjunto `9f6bafb..1f5891a`: `.maestri/revisao-youtube-final-lince.md` sem P1/P2/P3; R03P3 corrigido em `7acf089`.
 - [x] Estaleiro acrescenta YouTube, resolução exata/indisponível, limites de acesso sem login, runtime empacotado, compatibilidade MP4/codecs e política de atualização recusada. Registrar a licença/fonte/hash do Deno. Não anunciar Shorts/stories/playlists.
 - [x] Timoneiro executa pessoalmente `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm test:rust`, clippy `--all-targets -- -D warnings`, fmt `--check`, actionlint, sintaxe dos scripts e testes Node novos/existentes. Resultados reais, sem contar testes ignorados como executados. Executado pelo coordenador Claude Code em `c5778a9`; resultados em `docs/verificacao.md` (2026-11-06).
 - [x] Commitar somente entregas verificadas, com `git add <caminhos>` explícitos e mensagem em português. Não incluir binários/logs não versionados fora da política existente.
-- [ ] Criar worktree detached do commit final e gerar `.app` com `CARGO_TARGET_DIR` isolado/reutilizado de aceitação, sem compilar alterações paralelas. Conferir o pacote real, Deno incluso, hashes, arquitetura, mínimos e licenças.
+- [x] Criar worktree detached do commit final e gerar `.app` com `CARGO_TARGET_DIR` isolado/reutilizado de aceitação, sem compilar alterações paralelas. Conferir o pacote real, Deno incluso, hashes, arquitetura, mínimos e licenças. App debug arm64 de `1f5891a` conferido; ver `docs/verificacao.md`.
 - [ ] Aceitação local em janela: colar link normal, ler prévia/qualidades, escolher resolução menor, baixar, conferir MP4/faixas/altura por FFprobe, abrir vídeo/revelar pasta, reiniciar e confirmar histórico. Repetir Melhor disponível. Confirmar Short/live recusados sem transferência e regressão Instagram/TikTok. Registrar caso bloqueado pela plataforma sem substituí-lo por teste simulado.
-- [ ] Registrar sistemas/arquiteturas não testados. Testes reais Windows/Linux antes de qualquer push/publicação; falta dessas máquinas não autoriza anunciar a entrega multiplataforma concluída.
+- [x] Registrar sistemas/arquiteturas não testados. Testes reais Windows/Linux antes de qualquer push/publicação; falta dessas máquinas não autoriza anunciar a entrega multiplataforma concluída. Registrado em `docs/verificacao.md`; testes reais Windows/Linux seguem pendentes.
 
 ## Autorrevisão do plano
 
