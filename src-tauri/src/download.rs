@@ -291,43 +291,86 @@ fn copiar_exclusivo(origem: &Path, destino: &Path) -> io::Result<()> {
 #[derive(Default)]
 struct Progresso {
     parte: u8,
-    ultimo_global: f64,
+    formatos: Option<std::collections::HashMap<String, ParteProgresso>>,
+}
+struct ParteProgresso {
+    total: Option<u64>,
+    baixados: u64,
 }
 impl Progresso {
     fn ler(&mut self, linha: &str) -> Option<Option<f64>> {
+        if let Some(plano) = linha.strip_prefix("CLIPORA_PLAN:") {
+            self.formatos = (|| {
+                let (item, partes) = plano.split_once('\t')?;
+                let item: serde_json::Value = serde_json::from_str(item).ok()?;
+                item.as_object()?;
+                let partes = if partes == "NA" {
+                    vec![item]
+                } else {
+                    let partes = serde_json::from_str::<Vec<serde_json::Value>>(partes).ok()?;
+                    if partes.is_empty() {
+                        vec![item]
+                    } else {
+                        partes
+                    }
+                };
+                if partes.is_empty() || partes.len() > 16 {
+                    return None;
+                }
+                let mut formatos = std::collections::HashMap::new();
+                for item in partes {
+                    let id = item.get("format_id")?.as_str()?;
+                    if id.is_empty() || id.len() > 1024 || formatos.contains_key(id) {
+                        return None;
+                    }
+                    let total = item
+                        .get("filesize")
+                        .and_then(serde_json::Value::as_u64)
+                        .filter(|n| *n > 0);
+                    let baixados = self
+                        .formatos
+                        .as_ref()
+                        .and_then(|fs| fs.get(id))
+                        .map_or(0, |f| f.baixados);
+                    formatos.insert(id.to_owned(), ParteProgresso { total, baixados });
+                }
+                Some(formatos)
+            })();
+            return None;
+        }
         let resto = linha.strip_prefix("download:")?;
-        let campos: Vec<_> = resto.split(':').collect();
+        let campos: Vec<_> = resto.splitn(5, ':').collect();
         if campos.len() != 5 {
             return Some(None);
         }
-        let vcodec = campos[3];
-        let acodec = campos[4];
-        let audio = vcodec == "none" && acodec != "none" && acodec != "NA";
-        if audio {
-            self.parte = 1;
-        }
-        let percentual = campos[2]
-            .trim()
-            .trim_end_matches('%')
-            .parse::<f64>()
-            .ok()
-            .filter(|v| v.is_finite())
-            .map(|v| v.clamp(0.0, 100.0));
-        let Some(valor) = percentual else {
-            return Some(None);
-        };
-        let combinado = vcodec != "none" && vcodec != "NA" && acodec != "none" && acodec != "NA";
-        let global = if combinado {
-            valor * 0.9
-        } else if audio {
-            45.0 + valor * 0.45
-        } else {
-            valor * 0.45
-        };
-        self.ultimo_global = self.ultimo_global.max(global.min(90.0));
-        Some(Some(self.ultimo_global))
+        self.parte = u8::from(campos[2] == "none" && !matches!(campos[3], "none" | "NA"));
+        let percentual = (|| {
+            let baixados = campos[0].parse::<u64>().ok()?;
+            let id = serde_json::from_str::<String>(campos[4]).ok()?;
+            let formatos = self.formatos.as_mut()?;
+            let parte = formatos.get_mut(&id)?;
+            // total_bytes é exato. total_bytes_estimate/filesize_approx não
+            // entram no cálculo quando outra parte ainda não tem tamanho.
+            if let Ok(total) = campos[1].parse::<u64>() {
+                if total == 0 || baixados > total {
+                    return None;
+                }
+                parte.total = Some(total);
+            }
+            parte.baixados = parte.baixados.max(baixados);
+            let (recebidos, total) = formatos.values().try_fold((0u64, 0u64), |(r, t), f| {
+                let tamanho = f.total?;
+                if f.baixados > tamanho {
+                    return None;
+                }
+                Some((r.checked_add(f.baixados)?, t.checked_add(tamanho)?))
+            })?;
+            (total > 0).then_some(recebidos as f64 / total as f64 * 100.0)
+        })();
+        Some(percentual)
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -947,6 +990,12 @@ mod tests {
         let mensagens = mensagens.lock().unwrap();
         assert!(mensagens.iter().any(|v| v["etapa"] == "baixando_video"));
         assert!(mensagens.iter().any(|v| v["etapa"] == "baixando_audio"));
+        assert!(
+            mensagens
+                .iter()
+                .any(|v| v["etapa"] == "unindo" && v["percentual"].is_null()),
+            "união deve aparecer mesmo logo após o último evento de transferência: {mensagens:?}"
+        );
         let valores: Vec<f64> = mensagens
             .iter()
             .filter_map(|v| v["percentual"].as_f64())
@@ -1141,24 +1190,74 @@ mod tests {
         assert!(!nome.contains(':'));
     }
     #[test]
+    fn progresso_pondera_bytes_de_video_e_audio_sem_duplicar_retomada() {
+        let mut p = Progresso::default();
+        p.ler("CLIPORA_PLAN:{\"format_id\":\"v+a\",\"filesize\":1010}\t[{\"format_id\":\"v\",\"filesize\":1000},{\"format_id\":\"a\",\"filesize\":10}]");
+        for (linha, esperado) in [
+            ("download:500:1000:vp9:none:\"v\"", 50000.0 / 1010.0),
+            ("download:500:1000:vp9:none:\"v\"", 50000.0 / 1010.0),
+            ("download:400:1000:vp9:none:\"v\"", 50000.0 / 1010.0),
+            ("download:1000:1000:vp9:none:\"v\"", 100000.0 / 1010.0),
+            ("download:5:10:none:aac:\"a\"", 100500.0 / 1010.0),
+            ("download:10:10:none:aac:\"a\"", 100.0),
+        ] {
+            let valor = p.ler(linha).flatten().expect("total exato conhecido");
+            assert!(
+                (valor - esperado).abs() < 0.000001,
+                "{linha}: {valor} != {esperado}"
+            );
+        }
+    }
+    #[test]
+    fn progresso_sem_total_de_todas_as_partes_fica_indeterminado() {
+        let mut p = Progresso::default();
+        p.ler("CLIPORA_PLAN:{}\t[{\"format_id\":\"v\",\"filesize\":1000},{\"format_id\":\"a\",\"filesize_approx\":10}]");
+        assert_eq!(p.ler("download:500:1000:vp9:none:\"v\""), Some(None));
+        assert_eq!(p.ler("download:1000:1000:vp9:none:\"v\""), Some(None));
+        assert_eq!(p.ler("download:10:10:none:aac:\"a\""), Some(Some(100.0)));
+        p.ler("CLIPORA_PLAN:{}\t[{\"format_id\":\"v\"},{\"format_id\":\"v\"}]");
+        assert_eq!(p.ler("download:500:1000:vp9:none:\"v\""), Some(None));
+    }
+    #[test]
+    fn progresso_recusa_total_invalido_overflow_e_formato_inesperado() {
+        let mut p = Progresso::default();
+        p.ler("CLIPORA_PLAN:{}\t[{\"format_id\":\"v\",\"filesize\":18446744073709551615},{\"format_id\":\"a\",\"filesize\":10}]");
+        assert_eq!(p.ler("download:1:NA:vp9:none:\"v\""), Some(None));
+        p.ler("CLIPORA_PLAN:{\"format_id\":\"b\",\"filesize\":100}\tNA");
+        for linha in [
+            "download:10:100:h264:aac:\"outro\"",
+            "download:10:0:h264:aac:\"b\"",
+            "download:101:100:h264:aac:\"b\"",
+            "download:NaN:100:h264:aac:\"b\"",
+        ] {
+            assert_eq!(p.ler(linha), Some(None), "{linha}");
+        }
+    }
+    #[test]
     fn progresso_combinado_e_indeterminado() {
         let mut p = Progresso::default();
-        assert_eq!(p.ler("download:100:100:100%:h264:aac"), Some(Some(90.0)));
-        assert_eq!(p.ler("download:10:NA:NA:h264:aac"), Some(None));
+        p.ler("CLIPORA_PLAN:{\"format_id\":\"b\",\"filesize\":1000}\t[]");
+        assert_eq!(p.ler("download:500:1000:h264:aac:\"b\""), Some(Some(50.0)));
+        assert_eq!(
+            p.ler("download:1000:1000:h264:aac:\"b\""),
+            Some(Some(100.0))
+        );
+        assert_eq!(p.ler("download:NA:NA:h264:aac:\"b\""), Some(None));
     }
     #[test]
     fn progresso_duas_partes_nunca_recua() {
         let mut progresso = Progresso::default();
+        progresso.ler("CLIPORA_PLAN:{}\t[{\"format_id\":\"v\",\"filesize\":100},{\"format_id\":\"a\",\"filesize\":100}]");
         let a = progresso
-            .ler("download:50:100:50.0%:h264:none")
+            .ler("download:50:100:h264:none:\"v\"")
             .unwrap()
             .unwrap();
         let b = progresso
-            .ler("download:100:100:100.0%:h264:none")
+            .ler("download:100:100:h264:none:\"v\"")
             .unwrap()
             .unwrap();
         let c = progresso
-            .ler("download:1:100:1.0%:none:aac")
+            .ler("download:1:100:none:aac:\"a\"")
             .unwrap()
             .unwrap();
         assert!(a <= b && b <= c);
@@ -1910,6 +2009,17 @@ mod youtube_runtime_tests {
             temporario.path().join("historico.json"),
         ));
         for altura in [240, 144] {
+            let mensagens = Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));
+            let recebidas = mensagens.clone();
+            let canal = Channel::new(move |mensagem| {
+                if let tauri::ipc::InvokeResponseBody::Json(json) = mensagem {
+                    recebidas
+                        .lock()
+                        .unwrap()
+                        .push(serde_json::from_str(&json).unwrap());
+                }
+                Ok(())
+            });
             let id = format!("real-{altura}");
             c.lock().unwrap().ativo = Some(EstadoDownload {
                 download_id: id.clone(),
@@ -1921,7 +2031,7 @@ mod youtube_runtime_tests {
             executar(
                 c.clone(),
                 h.clone(),
-                Channel::new(|_| Ok(())),
+                canal,
                 id,
                 url.into(),
                 destino.clone(),
@@ -1929,6 +2039,30 @@ mod youtube_runtime_tests {
                 Some(altura),
             )
             .await;
+            let eventos = mensagens.lock().unwrap();
+            let percentuais: Vec<_> = eventos
+                .iter()
+                .filter(|e| {
+                    matches!(
+                        e["etapa"].as_str(),
+                        Some("baixando_video" | "baixando_audio")
+                    )
+                })
+                .filter_map(|e| e["percentual"].as_f64())
+                .collect();
+            assert!(
+                percentuais.iter().any(|p| *p > 0.0),
+                "sem progresso determinado real: {eventos:?}"
+            );
+            assert!(percentuais.iter().all(|p| (0.0..=100.0).contains(p)));
+            assert!(
+                eventos
+                    .iter()
+                    .filter(|e| matches!(e["etapa"].as_str(), Some("unindo" | "finalizando")))
+                    .all(|e| e["percentual"].is_null())
+            );
+            eprintln!("Progresso real {altura}: {percentuais:?}; processamento sem percentual");
+            drop(eventos);
             let terminal = c.lock().unwrap().ultimo_resultado.clone().unwrap();
             eprintln!("Integração Rust altura {altura}: {terminal:?}");
             match terminal {
@@ -2355,7 +2489,7 @@ async fn executar_com_ferramentas(
         comando.args(crate::processos::isolamento_youtube(deno));
     }
     comando.args(["--ignore-config", "--no-update", "--no-playlist", "--ffmpeg-location"]).arg(ffmpeg)
-        .args(["-f", seletor, "--merge-output-format", "mp4", "--remux-video", "mp4", "--newline", "--progress", "--progress-template", "download:download:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress._percent_str)s:%(info.vcodec)s:%(info.acodec)s", "--progress-template", "postprocess:postprocess:%(progress.status)s", "--print", "after_move:CLIPORA_RESULT:%(filepath)j\t%(title)j\t%(id)j\t%(description)j\t%(uploader_id)j\t%(uploader)j\t%(channel)j", "-o"]).arg(modelo).arg("--").arg(url)
+        .args(["-f", seletor, "--merge-output-format", "mp4", "--remux-video", "mp4", "--newline", "--progress", "--progress-template", "download:download:%(progress.downloaded_bytes)s:%(progress.total_bytes)s:%(info.vcodec)s:%(info.acodec)s:%(info.format_id)j", "--progress-template", "postprocess:postprocess:%(progress.status)s", "--print", "before_dl:CLIPORA_PLAN:%(.{format_id,filesize})j\t%(requested_formats.:.{format_id,filesize})j", "--print", "after_move:CLIPORA_RESULT:%(filepath)j\t%(title)j\t%(id)j\t%(description)j\t%(uploader_id)j\t%(uploader)j\t%(channel)j", "-o"]).arg(modelo).arg("--").arg(url)
         .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
     #[cfg(test)]
     if let Some(cenario) = cenario {
@@ -2421,6 +2555,7 @@ async fn executar_com_ferramentas(
     let mut ja_baixado = false;
     let mut progresso = Progresso::default();
     let mut ultimo = std::time::Instant::now() - std::time::Duration::from_secs(1);
+    let mut ultima_etapa = "";
     while stdout_aberto || stderr_aberto {
         let (linha, eh_stderr) = tokio::select! {
             linha = stdout.next_line(), if stdout_aberto => (linha, false),
@@ -2453,22 +2588,28 @@ async fn executar_com_ferramentas(
                 resultado = Some(valores);
             }
         }
-        if linha.starts_with("postprocess:")
-            && ultimo.elapsed() >= std::time::Duration::from_millis(100)
-        {
-            etapa(controle, canal, "unindo", Some(progresso.ultimo_global));
+        if linha.starts_with("postprocess:") && ultima_etapa != "unindo" {
+            etapa(controle, canal, "unindo", None);
+            ultima_etapa = "unindo";
             ultimo = std::time::Instant::now();
         }
-        if let Some(pct) = progresso.ler(&linha)
-            && ultimo.elapsed() >= std::time::Duration::from_millis(100)
-        {
+        if linha.starts_with("CLIPORA_PLAN:") && eh_stderr {
+            continue;
+        }
+        if let Some(pct) = progresso.ler(&linha) {
             let nome = if progresso.parte == 0 {
                 "baixando_video"
             } else {
                 "baixando_audio"
             };
-            etapa(controle, canal, nome, pct);
-            ultimo = std::time::Instant::now();
+            if nome != ultima_etapa
+                || pct == Some(100.0)
+                || ultimo.elapsed() >= std::time::Duration::from_millis(100)
+            {
+                etapa(controle, canal, nome, pct);
+                ultima_etapa = nome;
+                ultimo = std::time::Instant::now();
+            }
         }
     }
     let status = filho
@@ -2547,7 +2688,7 @@ async fn executar_com_ferramentas(
     if let Some(escolha) = escolha {
         conferir_saida_youtube(&ferramentas.ffprobe, &caminho, escolha.altura).await?;
     }
-    etapa(controle, canal, "finalizando", Some(95.0));
+    etapa(controle, canal, "finalizando", None);
     let (_, plataforma) = crate::links::validar(url)
         .map_err(|codigo| err(codigo, "URL inválida ao formar o nome"))?;
     finalizar(&caminho, destino, &nome_base(&metadados, &id, plataforma))

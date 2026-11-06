@@ -278,8 +278,13 @@ export class ServicoCliporaSimulado implements ServicoClipora {
           throw erro;
         }
 
-        const percentual =
-          indeterminado && i < etapas.length - 1 ? null : Math.round(((i + 1) / etapas.length) * 100);
+        const percentual = indeterminado
+          ? null
+          : etapa === "baixando_video"
+            ? 50
+            : etapa === "baixando_audio"
+              ? 100
+              : null;
         this.downloadAtivo = { downloadId, alturaYoutube: alturaCapturada, percentual, etapa };
         onEvento({ tipo: "progresso", etapa, percentual });
       }

@@ -128,6 +128,30 @@ describe("ServicoCliporaSimulado.iniciar_download", () => {
     }
   });
 
+  it("usa percentual apenas na transferência e deixa processamento indeterminado após 100%", async () => {
+    const servico = criarServico();
+    servico.definirPastaParaTeste({ caminho: "/tmp/destino", estado: "valida" });
+    const eventos: EventoDownload[] = [];
+
+    await servico.iniciar_download({
+      downloadId: "d-bytes",
+      url: "https://instagram.com/reel/a/",
+      onEvento: (e) => eventos.push(e),
+    });
+
+    const progresso = eventos.filter((evento): evento is Extract<EventoDownload, { tipo: "progresso" }> => evento.tipo === "progresso");
+    expect(progresso.map(({ etapa, percentual }) => [etapa, percentual])).toEqual([
+      ["preparando", null],
+      ["baixando_video", 50],
+      ["baixando_audio", 100],
+      ["unindo", null],
+      ["finalizando", null],
+    ]);
+    expect(progresso.findIndex(({ percentual }) => percentual === 100)).toBeLessThan(
+      eventos.findIndex((evento) => evento.tipo === "concluido"),
+    );
+  });
+
   it("emite progresso com percentual null (indeterminado) com o marcador indeterminado", async () => {
     const servico = criarServico();
     servico.definirPastaParaTeste({ caminho: "/tmp/destino", estado: "valida" });

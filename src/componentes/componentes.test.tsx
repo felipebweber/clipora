@@ -8,20 +8,51 @@ import { PreviaCard } from "./PreviaCard";
 import { ProgressoDownloadView } from "./ProgressoDownload";
 
 describe("ProgressoDownloadView (M2)", () => {
-  it("determinado: barra com valor e percentual arredondado em pt-BR", () => {
+  it("mostra percentual transferido e explica que é da transferência inteira e da etapa", () => {
     render(<ProgressoDownloadView progresso={{ etapa: "baixando_video", percentual: 42.567 }} />);
     const barra = screen.getByRole("progressbar", { name: /progresso do download/i });
     expect(barra).toHaveAttribute("value", "42.567");
-    expect(barra).toHaveAttribute("aria-valuetext", "Baixando vídeo: 43%");
-    expect(screen.getByText(/43%/)).toBeInTheDocument();
+    expect(barra).toHaveAttribute("aria-valuetext", "43% transferido da transferência total; etapa: Baixando vídeo");
+    expect(screen.getByText(/43% transferido/)).toBeInTheDocument();
     expect(screen.queryByText(/42[.,]5/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["preparando", 90],
+    ["unindo", 90],
+    ["finalizando", 95],
+  ] as const)("mantém %s indeterminado mesmo com percentual legado %i", (etapa, percentual) => {
+    render(<ProgressoDownloadView progresso={{ etapa, percentual }} />);
+    const barra = screen.getByRole("progressbar");
+    expect(barra).not.toHaveAttribute("value");
+    expect(barra).toHaveAttribute("aria-valuetext", `${etapa === "unindo" ? "Unindo vídeo e áudio" : etapa === "preparando" ? "Preparando" : "Finalizando"}: percentual da transferência total indisponível nesta etapa`);
+    expect(screen.queryByText(/\d+%/)).not.toBeInTheDocument();
+  });
+
+  it("100% transferido durante áudio ainda indica transferência em curso, não conclusão", () => {
+    render(<ProgressoDownloadView progresso={{ etapa: "baixando_audio", percentual: 100 }} />);
+    const barra = screen.getByRole("progressbar", { name: /progresso do download/i });
+    expect(barra).toHaveAttribute("value", "100");
+    expect(barra).toHaveAttribute("aria-valuetext", "100% transferido da transferência total; etapa: Baixando áudio");
+    expect(screen.getByText(/100% transferido/)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Baixando áudio");
+    expect(screen.queryByText(/download concluído/i)).not.toBeInTheDocument();
+  });
+
+  it("não arredonda 99,6% para 100% antes do término dos bytes", () => {
+    render(<ProgressoDownloadView progresso={{ etapa: "baixando_video", percentual: 99.6 }} />);
+    const barra = screen.getByRole("progressbar", { name: /progresso do download/i });
+    expect(barra).toHaveAttribute("value", "99.6");
+    expect(screen.getByText(/99% transferido/)).toBeInTheDocument();
+    expect(screen.queryByText(/100% transferido/)).not.toBeInTheDocument();
+    expect(barra).toHaveAttribute("aria-valuetext", "99% transferido da transferência total; etapa: Baixando vídeo");
   });
 
   it("indeterminado: barra sem valor", () => {
     render(<ProgressoDownloadView progresso={{ etapa: "preparando", percentual: null }} />);
     const barra = screen.getByRole("progressbar");
     expect(barra).not.toHaveAttribute("value");
-    expect(barra).toHaveAttribute("aria-valuetext", "Preparando: em andamento");
+    expect(barra).toHaveAttribute("aria-valuetext", "Preparando: percentual da transferência total indisponível nesta etapa");
   });
 
   it("anuncia em região live só a etapa; percentual e barra ficam fora dela", () => {
@@ -29,6 +60,7 @@ describe("ProgressoDownloadView (M2)", () => {
     const regiao = screen.getByRole("status");
     expect(regiao).toHaveTextContent(/^Unindo vídeo e áudio$/);
     expect(within(regiao).queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).not.toHaveAttribute("value");
   });
 
   it("etapa desconhecida vinda do backend não quebra a tela", () => {

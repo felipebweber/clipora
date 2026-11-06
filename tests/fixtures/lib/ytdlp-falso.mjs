@@ -114,12 +114,12 @@ function analisarPrint(valor) {
 // ---------------------------------------------------------------- modelos de saída
 
 function buscar(ctx, caminho) {
-  const projecao = /^(?:(formats)\.:\.)?\{([a-z_,]+)\}$/.exec(caminho.replace(/^\./, ''));
+  const projecao = /^(?:(formats|requested_formats)\.:\.)?\{([a-z_,]+)\}$/.exec(caminho.replace(/^\./, ''));
   if (projecao) {
     const selecionar = (item) => Object.fromEntries(projecao[2].split(',')
       .filter((chave) => item?.[chave] !== undefined && item[chave] !== null)
       .map((chave) => [chave, item[chave]]));
-    return projecao[1] ? ctx.formats?.map(selecionar) : selecionar(ctx);
+    return projecao[1] ? (ctx[projecao[1]]?.map(selecionar) ?? []) : selecionar(ctx);
   }
   let atual = ctx;
   for (const parte of caminho.split('.')) {
@@ -293,7 +293,7 @@ async function baixarParte({ saida, cenario, parte, destino, info, op, intervalo
   const inicio = Date.now();
   const falhaEm = cenario.erro?.fase === 'download' && ehPrimeira ? cenario.erro.em ?? 0.5 : null;
   for (let passo = 0; passo <= passos; passo++) {
-    const baixados = (total / passos) * passo;
+    const baixados = Math.floor((total / passos) * passo);
     const fracao = baixados / total;
     if (falhaEm !== null && fracao >= falhaEm) {
       saida.erro(renderizarMensagem(cenario.erro.stderr, info));
@@ -346,8 +346,8 @@ async function baixarVideo({ saida, cenario, op, info, intervaloMs }) {
   const nome = renderizar(modeloSaida, { ...info, ext }, { nomeDeArquivo: true });
   const final = isAbsolute(nome) ? nome : join(home, nome);
   const pastaTemp = op.paths.temp ? resolve(op.paths.temp) : dirname(final);
-  const imprimirApos = (quando, filepath) => {
-    for (const p of op.prints) if (p.quando === quando) process.stdout.write(`${renderizar(p.modelo, { ...info, ext, filepath, filename: filepath })}\n`);
+  const imprimirApos = (quando, filepath, metadados = info) => {
+    for (const p of op.prints) if (p.quando === quando) process.stdout.write(`${renderizar(p.modelo, { ...metadados, ext, filepath, filename: filepath })}\n`);
   };
 
   // Arquivo final já existe (ou cenário forçado): mensagem, exit 0 e nada é alterado.
@@ -385,6 +385,13 @@ async function baixarVideo({ saida, cenario, op, info, intervaloMs }) {
       unir = false;
     }
   }
+  const plano = partes.map((p) => ({ ...p }));
+  if (cenario.download.totalConhecido === false) for (const p of plano) delete p.filesize;
+  const metaPlano = unir
+    ? { ...info, format_id: plano.map((p) => p.format_id).join('+'), requested_formats: plano }
+    : { ...info, ...plano[0], requested_formats: undefined };
+  if (cenario.download.totalConhecido === false) delete metaPlano.filesize;
+  imprimirApos('before_dl', undefined, metaPlano);
   saida.info(`[info] ${info.id}: Downloading 1 format(s): ${partes.map((p) => p.format_id).join('+')}`);
 
   const semExt = final.replace(/\.[^./\\]+$/, '');
@@ -404,6 +411,7 @@ async function baixarVideo({ saida, cenario, op, info, intervaloMs }) {
   }
 
   if (unir) {
+    if (op.progressTemplates.postprocess) saida.linhaProgresso(renderizar(op.progressTemplates.postprocess, { progress: { status: 'started', postprocessor: 'Merger' }, info }), true);
     saida.info(`[Merger] Merging formats into "${final}"`);
     const temporario = `${semExt}.temp.${ext}`;
     const args = ['-y', '-loglevel', 'repeat+info'];
@@ -415,6 +423,7 @@ async function baixarVideo({ saida, cenario, op, info, intervaloMs }) {
       return 1;
     }
     renameSync(temporario, final);
+    if (op.progressTemplates.postprocess) saida.linhaProgresso(renderizar(op.progressTemplates.postprocess, { progress: { status: 'finished', postprocessor: 'Merger' }, info }), true);
     for (const a of arquivosPartes) {
       saida.info(`Deleting original file ${a} (pass -k to keep)`);
       if (!op.flags.has('--keep-video')) unlinkSync(a);

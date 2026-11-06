@@ -24,25 +24,34 @@ type Props = {
  * quiser o valor exato o encontra no `<progress>` (fora da região live).
  */
 export function ProgressoDownloadView({ progresso, refContainer }: Props) {
-  const determinado = progresso.percentual !== null;
   // `etapa` vem do backend; uma etapa desconhecida não pode quebrar a tela.
   const rotulo = ROTULO_ETAPA[progresso.etapa] ?? "Baixando";
+  const etapaTransferindo = progresso.etapa === "baixando_video" || progresso.etapa === "baixando_audio";
+  // Percentual mede bytes da transferência completa. Valores de preparação,
+  // união e finalização de versões antigas não representam bytes transferidos.
+  const determinado = etapaTransferindo && progresso.percentual !== null;
+  const valorPercentual = progresso.percentual as number;
   const percentualTexto = determinado
-    ? `${formatarPercentual.format(progresso.percentual as number)}%`
+    ? `${formatarPercentual.format(
+        valorPercentual < 100 ? Math.min(valorPercentual, 99) : valorPercentual,
+      )}%`
     : null;
+  const percentualAcessivel = percentualTexto
+    ? `${percentualTexto} transferido da transferência total; etapa: ${rotulo}`
+    : `${rotulo}: percentual da transferência total indisponível nesta etapa`;
 
   return (
     <div className="progresso" ref={refContainer} tabIndex={-1} aria-label="Download em andamento">
       <p className="progresso-rotulo">
         <span role="status">{rotulo}</span>
-        <span aria-hidden="true">{percentualTexto ? ` — ${percentualTexto}` : "…"}</span>
+        <span aria-hidden="true">{percentualTexto ? ` — ${percentualTexto} transferido` : "…"}</span>
       </p>
       <progress
         className="progresso-barra"
         max={100}
         value={determinado ? (progresso.percentual as number) : undefined}
         aria-label="Progresso do download"
-        aria-valuetext={percentualTexto ? `${rotulo}: ${percentualTexto}` : `${rotulo}: em andamento`}
+        aria-valuetext={percentualAcessivel}
       />
     </div>
   );
