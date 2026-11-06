@@ -2080,7 +2080,7 @@ mod youtube_runtime_tests {
                 .as_array()
                 .unwrap()
                 .iter()
-                .any(|a| a == "--dump-single-json")
+                .any(|a| a == "--skip-download")
         );
     }
     #[tokio::test]

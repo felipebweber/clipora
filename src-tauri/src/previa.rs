@@ -292,6 +292,45 @@ async fn obter_com_prazo(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    #[ignore = "rede e sidecars locais: regressão de prévia YouTube com metadados grandes"]
+    async fn youtube_previa_real_video_longo() {
+        let raiz = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("binaries");
+        let bin = raiz
+            .join("yt-dlp")
+            .join(format!("yt-dlp{}", std::env::consts::EXE_SUFFIX));
+        let ffmpeg = raiz.join(format!(
+            "clipora-ffmpeg-{}{}",
+            env!("CLIPORA_TARGET"),
+            std::env::consts::EXE_SUFFIX
+        ));
+        let deno = raiz
+            .join("deno")
+            .join(format!("clipora-deno{}", std::env::consts::EXE_SUFFIX));
+        let controle = ControlePrevia::default();
+        let previa = obter_com_motor(
+            "https://www.youtube.com/watch?v=reKsG2Al6lc".into(),
+            1,
+            controle.iniciar(1).unwrap(),
+            &bin,
+            &ffmpeg,
+            Some(&deno),
+        )
+        .await
+        .expect("prévia de vídeo longo deve carregar sem transferir mídia");
+        assert!(
+            previa
+                .titulo
+                .as_deref()
+                .is_some_and(|t| t.contains("Uniqlo"))
+        );
+        let alturas = previa.qualidades_youtube.unwrap();
+        assert!(
+            alturas.contains(&1080) && alturas.contains(&144),
+            "{alturas:?}"
+        );
+        eprintln!("Prévia real: {:?}, qualidades {alturas:?}", previa.titulo);
+    }
     #[cfg(unix)]
     #[tokio::test]
     async fn youtube_prazo_total_inclui_verificacao_do_motor_e_extracao() {

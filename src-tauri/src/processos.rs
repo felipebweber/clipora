@@ -23,6 +23,7 @@ pub fn classificar_erro(texto: &str) -> &'static str {
         "deleted",
         "removed",
         "video not available",
+        "video is unavailable",
         "no longer available",
     ]
     .iter()
@@ -375,24 +376,95 @@ pub(crate) async fn metadados_youtube(
     args.push(ffmpeg.as_os_str().into());
     args.extend(isolamento_youtube(deno));
     args.extend([
-        "--dump-single-json".into(),
+        // Legendas automáticas e listas de fragmentos podem ultrapassar o teto
+        // de saída mesmo em vídeos comuns. Pedir apenas os campos consumidos
+        // pela prévia e pelo catálogo, antes de ler o pipe limitado.
+        "--print".into(),
+        "%(.{id,title,thumbnail,media_type,live_status,duration,_type,has_drm,entries})j".into(),
+        "--print".into(),
+        "%(formats.:.{format_id,vcodec,acodec,height,width,fps,ext,protocol,has_drm})j".into(),
         "--skip-download".into(),
         "--".into(),
         url.into(),
     ]);
-    executar_limitado(
+    let mut saida = executar_limitado(
         bin,
         args,
         cancelado,
         std::time::Duration::from_secs(30),
         8 * 1024 * 1024,
     )
-    .await
+    .await?;
+    if saida.sucesso {
+        let texto = std::str::from_utf8(&saida.stdout).map_err(|_| "PREVIA_INDISPONIVEL")?;
+        let linhas: Vec<_> = texto.lines().collect();
+        if linhas.len() != 2 {
+            return Err("PREVIA_INDISPONIVEL");
+        }
+        let mut dados: serde_json::Value =
+            serde_json::from_str(linhas[0]).map_err(|_| "PREVIA_INDISPONIVEL")?;
+        let formatos: serde_json::Value =
+            serde_json::from_str(linhas[1]).map_err(|_| "PREVIA_INDISPONIVEL")?;
+        let objeto = dados.as_object_mut().ok_or("PREVIA_INDISPONIVEL")?;
+        if objeto.contains_key("formats") || !formatos.is_array() {
+            return Err("PREVIA_INDISPONIVEL");
+        }
+        objeto.insert("formats".into(), formatos);
+        saida.stdout = serde_json::to_vec(&dados).map_err(|_| "PREVIA_INDISPONIVEL")?;
+    }
+    Ok(saida)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn metadados_youtube_reune_projecao_e_recusa_saida_ambigua() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("metadados");
+        for (texto, valido) in [
+            (
+                "{\"id\":\"YE7VzlLtp-4\",\"title\":\"Título\",\"has_drm\":true,\"entries\":[]}\n[{\"format_id\":\"v2\",\"has_drm\":false},{\"format_id\":\"v1\"}]\n",
+                true,
+            ),
+            ("{}\n{}\n", false),
+            ("null\n[]\n", false),
+            ("{\"formats\":[]}\n[]\n", false),
+            ("{}\n[]\n{}\n", false),
+            ("{}\n", false),
+            ("{}\nNA\n", false),
+        ] {
+            std::fs::write(
+                &script,
+                format!("#!/bin/sh\ncat <<'CLIPORA_JSON'\n{texto}CLIPORA_JSON\n"),
+            )
+            .unwrap();
+            std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+            let (_tx, rx) = watch::channel(false);
+            let saida = metadados_youtube(
+                &script,
+                Path::new("/ffmpeg"),
+                "https://youtu.be/YE7VzlLtp-4",
+                Path::new("/deno"),
+                rx,
+            )
+            .await;
+            if valido {
+                let dados: serde_json::Value = serde_json::from_slice(&saida.unwrap().stdout)
+                    .expect("objeto único com catálogo");
+                assert_eq!(dados["title"], "Título");
+                assert_eq!(dados["has_drm"], true);
+                assert_eq!(dados["entries"], serde_json::json!([]));
+                assert_eq!(dados["formats"][0]["format_id"], "v2");
+                assert_eq!(dados["formats"][0]["has_drm"], false);
+                assert_eq!(dados["formats"][1]["format_id"], "v1");
+            } else {
+                assert!(matches!(saida, Err("PREVIA_INDISPONIVEL")), "{texto}");
+            }
+        }
+    }
     #[cfg(unix)]
     #[tokio::test]
     async fn executar_com_entrada_encaminha_stdin_e_limita_saidas() {
@@ -480,6 +552,10 @@ mod tests {
     #[test]
     fn classifica_falhas_especificas_antes_da_generica() {
         for (saida, esperado) in [
+            (
+                "ERROR: [youtube] reKsG2AI6lc: This video is unavailable",
+                "CONTEUDO_PRIVADO_OU_REMOVIDO",
+            ),
             ("ERROR: Sign in to confirm your age", "LOGIN_NECESSARIO"),
             (
                 "ERROR: This video is private or deleted",

@@ -114,6 +114,13 @@ function analisarPrint(valor) {
 // ---------------------------------------------------------------- modelos de saída
 
 function buscar(ctx, caminho) {
+  const projecao = /^(?:(formats)\.:\.)?\{([a-z_,]+)\}$/.exec(caminho.replace(/^\./, ''));
+  if (projecao) {
+    const selecionar = (item) => Object.fromEntries(projecao[2].split(',')
+      .filter((chave) => item?.[chave] !== undefined && item[chave] !== null)
+      .map((chave) => [chave, item[chave]]));
+    return projecao[1] ? ctx.formats?.map(selecionar) : selecionar(ctx);
+  }
   let atual = ctx;
   for (const parte of caminho.split('.')) {
     if (atual == null || typeof atual !== 'object' || !(parte in atual)) return undefined;
