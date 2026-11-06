@@ -1943,7 +1943,58 @@ mod youtube_runtime_tests {
                 ResultadoTerminal::Erro { erro, .. } => panic!("download real falhou: {erro:?}"),
             }
         }
-        assert_eq!(h.listar().unwrap().len(), 2);
+        let maior = *alturas.iter().max().unwrap();
+        c.lock().unwrap().ativo = Some(EstadoDownload {
+            download_id: "real-melhor".into(),
+            altura_youtube: None,
+            percentual: None,
+            etapa: "preparando".into(),
+            previa: Some(previa.clone()),
+        });
+        executar(
+            c.clone(),
+            h.clone(),
+            Channel::new(|_| Ok(())),
+            "real-melhor".into(),
+            url.into(),
+            destino.clone(),
+            ferramenta(),
+            None,
+        )
+        .await;
+        let terminal = c.lock().unwrap().ultimo_resultado.clone().unwrap();
+        eprintln!("Integração Rust Melhor disponível: {terminal:?}");
+        let caminho = match terminal {
+            ResultadoTerminal::Concluido { caminho, .. } => caminho,
+            ResultadoTerminal::Erro { erro, .. } => panic!("download real falhou: {erro:?}"),
+        };
+        let sonda = std::process::Command::new(&ferramenta().ffprobe)
+            .args([
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=codec_type,codec_name,height",
+                "-of",
+                "json",
+            ])
+            .arg(&caminho)
+            .output()
+            .unwrap();
+        let sonda: serde_json::Value = serde_json::from_slice(&sonda.stdout).unwrap();
+        let faixas = sonda["streams"].as_array().unwrap();
+        eprintln!("FFprobe Melhor disponível: {faixas:?}");
+        assert!(
+            faixas
+                .iter()
+                .any(|f| f["codec_type"] == "video"
+                    && f["height"].as_u64() == Some(u64::from(maior)))
+        );
+        assert!(
+            faixas
+                .iter()
+                .any(|f| f["codec_type"] == "audio" && f["codec_name"] == "aac")
+        );
+        assert_eq!(h.listar().unwrap().len(), 3);
         let quantidade = fs::read_dir(&destino).unwrap().count();
         for short in [
             "https://www.youtube.com/watch?v=tjjjtzRLHvA",
@@ -1976,7 +2027,7 @@ mod youtube_runtime_tests {
             assert!(
                 matches!(c.lock().unwrap().ultimo_resultado,Some(ResultadoTerminal::Erro{ref erro,..})if erro.codigo=="CONTEUDO_NAO_SUPORTADO")
             );
-            assert_eq!(h.listar().unwrap().len(), 2);
+            assert_eq!(h.listar().unwrap().len(), 3);
             assert_eq!(fs::read_dir(&destino).unwrap().count(), quantidade);
         }
     }
