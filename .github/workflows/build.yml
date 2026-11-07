@@ -202,7 +202,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential curl wget file gnupg xz-utils libxdo-dev libssl-dev \
-            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libtinfo5  # o readline do yt-dlp onedir exige libtinfo.so.5 (linuxdeploy/AppImage)
 
       - name: gpg (macOS)
         if: runner.os == 'macOS'
