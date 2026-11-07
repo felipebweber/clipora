@@ -55,9 +55,17 @@ On Windows 11 with **Smart App Control** turned on, unsigned apps are blocked wi
 
 Install the `.deb` (Debian/Ubuntu), the `.rpm` (Fedora/openSUSE) or run the `.AppImage` (make it executable first with `chmod +x Clipora*.AppImage`). Compare the file with the published SHA-256 checksums if you want to verify it.
 
-### Responsible use
+### Disclaimer and responsible use
 
-Clipora is a tool for saving public videos for personal use. You are responsible for respecting copyright and the terms of service of each platform. Only download content you own or have permission to save.
+Clipora is a general-purpose tool provided for lawful, personal use, such as saving your own videos or content you have permission to keep.
+
+- **You are solely responsible** for how you use Clipora and for anything you do with the content you download, including copying, editing, publishing or distributing it. It is your responsibility to comply with copyright law, the rights of the content owners, the terms of service of each platform and the laws of your country.
+- **The author and contributors do not host, store, provide or distribute any content.** Videos are downloaded directly from the platforms to your computer at your request. The author has no control over, and is not responsible for, the content you download or how you use it.
+- **The author and contributors do not encourage or endorse** copyright infringement, violation of platform terms of service or any other unlawful use. Do not use Clipora to download content you are not allowed to save.
+- **No warranty.** Clipora is provided "as is", without warranty of any kind. To the maximum extent permitted by law, the author and contributors are not liable for any direct, indirect, incidental or consequential damages, claims or losses arising from the use or inability to use Clipora. See sections 15 and 16 of the [GPL-3.0](LICENSE).
+- If you are a rights holder and believe this project infringes your rights, please [open an issue](../../issues) so it can be reviewed.
+
+By using Clipora, you agree to these terms.
 
 ### License
 
@@ -149,9 +157,17 @@ No Windows 11 com o **Controle Inteligente de Aplicativos** ativado, apps sem as
 
 Instale o `.deb` (Debian/Ubuntu), o `.rpm` (Fedora/openSUSE) ou execute o `.AppImage` (antes, torne-o executável com `chmod +x Clipora*.AppImage`). Se quiser conferir o arquivo, compare com as somas SHA-256 publicadas.
 
-### Uso responsável
+### Aviso legal e uso responsável
 
-O Clipora é uma ferramenta para salvar vídeos públicos para uso pessoal. Você é responsável por respeitar os direitos autorais e os termos de uso de cada plataforma. Baixe apenas conteúdo seu ou que você tenha permissão para salvar.
+O Clipora é uma ferramenta de uso geral, oferecida para uso pessoal e lícito, como salvar seus próprios vídeos ou conteúdo que você tenha permissão para guardar.
+
+- **Você é o único responsável** pela forma como usa o Clipora e por tudo o que fizer com o conteúdo baixado, incluindo copiar, editar, publicar ou distribuir. Cabe a você respeitar a legislação de direitos autorais (no Brasil, a Lei nº 9.610/1998), os direitos dos titulares do conteúdo, os termos de uso de cada plataforma e as leis do seu país.
+- **O autor e os colaboradores não hospedam, armazenam, fornecem nem distribuem nenhum conteúdo.** Os vídeos são baixados diretamente das plataformas para o seu computador, a seu pedido. O autor não tem controle sobre o conteúdo baixado nem sobre o uso que você faz dele, e não se responsabiliza por isso.
+- **O autor e os colaboradores não incentivam nem apoiam** a violação de direitos autorais, dos termos de uso das plataformas ou qualquer outro uso ilícito. Não use o Clipora para baixar conteúdo que você não tem permissão para salvar.
+- **Sem garantia.** O Clipora é fornecido "no estado em que se encontra", sem garantia de qualquer tipo. Na máxima extensão permitida por lei, o autor e os colaboradores não respondem por danos diretos, indiretos, incidentais ou consequentes, reclamações ou prejuízos decorrentes do uso ou da impossibilidade de uso do Clipora. Consulte as seções 15 e 16 da [GPL-3.0](LICENSE).
+- Se você é titular de direitos e acredita que este projeto viola seus direitos, [abra uma issue](../../issues) para que o caso seja analisado.
+
+Ao usar o Clipora, você concorda com estes termos.
 
 ### Licença
 
