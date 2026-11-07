@@ -5,3 +5,4 @@ src-tauri/target/
 .maestri/
 .DS_Store
 src-tauri/binaries/
+.claude/
