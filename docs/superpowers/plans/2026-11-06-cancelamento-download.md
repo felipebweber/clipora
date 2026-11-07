@@ -56,4 +56,4 @@
 - [x] Timoneiro roda frontend/typecheck/build, Rust/clippy/fmt, actionlint, sintaxe scripts e diff check.
 - [x] Aceitação com sidecars reais em pasta temporária: cancelar após transferência começar, confirmar limpeza/terminal/ausência de histórico e concluir nova tentativa. Teste visual apenas se ferramenta nativa habilitada; documentar limites.
 - [x] Commit local explícito das entregas revisadas; integrar por fast-forward ao main autorizado se checkout permanecer limpo.
-- [ ] Build isolado do commit final; conferir pacote arm64; preservar artefato e registrar caminho/hash/evidência.
+- [x] Build isolado do commit final; conferir pacote arm64; preservar artefato e registrar caminho/hash/evidência.
