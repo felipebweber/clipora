@@ -298,10 +298,10 @@ jobs:
             # ferramentas do plugin gtk (ZLIB_1.2.9 not found).
             libs="$RUNNER_TEMP/libs-yt-dlp"
             mkdir -p "$libs"
-            sistema=$(ldconfig -p)
+            sistema=$(ldconfig -p | awk 'NR > 1 { print $1 }')
             for caminho in "$GITHUB_WORKSPACE"/src-tauri/binaries/yt-dlp/_internal/lib*.so*; do
               lib=$(basename "$caminho")
-              grep -q " $lib " <<<"$sistema" || { ln -sf "$caminho" "$libs/$lib"; echo "exposta: $lib"; }
+              grep -qxF "$lib" <<<"$sistema" || { ln -sf "$caminho" "$libs/$lib"; echo "exposta: $lib"; }
             done
             LD_LIBRARY_PATH="$libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
               pnpm tauri bundle --ci --verbose --target "$TRIPLE" --bundles appimage
