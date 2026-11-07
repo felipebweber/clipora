@@ -49,12 +49,14 @@ fn dimensao(v: &Value) -> Option<u32> {
 fn aac(codec: &str) -> bool {
     codec == "aac" || codec == "mp4a" || codec.starts_with("mp4a.40.")
 }
+/// Codec reproduzido nativamente por QuickTime/macOS e players do Windows.
+const CODEC_COMPATIVEL: u8 = 3;
 fn codec_video(codec: &str) -> Option<u8> {
     if matches!(codec, "h264" | "avc" | "avc1" | "avc3")
         || codec.starts_with("avc1.")
         || codec.starts_with("avc3.")
     {
-        Some(3)
+        Some(CODEC_COMPATIVEL)
     } else if matches!(codec, "vp9" | "vp09")
         || codec.starts_with("vp09.")
         || codec.starts_with("vp9.")
@@ -175,17 +177,35 @@ pub fn alturas(analise: &AnaliseYoutube) -> Vec<u32> {
     alturas.dedup();
     alturas
 }
+/// Alturas com vídeo H.264; as demais podem não abrir no QuickTime.
+pub fn alturas_compativeis(analise: &AnaliseYoutube) -> Vec<u32> {
+    let mut alturas: Vec<_> = analise
+        .videos
+        .iter()
+        .filter(|v| v.codec == CODEC_COMPATIVEL)
+        .map(|v| v.altura)
+        .collect();
+    alturas.sort_unstable_by(|a, b| b.cmp(a));
+    alturas.dedup();
+    alturas
+}
 pub fn escolher(
     analise: &AnaliseYoutube,
     altura: Option<u32>,
 ) -> Result<EscolhaYoutube, ErroClipora> {
+    // Compatibilidade vem antes de FPS: VP9/AV1 em MP4 não abrem no QuickTime.
+    // Sem altura explícita, um H.264 de qualquer altura vence VP9/AV1 maiores;
+    // acima de 1080p o YouTube só oferece VP9/AV1, que seguem escolhíveis.
+    let compativel = |v: &Video| v.codec == CODEC_COMPATIVEL;
     let video = analise
         .videos
         .iter()
         .filter(|v| altura.is_none_or(|a| v.altura == a))
         .max_by(|a, b| {
-            a.altura
-                .cmp(&b.altura)
+            let chave_altura = |v: &Video| (altura.is_none() && compativel(v), v.altura);
+            chave_altura(a)
+                .cmp(&chave_altura(b))
+                .then_with(|| compativel(a).cmp(&compativel(b)))
                 .then_with(|| a.fps.total_cmp(&b.fps))
                 .then_with(|| a.codec.cmp(&b.codec))
                 .then_with(|| a.preferencia.cmp(&b.preferencia))
@@ -324,6 +344,7 @@ mod tests {
         let d = fixture("formatos");
         let a = analisar(&d, ID).unwrap();
         assert_eq!(alturas(&a), [2160, 1080, 720]);
+        assert_eq!(alturas_compativeis(&a), [1080, 720]);
         let mut d = d;
         let mut f = d["formats"][0].clone();
         f["height"] = json!(8640);
@@ -343,14 +364,19 @@ mod tests {
         let a = analisar(&fixture("formatos"), ID).unwrap();
         let e = escolher(&a, Some(720)).unwrap();
         assert_eq!(e.altura, 720);
+        // H.264 vence VP9 de FPS maior na mesma altura: abre no QuickTime.
         assert_eq!(
             e.seletor,
-            "bestvideo[format_id=\"302\"][height=720]+bestaudio[format_id=\"140\"]"
+            "bestvideo[format_id=\"136\"][height=720]+bestaudio[format_id=\"140\"]"
         );
-        assert!(e.seletor.contains("302"));
-        assert!(!e.seletor.contains("137"));
+        assert!(!e.seletor.contains("302"));
         assert!(!e.seletor.contains('/'));
-        assert_eq!(escolher(&a, None).unwrap().altura, 2160);
+        // Altura sem H.264 continua disponível quando escolhida explicitamente.
+        assert!(escolher(&a, Some(2160)).unwrap().seletor.contains("401"));
+        // "Melhor disponível" prefere o melhor H.264, não a maior altura.
+        let melhor = escolher(&a, None).unwrap();
+        assert_eq!(melhor.altura, 1080);
+        assert!(melhor.seletor.contains("137"));
         for h in [0, 480, u32::MAX] {
             assert_eq!(
                 escolher(&a, Some(h)).unwrap_err().codigo,
@@ -391,12 +417,21 @@ mod tests {
             .as_array_mut()
             .unwrap()
             .retain(|f| !f["format_id"].as_str().unwrap().starts_with("avc60"));
+        // Sem H.264 de 60 FPS, o H.264 de 30 FPS vence VP9/AV1 de 60 FPS.
         assert!(
             escolher(&analisar(&d, ID).unwrap(), None)
                 .unwrap()
                 .seletor
-                .contains("vp960")
+                .contains("avc30")
         );
+        // Sem nenhum H.264, mantém o desempate por FPS e depois VP9 antes de AV1.
+        d["formats"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|f| f["format_id"] != "avc30");
+        let a = analisar(&d, ID).unwrap();
+        assert!(alturas_compativeis(&a).is_empty());
+        assert!(escolher(&a, None).unwrap().seletor.contains("vp960"));
     }
     #[test]
     fn youtube_formato_id_nao_injeta_expressao() {

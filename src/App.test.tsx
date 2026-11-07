@@ -245,7 +245,7 @@ describe("App: qualidade do YouTube", () => {
     await usuario.type(campoLink(), "https://youtu.be/YE7VzlLtp-4");
     const qualidade = await screen.findByRole("combobox", { name: "Qualidade" });
     expect([...qualidade.querySelectorAll("option")].map((opcao) => opcao.textContent)).toEqual([
-      "Melhor disponível", "1080p", "720p", "480p",
+      "Melhor compatível", "1080p", "720p", "480p",
     ]);
     await usuario.selectOptions(qualidade, "720");
     await usuario.click(botaoBaixar());

@@ -274,7 +274,7 @@ describe("useClipora: qualidade exata do YouTube", () => {
     expect(result.current.estado).toMatchObject({ tipo: "concluido", alturaYoutube: 720 });
   });
 
-  it("atualiza o catálogo após QUALIDADE_INDISPONIVEL e volta a Melhor disponível", async () => {
+  it("atualiza o catálogo após QUALIDADE_INDISPONIVEL e volta a Melhor compatível", async () => {
     const { servico } = criarServicoControlavel();
     vi.mocked(servico.obter_previa)
       .mockResolvedValueOnce(previaYoutube(1))

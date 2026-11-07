@@ -15,14 +15,14 @@ Não instale um pacote cujo hash publicado não confira. Não há atualização 
 ## Baixar um vídeo
 
 1. Cole o link de um vídeo público do Instagram Reels, TikTok ou YouTube no campo principal. Para o YouTube, use o endereço normal do vídeo, como `youtube.com/watch?v=...` ou `youtu.be/...`. O Clipora carrega a prévia quando consegue acessar o link sem login.
-2. Confira a prévia. Para vídeos do YouTube, o seletor **Qualidade** aparece com **Melhor disponível** e as alturas realmente disponíveis naquele vídeo. Escolha uma altura para pedir exatamente essa resolução; o Clipora não troca silenciosamente para outra. Para Instagram e TikTok, a qualidade continua automática.
+2. Confira a prévia. Para vídeos do YouTube, o seletor **Qualidade** aparece com **Melhor compatível** e as alturas realmente disponíveis naquele vídeo. Alturas marcadas com **pode exigir VLC** só existem em VP9/AV1 no YouTube (em geral, acima de 1080p). Escolha uma altura para pedir exatamente essa resolução; o Clipora não troca silenciosamente para outra. Para Instagram e TikTok, a qualidade continua automática.
 3. Selecione **Baixar**.
 4. Na primeira vez, escolha uma pasta de destino. O Clipora guarda essa preferência localmente. Altere-a em **Configurações** quando precisar.
 5. Acompanhe o progresso. Ao concluir, use **Abrir vídeo** para assistir ou **Abrir pasta** para localizar o arquivo.
 
-O Clipora salva um vídeo por vez. No Instagram e TikTok, escolhe automaticamente a melhor combinação de vídeo e áudio disponível. No YouTube, procura a melhor combinação dentro da altura escolhida; em **Melhor disponível**, prioriza a maior altura elegível. Quando necessário, o FFmpeg une as faixas sem transcodificá-las. Arquivos existentes não são sobrescritos.
+O Clipora salva um vídeo por vez. Em todas as plataformas, o Clipora prioriza vídeo H.264 com áudio AAC, que abre no QuickTime e no player padrão do Windows, mesmo que isso signifique uma resolução menor (por exemplo, 720p em vez de 1080p em Reels). Só usa VP9/AV1 quando o vídeo não tem versão H.264. No YouTube, procura a melhor combinação dentro da altura escolhida, preferindo H.264 a um FPS maior; em **Melhor compatível**, escolhe a maior altura em H.264. Quando necessário, o FFmpeg une as faixas sem transcodificá-las. Arquivos existentes não são sobrescritos.
 
-Os downloads do YouTube são arquivos MP4 com áudio AAC. O vídeo pode usar AVC/H.264, VP9 ou AV1. O contêiner MP4, por si só, não garante que todo aparelho ou player consiga reproduzir VP9 ou AV1; a reprodução depende dos codecs aceitos pelo seu sistema. Se a qualidade escolhida deixar de estar disponível entre a prévia e o download, o Clipora pede que você atualize a prévia e escolha outra. Depois de concluir, **Baixar novamente** na tela de conclusão preserva a escolha enquanto você continua nessa prévia. O histórico não guarda a qualidade: ao colar o link de novo e carregar uma nova prévia, a seleção volta para **Melhor disponível**.
+Os downloads do YouTube são arquivos MP4 com áudio AAC. O vídeo usa AVC/H.264 sempre que o site oferece; alturas que só existem em VP9 ou AV1 (no YouTube, 1440p e 4K) são marcadas com **pode exigir VLC**. O contêiner MP4, por si só, não garante que o QuickTime ou o player padrão do sistema reproduzam VP9 ou AV1; nesse caso, use o VLC ou o IINA. Se a qualidade escolhida deixar de estar disponível entre a prévia e o download, o Clipora pede que você atualize a prévia e escolha outra. Depois de concluir, **Baixar novamente** na tela de conclusão preserva a escolha enquanto você continua nessa prévia. O histórico não guarda a qualidade: ao colar o link de novo e carregar uma nova prévia, a seleção volta para **Melhor compatível**.
 
 O Clipora aceita vídeos normais do YouTube. Shorts, transmissões ao vivo, Stories e playlists inteiras não são suportados. Links que exigem login, são privados ou estão indisponíveis não podem ser baixados por esse fluxo.
 
@@ -44,7 +44,7 @@ Se o vídeo tiver sido movido, removido ou estiver inacessível, o registro cont
 
 Ao colar um link de um vídeo que já aparece no histórico, o Clipora mostra um aviso. Se a cópia ainda estiver disponível, você pode abri-la; também pode escolher **Baixar** para fazer outra cópia. O aviso não impede um novo download. Links curtos podem não ser reconhecidos como repetidos quando o Clipora não consegue relacioná-los ao mesmo vídeo.
 
-No YouTube, a escolha de qualidade não altera o aviso de link repetido: você pode abrir a cópia disponível ou baixar outra. O histórico não registra a qualidade usada; ao colar o link novamente, uma nova prévia começa em **Melhor disponível**.
+No YouTube, a escolha de qualidade não altera o aviso de link repetido: você pode abrir a cópia disponível ou baixar outra. O histórico não registra a qualidade usada; ao colar o link novamente, uma nova prévia começa em **Melhor compatível**.
 
 O histórico começa vazio. O Clipora não importa downloads antigos nem examina a pasta de destino para preencher a lista. Para limpar o histórico, confirme a ação apresentada no app. Isso apaga somente os registros da lista; os arquivos de vídeo continuam nas pastas onde foram salvos.
 

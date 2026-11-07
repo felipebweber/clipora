@@ -157,6 +157,7 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
       {previaAtual?.plataforma === "youtube" && catalogoYoutubeValido(previaAtual.qualidadesYoutube) && (
         <SeletorQualidadeYoutube
           alturas={previaAtual.qualidadesYoutube}
+          compativeis={previaAtual.qualidadesYoutubeCompativeis}
           altura={"alturaYoutube" in estado ? estado.alturaYoutube ?? null : null}
           desabilitado={estado.tipo !== "pronto" || atualizacao.emAndamento}
           aoAlterar={alterarQualidadeYoutube}

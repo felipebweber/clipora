@@ -5,6 +5,16 @@ use std::{
 
 const NOME_MAX_BYTES: usize = 255 - " (100000).mp4".len();
 const DESCRICAO_MAX_PALAVRAS: usize = 8;
+/// Seletor fora do YouTube: VP9/AV1 remuxados em MP4 não abrem no QuickTime,
+/// então H.264 (+AAC) vem primeiro, mesmo com resolução menor (Instagram só
+/// tem H.264 em 720p; TikTok tem 1080p/720p só em HEVC). O MP4 progressivo do
+/// Instagram não declara codec, por isso o 4º passo aceita codec desconhecido.
+/// Sem nada compatível, mantém o melhor vídeo disponível.
+const SELETOR_COMPATIVEL: &str = "bv*[vcodec~='^(avc|h264)']+ba[acodec^=mp4a]\
+/b[vcodec~='^(avc|h264)']\
+/bv*[vcodec~='^(avc|h264)']+ba\
+/b[vcodec!~=?'^(vp|av0)']\
+/bv*+ba/b";
 
 #[derive(Default)]
 struct MetadadosNome {
@@ -373,6 +383,18 @@ impl Progresso {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn seletor_padrao_prefere_h264_e_mantem_fallback() {
+        let opcoes: Vec<_> = super::SELETOR_COMPATIVEL.split('/').collect();
+        // H.264 com áudio AAC primeiro: abre no QuickTime sem conversão.
+        assert_eq!(opcoes[0], "bv*[vcodec~='^(avc|h264)']+ba[acodec^=mp4a]");
+        assert!(opcoes[..3].iter().all(|o| o.contains("^(avc|h264)")));
+        // MP4 progressivo do Instagram não informa codec (é H.264 na prática):
+        // aceita codec desconhecido, mas nunca VP9/AV1 declarados.
+        assert_eq!(opcoes[3], "b[vcodec!~=?'^(vp|av0)']");
+        // Sem nada compatível, o comportamento anterior continua como último recurso.
+        assert_eq!(opcoes[4..], ["bv*+ba", "b"]);
+    }
     use super::*;
     #[test]
     fn gate_define_unico_vencedor_entre_cancelamento_e_promocao() {
@@ -1787,6 +1809,7 @@ mod historico_tests {
                 duracao_segundos: None,
                 capa_data_url: None,
                 qualidades_youtube: None,
+                qualidades_youtube_compativeis: None,
             }),
         });
         let historico = crate::historico::Repositorio::novo(raiz.join("historico.json"));
@@ -2242,6 +2265,7 @@ mod youtube_runtime_tests {
             } else {
                 let p = r.unwrap();
                 assert_eq!(p.qualidades_youtube, Some(vec![1080, 720]));
+                assert!(p.qualidades_youtube_compativeis.is_some());
                 assert_eq!(
                     p.url_normalizada,
                     "https://www.youtube.com/watch?v=YE7VzlLtp-4"
@@ -3252,7 +3276,7 @@ async fn executar_com_ferramentas(
     let seletor = escolha
         .as_ref()
         .map(|e| e.seletor.as_str())
-        .unwrap_or("bv*+ba/b");
+        .unwrap_or(SELETOR_COMPATIVEL);
     let modelo = temp.path().join("%(id)s.%(ext)s");
     let mut comando = Command::new(bin);
     if let Some(deno) = ferramentas

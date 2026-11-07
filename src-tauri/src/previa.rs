@@ -56,6 +56,8 @@ pub struct Previa {
     pub duracao_segundos: Option<f64>,
     pub capa_data_url: Option<String>,
     pub qualidades_youtube: Option<Vec<u32>>,
+    /// Alturas com H.264 (abrem no QuickTime); as demais exigem aviso.
+    pub qualidades_youtube_compativeis: Option<Vec<u32>>,
 }
 #[derive(Deserialize)]
 struct Metadados {
@@ -248,18 +250,21 @@ async fn obter_com_prazo(
         }
         let valor: serde_json::Value = serde_json::from_slice(&saida.stdout)
             .map_err(|e| ErroClipora::novo("PREVIA_INDISPONIVEL", Some(e.to_string())))?;
-        let qualidades_youtube = if plataforma == Plataforma::Youtube {
-            let id = normalizada
-                .query_pairs()
-                .find(|(k, _)| k == "v")
-                .map(|(_, v)| v.into_owned())
-                .ok_or_else(|| ErroClipora::novo("LINK_INVALIDO", None))?;
-            Some(crate::youtube::alturas(&crate::youtube::analisar(
-                &valor, &id,
-            )?))
-        } else {
-            None
-        };
+        let (qualidades_youtube, qualidades_youtube_compativeis) =
+            if plataforma == Plataforma::Youtube {
+                let id = normalizada
+                    .query_pairs()
+                    .find(|(k, _)| k == "v")
+                    .map(|(_, v)| v.into_owned())
+                    .ok_or_else(|| ErroClipora::novo("LINK_INVALIDO", None))?;
+                let analise = crate::youtube::analisar(&valor, &id)?;
+                (
+                    Some(crate::youtube::alturas(&analise)),
+                    Some(crate::youtube::alturas_compativeis(&analise)),
+                )
+            } else {
+                (None, None)
+            };
         let item = if plataforma == Plataforma::Instagram && normalizada.path().starts_with("/p/") {
             video_unico(&valor).map_err(|c| ErroClipora::novo(c, None))?
         } else {
@@ -285,6 +290,7 @@ async fn obter_com_prazo(
             duracao_segundos: dados.duration,
             capa_data_url: imagem,
             qualidades_youtube,
+            qualidades_youtube_compativeis,
         })
     };
     tokio::select! { biased; _ = cancelado.changed() => Err(ErroClipora::novo("PREVIA_CANCELADA", None)), r = tokio::time::timeout_at(prazo,tarefa) => r.map_err(|_|ErroClipora::novo("TEMPO_ESGOTADO",None))? }

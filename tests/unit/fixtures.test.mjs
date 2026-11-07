@@ -343,7 +343,7 @@ descrever('yt-dlp falso: download', () => {
     const temp = join(dir, '.clipora-teste');
     const r = await rodar(YTDLP, [
       '--ignore-config', '--no-update', '--no-playlist', '--ffmpeg-location', FFMPEG,
-      '-f', 'bv*+ba/b', '--merge-output-format', 'mp4', '--remux-video', 'mp4', '--newline', '--progress',
+      '-f', "bv*[vcodec~='^(avc|h264)']+ba[acodec^=mp4a]/b[vcodec~='^(avc|h264)']/bv*[vcodec~='^(avc|h264)']+ba/b[vcodec!~=?'^(vp|av0)']/bv*+ba/b", '--merge-output-format', 'mp4', '--remux-video', 'mp4', '--newline', '--progress',
       '--progress-template', 'download:download:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress._percent_str)s',
       '--progress-template', 'postprocess:postprocess:%(progress.status)s',
       '--print', 'after_move:CLIPORA_RESULT:%(filepath)j\t%(title)j\t%(id)j',

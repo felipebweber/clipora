@@ -123,6 +123,8 @@ export type Previa = {
   duracaoSegundos: number | null;
   capaDataUrl: string | null;
   qualidadesYoutube: number[] | null;
+  /** Alturas com H.264; ausente em backend antigo. */
+  qualidadesYoutubeCompativeis?: number[] | null;
 };
 
 export type EtapaDownload =

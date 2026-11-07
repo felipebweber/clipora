@@ -111,6 +111,15 @@ tentativa. Preservar prevenção de colisões e abertura por ID. Conteiner MP4 n
 garante que todo player tenha o decoder de VP9/AV1; registrar codecs realmente
 testados e limitações nos sistemas suportados.
 
+**Revisão 2026-11-07 (compatibilidade com QuickTime):** VP9/AV1 remuxados em MP4
+não abrem no QuickTime nem no player padrão do Windows. A preferência passou a
+ser H.264 antes de FPS na mesma altura, e **Melhor compatível** (antes "Melhor
+disponível") escolhe a maior altura em H.264; VP9/AV1 só sem H.264. Alturas sem
+H.264 (no YouTube, acima de 1080p) seguem escolhíveis com aviso "pode exigir
+VLC" (`qualidadesYoutubeCompativeis`). Fora do YouTube, o seletor padrão também
+prioriza H.264, mesmo com resolução menor (Reels: 720p H.264 em vez de 1080p
+VP9; TikTok: 540p H.264 em vez de 720p HEVC).
+
 ## Divisão técnica e contratos propostos
 
 - Novo módulo Rust `src-tauri/src/youtube.rs` concentra classificação, extração
