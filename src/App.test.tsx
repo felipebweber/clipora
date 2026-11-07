@@ -336,7 +336,8 @@ describe("App: teclado e foco (M5)", () => {
       expect(progresso).toHaveFocus();
 
       const abrir = await screen.findByRole("button", { name: /abrir vídeo/i }, { timeout: 5000 });
-      expect(abrir).toHaveFocus();
+      // O foco é movido depois que o botão aparece; sob carga (CI no Windows) isso leva mais tempo.
+      await waitFor(() => expect(abrir).toHaveFocus());
     },
     10_000,
   );
@@ -354,7 +355,8 @@ describe("App: teclado e foco (M5)", () => {
       await usuario.click(botaoBaixar());
 
       const tentar = await screen.findByRole("button", { name: /tentar novamente/i }, { timeout: 3000 });
-      expect(tentar).toHaveFocus();
+      // O foco é movido depois que o botão aparece; sob carga (CI no Windows) isso leva mais tempo.
+      await waitFor(() => expect(tentar).toHaveFocus());
       expect(screen.getByRole("alert")).toHaveTextContent(/o download falhou/i);
 
       await usuario.click(tentar);
