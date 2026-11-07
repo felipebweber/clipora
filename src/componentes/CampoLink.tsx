@@ -1,4 +1,4 @@
-import type { Ref } from "react";
+import { useRef, type Ref } from "react";
 
 type Props = {
   valor: string;
@@ -21,6 +21,9 @@ export function CampoLink({
   const descricoes = [desabilitado ? "campo-link-dica" : null, temErro ? "erro-aviso" : null]
     .filter(Boolean)
     .join(" ");
+  // Primeiro clique (campo ainda sem foco) seleciona o link inteiro, para a
+  // próxima colagem substituí-lo; cliques seguintes posicionam o cursor.
+  const selecionarAoSoltar = useRef(false);
   return (
     <div className="campo-link">
       <label htmlFor="campo-link-input">Link do Instagram Reels, TikTok ou YouTube</label>
@@ -35,6 +38,17 @@ export function CampoLink({
         value={valor}
         disabled={desabilitado}
         onChange={(evento) => aoAlterar(evento.target.value)}
+        onFocus={(evento) => evento.currentTarget.select()}
+        onMouseDown={(evento) => {
+          selecionarAoSoltar.current = document.activeElement !== evento.currentTarget;
+        }}
+        onMouseUp={(evento) => {
+          if (selecionarAoSoltar.current) {
+            selecionarAoSoltar.current = false;
+            evento.preventDefault();
+            evento.currentTarget.select();
+          }
+        }}
         onKeyDown={(evento) => {
           if (evento.key === "Enter") {
             evento.preventDefault();

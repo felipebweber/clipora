@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { UsePastaDestinoRetorno } from "../estado/usePastaDestino";
 import type { Previa } from "../tipos/contrato";
@@ -112,6 +113,27 @@ describe("CampoLink (L2)", () => {
     const campo = screen.getByLabelText(/link do instagram/i);
     expect(campo).toHaveAttribute("aria-describedby", "campo-link-dica");
     expect(campo).toHaveAccessibleDescription("O link não pode ser alterado durante o download.");
+  });
+
+  it("o primeiro clique seleciona o link inteiro para a colagem substituí-lo", async () => {
+    const usuario = userEvent.setup();
+    const link = "https://www.youtube.com/watch?v=abc";
+    render(<CampoLink valor={link} aoAlterar={() => {}} desabilitado={false} temErro={false} />);
+    const campo = screen.getByLabelText<HTMLInputElement>(/link do instagram/i);
+    await usuario.click(campo);
+    expect(campo).toHaveFocus();
+    expect(campo.selectionStart).toBe(0);
+    expect(campo.selectionEnd).toBe(link.length);
+  });
+
+  it("focar pelo teclado também seleciona o link inteiro", async () => {
+    const usuario = userEvent.setup();
+    const link = "https://www.tiktok.com/@a/video/1";
+    render(<CampoLink valor={link} aoAlterar={() => {}} desabilitado={false} temErro={false} />);
+    await usuario.tab();
+    const campo = screen.getByLabelText<HTMLInputElement>(/link do instagram/i);
+    expect(campo.selectionStart).toBe(0);
+    expect(campo.selectionEnd).toBe(link.length);
   });
 
   it("sem bloqueio e sem erro não tem aria-describedby", () => {
