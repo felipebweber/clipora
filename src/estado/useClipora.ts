@@ -21,6 +21,18 @@ const INTERVALO_RECUPERACAO_MS = 1000;
 export const AVISO_DOWNLOAD_RECUPERADO_ENCERRADO =
   "O download que estava em andamento foi encerrado. Confira o arquivo na pasta de destino.";
 
+export const PREFIXO_AVISO_FALHA_CANCELAMENTO = "Não foi possível cancelar o download.";
+
+/** Início local de um download: o cancelamento precisa saber se o backend
+ * aceitou a tentativa antes de pedir `cancelar_download` (contrato). */
+type InicioDownload = {
+  cancelamentoPedido: boolean;
+  /** `true` quando iniciar_download respondeu ou o canal já entregou um
+   * evento; `false` quando a tentativa terminou sem ser aceita. */
+  aceite: Promise<boolean>;
+  resolverAceite: (aceito: boolean) => void;
+};
+
 function gerarIdDownload(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -57,6 +69,10 @@ export function useClipora(
   const aoAlterarPastaRef = useRef(opcoes.aoAlterarPasta);
   aoAlterarPastaRef.current = opcoes.aoAlterarPasta;
   const intervaloRecuperacaoMs = opcoes.intervaloRecuperacaoMs ?? INTERVALO_RECUPERACAO_MS;
+  const inicios = useRef(new Map<string, InicioDownload>());
+  /** IDs com pedido de cancelamento em voo ou aceito (evita pedidos duplicados
+   * entre renderizações). Uma falha do pedido remove o ID para permitir repetir. */
+  const pedidosCancelamento = useRef(new Set<string>());
 
   useEffect(() => {
     return () => {
@@ -84,6 +100,7 @@ export function useClipora(
             percentual: download.percentual,
             alturaYoutube: download.alturaYoutube ?? null,
             previa: download.previa ? { ...download.previa, qualidadesYoutube: download.previa.qualidadesYoutube ?? null } : null,
+            cancelando: download.cancelando ?? false,
           });
         } else if (ultimoResultado) {
           dispatch({ tipo: "download_resultado_recuperado", resultado: { ...ultimoResultado, alturaYoutube: ultimoResultado.alturaYoutube ?? null } });
@@ -110,6 +127,7 @@ export function useClipora(
               downloadId: downloadRecuperado,
               etapa: download.etapa,
               percentual: download.percentual,
+              cancelando: download.cancelando ?? false,
             });
           } else if (ultimoResultado?.downloadId === downloadRecuperado) {
             dispatch({ tipo: "download_resultado_recuperado", resultado: ultimoResultado });
@@ -201,6 +219,8 @@ export function useClipora(
           nomeArquivo: evento.nomeArquivo,
           renomeado: evento.renomeado,
         });
+      } else if (evento.tipo === "cancelado") {
+        dispatch({ tipo: "download_cancelamento_concluido", downloadId });
       } else {
         dispatch({ tipo: "download_erro", downloadId, erro: normalizarErro(evento.erro) });
       }
@@ -213,38 +233,62 @@ export function useClipora(
    * AUSENTE/SEM_PERMISSAO), abre o seletor e repete no máximo uma vez com o
    * mesmo ID e o mesmo ouvinte. Nunca rejeita: toda falha vira
    * `download_erro` (ou `download_cancelado` se o seletor for cancelado).
+   * Se o usuário cancelar enquanto o seletor está aberto, não repete: a
+   * tentativa nunca foi aceita pelo backend e termina como cancelada.
    */
   const executarDownload = useCallback(
     async (downloadId: string, url: string, alturaYoutube?: number | null): Promise<void> => {
-      const onEvento = criarOuvinteDeEventos(downloadId);
-      for (let tentativa = 0; ; tentativa++) {
-        try {
-          await servicoClipora.iniciar_download({
-            downloadId,
-            url,
-            ...(alturaYoutube !== undefined ? { alturaYoutube } : {}),
-            onEvento,
-          });
-          return;
-        } catch (erroDesconhecido) {
-          const erro = normalizarErro(erroDesconhecido);
-          if (!ehErroDePasta(erro) || tentativa > 0) {
-            dispatch({ tipo: "download_erro", downloadId, erro });
-            return;
-          }
-          let pastaEscolhida: string | null;
+      let resolverAceite: (aceito: boolean) => void = () => {};
+      const inicio: InicioDownload = {
+        cancelamentoPedido: false,
+        aceite: new Promise<boolean>((resolve) => { resolverAceite = resolve; }),
+        resolverAceite: (aceito) => resolverAceite(aceito),
+      };
+      inicios.current.set(downloadId, inicio);
+      const ouvinte = criarOuvinteDeEventos(downloadId);
+      const onEvento = (evento: EventoDownload) => {
+        inicio.resolverAceite(true);
+        ouvinte(evento);
+      };
+      try {
+        for (let tentativa = 0; ; tentativa++) {
           try {
-            pastaEscolhida = await servicoClipora.selecionar_pasta_destino();
-          } catch (erroSelecao) {
-            dispatch({ tipo: "download_erro", downloadId, erro: normalizarErro(erroSelecao) });
+            await servicoClipora.iniciar_download({
+              downloadId,
+              url,
+              ...(alturaYoutube !== undefined ? { alturaYoutube } : {}),
+              onEvento,
+            });
+            inicio.resolverAceite(true);
             return;
+          } catch (erroDesconhecido) {
+            const erro = normalizarErro(erroDesconhecido);
+            if (!ehErroDePasta(erro) || tentativa > 0) {
+              dispatch({ tipo: "download_erro", downloadId, erro });
+              return;
+            }
+            let pastaEscolhida: string | null;
+            try {
+              pastaEscolhida = await servicoClipora.selecionar_pasta_destino();
+            } catch (erroSelecao) {
+              dispatch({ tipo: "download_erro", downloadId, erro: normalizarErro(erroSelecao) });
+              return;
+            }
+            if (pastaEscolhida !== null) aoAlterarPastaRef.current?.();
+            if (inicio.cancelamentoPedido) {
+              dispatch({ tipo: "download_cancelamento_concluido", downloadId });
+              return;
+            }
+            if (pastaEscolhida === null) {
+              dispatch({ tipo: "download_cancelado", downloadId });
+              return;
+            }
           }
-          if (pastaEscolhida === null) {
-            dispatch({ tipo: "download_cancelado", downloadId });
-            return;
-          }
-          aoAlterarPastaRef.current?.();
         }
+      } finally {
+        // Sem efeito se já foi aceita; senão, libera um cancelamento à espera.
+        inicio.resolverAceite(false);
+        inicios.current.delete(downloadId);
       }
     },
     [servicoClipora, criarOuvinteDeEventos],
@@ -304,6 +348,35 @@ export function useClipora(
     else dispatch({ tipo: "erro_reconhecido" });
   }, [estado, textoLink, executarDownload, solicitarPrevia]);
 
+  /** Cancela o download em andamento. Só o resultado terminal (evento ou
+   * `obter_estado()`) encerra o "Cancelando…". */
+  const cancelarDownload = useCallback(() => {
+    if (estado.tipo !== "baixando" || estado.cancelando) return;
+    const { downloadId } = estado;
+    if (pedidosCancelamento.current.has(downloadId)) return;
+    pedidosCancelamento.current.add(downloadId);
+    interacaoDoUsuario.current = true;
+    setAviso(null);
+    dispatch({ tipo: "cancelamento_solicitado", downloadId });
+    const inicio = inicios.current.get(downloadId);
+    if (inicio) inicio.cancelamentoPedido = true;
+    void (async () => {
+      // Download recuperado após recarga: já foi aceito pelo backend.
+      const aceito = inicio ? await inicio.aceite : true;
+      if (!aceito) {
+        pedidosCancelamento.current.delete(downloadId);
+        return;
+      }
+      try {
+        await servicoClipora.cancelar_download({ downloadId });
+      } catch (erro) {
+        pedidosCancelamento.current.delete(downloadId);
+        dispatch({ tipo: "cancelamento_falhou", downloadId });
+        setAviso(`${PREFIXO_AVISO_FALHA_CANCELAMENTO} ${mensagemDoErro(normalizarErro(erro))}`);
+      }
+    })();
+  }, [estado, servicoClipora]);
+
   const reconhecerErro = useCallback(() => {
     interacaoDoUsuario.current = true;
     dispatch({ tipo: "erro_reconhecido" });
@@ -341,6 +414,7 @@ export function useClipora(
     tentarNovamente,
     reconhecerErro,
     abrirPasta,
+    cancelarDownload,
     alterarQualidadeYoutube,
     atualizarPrevia,
     podeEditarLink: podeEditarLink(estado),

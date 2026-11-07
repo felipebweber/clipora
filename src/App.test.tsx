@@ -653,3 +653,35 @@ describe("App: revisão de experiência (etapa 8)", () => {
     expect(within(avisoAtualizacao()).queryByRole("button")).not.toBeInTheDocument();
   });
 });
+
+describe("App: cancelamento do download", () => {
+  it("cancela pelo teclado, mostra Cancelando… e volta à prévia sem erro nem histórico", async () => {
+    const usuario = userEvent.setup();
+    const servico = criarSimulado({ atrasoPassoDownloadMs: 80 });
+    render(<App servico={servico} />);
+    await colarLinkEAguardarPrevia(usuario, "https://www.instagram.com/reel/cancelar1/");
+    await usuario.click(botaoBaixar());
+
+    const cancelar = await screen.findByRole("button", { name: /cancelar download/i });
+    cancelar.focus();
+    await usuario.keyboard("{Enter}");
+
+    const cancelando = await screen.findByRole("button", { name: /cancelando…/i });
+    expect(cancelando).toHaveAttribute("aria-disabled", "true");
+    expect(cancelando).toHaveFocus();
+    await usuario.click(cancelando);
+
+    await waitFor(() => expect(screen.getByText("Download cancelado.")).toBeInTheDocument(), { timeout: 3000 });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText(/download concluído/i)).not.toBeInTheDocument();
+    expect(botaoBaixar()).toBeEnabled();
+    expect(campoLink()).toHaveValue("https://www.instagram.com/reel/cancelar1/");
+    expect(await servico.obter_historico()).toEqual([]);
+    expect((await servico.obter_estado()).ultimoResultado).toMatchObject({ tipo: "cancelado" });
+
+    // Nova tentativa começa do zero e conclui.
+    await usuario.click(botaoBaixar());
+    expect(screen.queryByText("Download cancelado.")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/download concluído/i)).toBeInTheDocument(), { timeout: 5000 });
+  }, 10_000);
+});

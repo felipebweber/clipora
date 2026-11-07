@@ -141,7 +141,8 @@ export type EventoDownload =
       bytesTotais?: number;
     }
   | { tipo: "concluido"; caminho: string; nomeArquivo: string; renomeado: boolean }
-  | { tipo: "erro"; erro: ErroClipora };
+  | { tipo: "erro"; erro: ErroClipora }
+  | { tipo: "cancelado" };
 
 /**
  * `previa` é `null` quando a prévia não foi carregada ou pertence a outra
@@ -155,6 +156,8 @@ export type EstadoDownloadAtivo = {
   percentual: number | null;
   etapa: EtapaDownload;
   previa?: Previa | null;
+  /** Cancelamento aceito, aguardando encerramento/limpeza. Ausente = false. */
+  cancelando?: boolean;
 };
 
 export type ResultadoTerminal =
@@ -166,7 +169,8 @@ export type ResultadoTerminal =
       nomeArquivo: string;
       renomeado: boolean;
     }
-  | { downloadId: string; alturaYoutube: number | null; tipo: "erro"; erro: ErroClipora };
+  | { downloadId: string; alturaYoutube: number | null; tipo: "erro"; erro: ErroClipora }
+  | { downloadId: string; alturaYoutube: number | null; tipo: "cancelado" };
 
 /** Retorno de `obter_estado()` — renomeado de `Estado` (ver nota acima). */
 export type EstadoPersistido = {

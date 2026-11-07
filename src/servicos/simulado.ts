@@ -36,6 +36,8 @@ import type { ServicoClipora } from "./tipos";
  * Para o download, iniciar_download aceita a mesma URL e reconhece:
  *   - contém "falha-download"    -> termina com erro DOWNLOAD_FALHOU
  *   - contém "indeterminado"     -> progresso sem percentual (barra indeterminada) antes de ficar determinado
+ * `cancelar_download` com o ID ativo encerra o download no próximo passo
+ * com o evento `cancelado`, sem arquivo nem histórico; outro ID é no-op.
  *
  * Atualização do yt-dlp: `verificacaoYtdlpInicial` controla se há versão
  * nova; `falhaAtualizacao` faz `atualizar_ytdlp` rejeitar com o código dado.
@@ -56,7 +58,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
   /** Próximo valor retornado por selecionar_pasta_destino(); ajustável nos testes. */
   proximaSelecaoDePasta: string | null = "/simulado/Downloads";
 
-  private downloadAtivo: { downloadId: string; alturaYoutube: number | null; percentual: number | null; etapa: EtapaDownload } | null =
+  private downloadAtivo: { downloadId: string; alturaYoutube: number | null; percentual: number | null; etapa: EtapaDownload; cancelando?: boolean } | null =
     null;
   private ultimoResultado: ResultadoTerminal | null = null;
   private readonly downloadsConcluidos = new Map<
@@ -270,6 +272,13 @@ export class ServicoCliporaSimulado implements ServicoClipora {
         const etapa = etapas[i];
         await this.esperar(this.atrasoPassoDownloadMs);
 
+        if (this.downloadAtivo?.cancelando) {
+          this.ultimoResultado = { downloadId, alturaYoutube: alturaCapturada, tipo: "cancelado" };
+          this.downloadAtivo = null;
+          onEvento({ tipo: "cancelado" });
+          return;
+        }
+
         if (falhaNaEtapa && etapa === falhaNaEtapa) {
           const erro: ErroClipora = { codigo: "DOWNLOAD_FALHOU", mensagem: "simulated failure" };
           this.ultimoResultado = { downloadId, alturaYoutube: alturaCapturada, tipo: "erro", erro };
@@ -285,7 +294,7 @@ export class ServicoCliporaSimulado implements ServicoClipora {
             : etapa === "baixando_audio"
               ? 100
               : null;
-        this.downloadAtivo = { downloadId, alturaYoutube: alturaCapturada, percentual, etapa };
+        this.downloadAtivo = { downloadId, alturaYoutube: alturaCapturada, percentual, etapa, ...(this.downloadAtivo?.cancelando ? { cancelando: true } : {}) };
         onEvento({ tipo: "progresso", etapa, percentual });
       }
 
@@ -313,6 +322,12 @@ export class ServicoCliporaSimulado implements ServicoClipora {
       onEvento({ tipo: "concluido", caminho, nomeArquivo, renomeado: false });
     } finally {
       this.downloadAtivo = null;
+    }
+  }
+
+  async cancelar_download({ downloadId }: { downloadId: string }): Promise<void> {
+    if (this.downloadAtivo?.downloadId === downloadId) {
+      this.downloadAtivo = { ...this.downloadAtivo, cancelando: true };
     }
   }
 

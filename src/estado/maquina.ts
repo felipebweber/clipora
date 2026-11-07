@@ -34,9 +34,10 @@ export type ResultadoDownload = {
 export type OrigemErro = "previa" | "download";
 
 export type EstadoApp =
-  | { tipo: "aguardando_link" }
+  /** `cancelado`: a última tentativa terminou cancelada ("Download cancelado."). */
+  | { tipo: "aguardando_link"; cancelado?: true }
   | { tipo: "carregando_previa"; requisicaoId: number; url: string }
-  | { tipo: "pronto"; previa: Previa; alturaYoutube?: number | null }
+  | { tipo: "pronto"; previa: Previa; alturaYoutube?: number | null; cancelado?: true }
   | {
       tipo: "baixando";
       // `null` apenas no caso de download recuperado via `obter_estado()`
@@ -50,6 +51,8 @@ export type EstadoApp =
        * original se perdeu, então o progresso vem de consultas periódicas a
        * `obter_estado()` (ver useClipora). */
       recuperado?: true;
+      /** Cancelamento pedido: "Cancelando…" até o resultado terminal. */
+      cancelando?: true;
     }
   | {
       tipo: "concluido";
@@ -75,6 +78,8 @@ export type AcaoApp =
       percentual: number | null;
       bytesBaixados?: number;
       bytesTotais?: number;
+      /** Vindo de `obter_estado()`: o backend já aceitou o cancelamento. */
+      cancelando?: boolean;
     }
   | {
       tipo: "download_concluido";
@@ -85,6 +90,9 @@ export type AcaoApp =
     }
   | { tipo: "download_erro"; downloadId: string; erro: ErroClipora }
   | { tipo: "download_cancelado"; downloadId: string }
+  | { tipo: "cancelamento_solicitado"; downloadId: string }
+  | { tipo: "cancelamento_falhou"; downloadId: string }
+  | { tipo: "download_cancelamento_concluido"; downloadId: string }
   | { tipo: "erro_reconhecido" }
   | {
       tipo: "estado_recuperado";
@@ -93,6 +101,7 @@ export type AcaoApp =
       percentual: number | null;
       alturaYoutube?: number | null;
       previa: Previa | null;
+      cancelando?: boolean;
     }
   | { tipo: "download_resultado_recuperado"; resultado: ResultadoTerminal }
   | { tipo: "download_recuperado_encerrado"; downloadId: string };
@@ -182,6 +191,9 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
       if (estado.downloadId !== acao.downloadId) return estado;
       return {
         ...estado,
+        // O backend nunca desfaz um cancelamento aceito; uma consulta anterior
+        // ao pedido (sem a flag) não pode apagar o "Cancelando…" local.
+        ...(acao.cancelando ? { cancelando: true as const } : {}),
         progresso: {
           etapa: acao.etapa,
           percentual: acao.percentual,
@@ -228,6 +240,26 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
       return { tipo: "pronto", previa: estado.previa, alturaYoutube: estado.alturaYoutube ?? null };
     }
 
+    case "cancelamento_solicitado": {
+      if (estado.tipo !== "baixando" || estado.downloadId !== acao.downloadId) return estado;
+      if (estado.cancelando) return estado;
+      return { ...estado, cancelando: true };
+    }
+
+    case "cancelamento_falhou": {
+      if (estado.tipo !== "baixando" || estado.downloadId !== acao.downloadId) return estado;
+      const { cancelando: _cancelando, ...semCancelamento } = estado;
+      return semCancelamento;
+    }
+
+    case "download_cancelamento_concluido": {
+      // Resultado terminal do cancelamento (evento, consulta ou tentativa que
+      // nunca chegou a ser aceita): preserva prévia e qualidade para tentar
+      // de novo do zero. Não é erro.
+      if (estado.tipo !== "baixando" || estado.downloadId !== acao.downloadId) return estado;
+      return estadoCancelado(estado.previa, estado.alturaYoutube ?? null);
+    }
+
     case "estado_recuperado": {
       // Só faz sentido logo na abertura do app, antes de qualquer interação
       // do usuário com o campo de link.
@@ -239,6 +271,7 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
         alturaYoutube: acao.alturaYoutube ?? null,
         progresso: { etapa: acao.etapa, percentual: acao.percentual },
         recuperado: true,
+        ...(acao.cancelando ? { cancelando: true as const } : {}),
       };
     }
 
@@ -250,6 +283,9 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
         estado.downloadId === acao.resultado.downloadId;
       if (!recuperacaoInicial && !recuperacaoDoDownloadAtivo) return estado;
 
+      if (acao.resultado.tipo === "cancelado") {
+        return estadoCancelado(estado.tipo === "baixando" ? estado.previa : null, acao.resultado.alturaYoutube);
+      }
       if (acao.resultado.tipo === "concluido") {
         return {
           tipo: "concluido",
@@ -295,6 +331,16 @@ export function reduzir(estado: EstadoApp, acao: AcaoApp): EstadoApp {
       return _exaustivo;
     }
   }
+}
+
+function estadoCancelado(previa: Previa | null, alturaYoutube: number | null): EstadoApp {
+  if (!previa) return { tipo: "aguardando_link", cancelado: true };
+  return {
+    tipo: "pronto",
+    previa,
+    alturaYoutube: previa.plataforma === "youtube" ? alturaYoutube : null,
+    cancelado: true,
+  };
 }
 
 // --- Seletores auxiliares (usados pela UI para bloquear ações) ---

@@ -28,6 +28,14 @@ O Clipora aceita vídeos normais do YouTube. Shorts, transmissões ao vivo, Stor
 
 No Instagram e TikTok, o nome do arquivo combina o perfil, o início da descrição (ou o título disponível) e o ID do vídeo, por exemplo: `@perfil - Como preparar café gelado [ID].mp4`. No YouTube, usa o título do vídeo e o ID; se o título não estiver disponível, usa o nome do canal e depois `Vídeo [ID]`. O Clipora ajusta caracteres incompatíveis e encurta textos longos. Downloads repetidos recebem um número, como ` (2)`, preservando o arquivo anterior.
 
+## Cancelar um download
+
+Durante o download, selecione **Cancelar download**. O Clipora mostra **Cancelando…** enquanto encerra os processos e remove os arquivos parciais daquela tentativa. Aguarde a confirmação **Download cancelado.** para começar outro download.
+
+O link, a prévia e a qualidade escolhida permanecem disponíveis para tentar novamente. A nova tentativa começa do zero. Downloads cancelados não aparecem como concluídos no histórico, e os vídeos já salvos são preservados.
+
+Se o arquivo já estiver sendo salvo na etapa final quando o pedido chegar, o Clipora pode confirmar **Download concluído**. Nesse caso, o vídeo permanece na pasta de destino.
+
 ## Histórico e links repetidos
 
 Quando o download termina, o Clipora guarda um registro no histórico local. A lista fica no próprio dispositivo e mostra os downloads concluídos, do mais recente ao mais antigo. Use **Abrir vídeo** na conclusão ou no histórico para abrir o arquivo no aplicativo padrão do sistema. O histórico também permite revelar o vídeo na pasta onde foi salvo.

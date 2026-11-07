@@ -79,11 +79,16 @@ export class ServicoCliporaTauri implements ServicoClipora {
     return this.chamar<void>("iniciar_download", args);
   }
 
+  cancelar_download({ downloadId }: { downloadId: string }): Promise<void> {
+    return this.chamar<void>("cancelar_download", { downloadId });
+  }
+
   async obter_estado(): Promise<EstadoPersistido> {
     const estado = await this.chamar<EstadoPersistido>("obter_estado");
     const download = estado.download ? {
       ...estado.download,
       alturaYoutube: estado.download.alturaYoutube ?? null,
+      cancelando: estado.download.cancelando ?? false,
       previa: estado.download.previa
         ? { ...estado.download.previa, qualidadesYoutube: estado.download.previa.qualidadesYoutube ?? null }
         : null,

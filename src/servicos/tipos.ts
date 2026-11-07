@@ -36,6 +36,9 @@ export interface ServicoClipora {
     onEvento: (evento: EventoDownload) => void;
   }): Promise<void>;
 
+  /** Pedido idempotente; só o evento/estado terminal confirma o cancelamento. */
+  cancelar_download(args: { downloadId: string }): Promise<void>;
+
   obter_estado(): Promise<EstadoPersistido>;
 
   abrir_pasta_download(args: { downloadId: string }): Promise<void>;

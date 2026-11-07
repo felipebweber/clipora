@@ -28,32 +28,32 @@
 **Files:** src-tauri/src/download.rs, src-tauri/src/lib.rs, src-tauri/src/processos.rs apenas se necessário; docs/contrato-ipc.md; tests/fixtures/bin apenas se necessário.
 **Interfaces:** Produz exatamente os comandos/campos dos Global Constraints. Implementador define mecanismo interno mínimo com sinal por tentativa e gate de promoção, sem usar encerrar como cancelamento reutilizável.
 
-- [ ] Escrever teste que solicita cancelamento durante transferência de fixture e exige terminal cancelado, ausência de parcial/histórico e liberação de novo download; observar RED.
-- [ ] Implementar pedido por ID, propagação de cancelamento através de preparação/metadados/transferência/união/validação e publicação terminal única.
-- [ ] Proteger promoção e testar resultado concluido quando ela vence; testar cancelamento antes da promoção sem arquivo final.
-- [ ] Testar IDs diferentes/repetição, descendentes, temporários, cancelamento em preparação/união, estado recuperado e novo download após limpeza; preservar shutdown.
-- [ ] Rodar suíte Rust completa, clippy e fmt; registrar RED/GREEN e limites no relatório. Atualizar contrato.
-- [ ] Timoneiro verifica e Lince revisa spec+qualidade; corrigir achados antes da tarefa seguinte.
+- [x] Escrever teste que solicita cancelamento durante transferência de fixture e exige terminal cancelado, ausência de parcial/histórico e liberação de novo download; observar RED.
+- [x] Implementar pedido por ID, propagação de cancelamento através de preparação/metadados/transferência/união/validação e publicação terminal única.
+- [x] Proteger promoção e testar resultado concluido quando ela vence; testar cancelamento antes da promoção sem arquivo final.
+- [x] Testar IDs diferentes/repetição, descendentes, temporários, cancelamento em preparação/união, estado recuperado e novo download após limpeza; preservar shutdown.
+- [x] Rodar suíte Rust completa, clippy e fmt; registrar RED/GREEN e limites no relatório. Atualizar contrato.
+- [x] Timoneiro verifica e Lince revisa spec+qualidade; corrigir achados antes da tarefa seguinte.
 
 ### Task 2: Interface e serviços
 
 **Files:** src/ exclusivamente, incluindo contratos, serviço real/simulado, reducer, hook, App e componentes/testes/estilos necessários.
 **Interfaces:** Consome exatamente a interface da Task 1. Estado cancelando pode ser flag no estado baixando; recuperação deve tolerar campo ausente. Não reutilizar ação de cancelar diálogo como prova de backend cancelado.
 
-- [ ] Escrever teste de UI/hook que clica Cancelar download e mantém Cancelando… até terminal, sem erro nem histórico; observar RED.
-- [ ] Adicionar contrato/serviços e botão acessível com foco coerente; preservar estilo atual.
-- [ ] No hook serializar cancelamento com iniciar_download pendente; impedir retentativa ao fechar seletor se já cancelado; falha no pedido mantém acompanhamento e permite repetir cancelar.
-- [ ] Tratar terminal cancelado pelo canal e polling, recuperar cancelando e preservar prévia/qualidade; ignorar eventos atrasados de IDs anteriores.
-- [ ] Testar cliques repetidos, conclusão concorrente, cancelamento recuperado sem prévia e novo download; executar frontend completo/typecheck/build.
-- [ ] Timoneiro verifica e Lince revisa spec+qualidade; corrigir achados antes da tarefa seguinte.
+- [x] Escrever teste de UI/hook que clica Cancelar download e mantém Cancelando… até terminal, sem erro nem histórico; observar RED.
+- [x] Adicionar contrato/serviços e botão acessível com foco coerente; preservar estilo atual.
+- [x] No hook serializar cancelamento com iniciar_download pendente; impedir retentativa ao fechar seletor se já cancelado; falha no pedido mantém acompanhamento e permite repetir cancelar.
+- [x] Tratar terminal cancelado pelo canal e polling, recuperar cancelando e preservar prévia/qualidade; ignorar eventos atrasados de IDs anteriores.
+- [x] Testar cliques repetidos, conclusão concorrente, cancelamento recuperado sem prévia e novo download; executar frontend completo/typecheck/build.
+- [x] Timoneiro verifica e Lince revisa spec+qualidade; corrigir achados antes da tarefa seguinte.
 
 ### Task 3: Aceitação, documentação e pacote
 
 **Files:** docs/verificacao.md, docs/usuario/* pertinente, .maestri relatórios, testes reais com sidecars em src-tauri se necessários; alterações de núcleo ficam com Ferrugem.
 **Interfaces:** Consome entrega integrada das Tasks 1 e 2.
 
-- [ ] Revisão final independente do diff completo e resolução dos achados.
-- [ ] Timoneiro roda frontend/typecheck/build, Rust/clippy/fmt, actionlint, sintaxe scripts e diff check.
-- [ ] Aceitação com sidecars reais em pasta temporária: cancelar após transferência começar, confirmar limpeza/terminal/ausência de histórico e concluir nova tentativa. Teste visual apenas se ferramenta nativa habilitada; documentar limites.
-- [ ] Commit local explícito das entregas revisadas; integrar por fast-forward ao main autorizado se checkout permanecer limpo.
+- [x] Revisão final independente do diff completo e resolução dos achados.
+- [x] Timoneiro roda frontend/typecheck/build, Rust/clippy/fmt, actionlint, sintaxe scripts e diff check.
+- [x] Aceitação com sidecars reais em pasta temporária: cancelar após transferência começar, confirmar limpeza/terminal/ausência de histórico e concluir nova tentativa. Teste visual apenas se ferramenta nativa habilitada; documentar limites.
+- [x] Commit local explícito das entregas revisadas; integrar por fast-forward ao main autorizado se checkout permanecer limpo.
 - [ ] Build isolado do commit final; conferir pacote arm64; preservar artefato e registrar caminho/hash/evidência.

@@ -57,6 +57,7 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
     tentarNovamente,
     reconhecerErro,
     abrirPasta,
+    cancelarDownload,
     podeEditarLink,
     podeSolicitarDownload,
     podeBaixarNovamente,
@@ -192,7 +193,21 @@ function App({ servico = servicoPadrao, intervaloRecuperacaoMs }: Props) {
             </p>
           )}
           <ProgressoDownloadView progresso={estado.progresso} refContainer={refProgresso} />
+          {/* aria-disabled em vez de disabled: o botão mantém o foco do
+              teclado durante "Cancelando…" e continua sendo anunciado. */}
+          <button
+            type="button"
+            className="botao-cancelar"
+            aria-disabled={estado.cancelando ? "true" : undefined}
+            onClick={() => { if (!estado.cancelando) cancelarDownload(); }}
+          >
+            {estado.cancelando ? "Cancelando…" : "Cancelar download"}
+          </button>
         </>
+      )}
+
+      {(estado.tipo === "pronto" || estado.tipo === "aguardando_link") && estado.cancelado && (
+        <p className="status" role="status">Download cancelado.</p>
       )}
 
       {estado.tipo === "concluido" && (

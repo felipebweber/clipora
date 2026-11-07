@@ -139,6 +139,30 @@ describe("ServicoCliporaTauri: nomes de comando e payloads exatos do contrato", 
     });
   });
 
+  it("cancelar_download envia { downloadId } e tolera cancelando ausente como false", async () => {
+    invokeMock.mockResolvedValueOnce(undefined);
+    await new ServicoCliporaTauri().cancelar_download({ downloadId: "d5" });
+    expect(invokeMock).toHaveBeenCalledWith("cancelar_download", { downloadId: "d5" });
+
+    invokeMock.mockResolvedValueOnce({
+      download: { downloadId: "d5", alturaYoutube: null, etapa: "baixando_video", percentual: 10, previa: null },
+      atualizacaoEmAndamento: false,
+      ultimoResultado: null,
+    });
+    await expect(new ServicoCliporaTauri().obter_estado()).resolves.toMatchObject({ download: { cancelando: false } });
+    invokeMock.mockResolvedValueOnce({
+      download: { downloadId: "d5", alturaYoutube: null, etapa: "baixando_video", percentual: 10, previa: null, cancelando: true },
+      atualizacaoEmAndamento: false,
+      ultimoResultado: null,
+    });
+    await expect(new ServicoCliporaTauri().obter_estado()).resolves.toMatchObject({ download: { cancelando: true } });
+  });
+
+  it("cancelar_download rejeitado vira ErroClipora normalizado", async () => {
+    invokeMock.mockRejectedValueOnce("falha do runtime");
+    await expect(new ServicoCliporaTauri().cancelar_download({ downloadId: "d5" })).rejects.toMatchObject({ codigo: "ERRO_INTERNO" });
+  });
+
   it("atualizar_ytdlp envia { versaoEsperada, onEvento: Channel } e devolve o resultado", async () => {
     invokeMock.mockResolvedValue({ versaoInstalada: "2025.01.01" });
     const resultado = await new ServicoCliporaTauri().atualizar_ytdlp({

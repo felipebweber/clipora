@@ -44,6 +44,7 @@ function criarServicoControlavel() {
     atualizar_ytdlp: vi.fn(),
     obter_licencas: vi.fn(),
     abrir_link_licenca: vi.fn(),
+    cancelar_download: vi.fn().mockResolvedValue(undefined),
   };
   return { servico, resolucoesPrevia };
 }
