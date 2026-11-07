@@ -374,6 +374,49 @@ impl Progresso {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn gate_define_unico_vencedor_entre_cancelamento_e_promocao() {
+        let cancel = CancelamentoTentativa::nova("cancel".into());
+        assert!(cancel.solicitar().unwrap());
+        assert!(cancel.solicitar().unwrap());
+        assert!(!cancel.iniciar_promocao().unwrap());
+        assert_eq!(cancel.terminal().unwrap(), Some(true));
+
+        let promover = CancelamentoTentativa::nova("promover".into());
+        assert!(promover.iniciar_promocao().unwrap());
+        assert!(!promover.solicitar().unwrap());
+        assert_eq!(promover.terminal().unwrap(), Some(false));
+    }
+    #[test]
+    fn cancelar_ignora_id_divergente_e_repeticao_e_marca_estado_recuperavel() {
+        let controle = Controle::default();
+        controle
+            .iniciar_tentativa("ativo", Some(240), None)
+            .unwrap();
+        controle.cancelar_download("antigo").unwrap();
+        assert!(
+            !controle
+                .0
+                .lock()
+                .unwrap()
+                .ativo
+                .as_ref()
+                .unwrap()
+                .cancelando
+        );
+        controle.cancelar_download("ativo").unwrap();
+        controle.cancelar_download("ativo").unwrap();
+        let dados = controle.0.lock().unwrap();
+        assert!(dados.ativo.as_ref().unwrap().cancelando);
+        assert_eq!(
+            serde_json::to_value(dados.ativo.as_ref().unwrap()).unwrap()["cancelando"],
+            true
+        );
+        assert!(matches!(
+            *dados.tentativa.as_ref().unwrap().fase.lock().unwrap(),
+            FaseTentativa::CancelamentoAceito
+        ));
+    }
     #[cfg(unix)]
     fn preparar_fixture_metadados(dir: &Path, metadados: serde_json::Value) -> PathBuf {
         let script =
@@ -650,12 +693,26 @@ mod tests {
             altura_youtube: None,
             percentual: Some(12.0),
             etapa: "baixando_video".into(),
+            cancelando: false,
             previa: None,
         };
         let valor = serde_json::to_value(estado).unwrap();
         assert_eq!(valor["downloadId"], "d-1");
         assert_eq!(valor["previa"], serde_json::Value::Null);
         assert_eq!(valor["etapa"], "baixando_video");
+        assert_eq!(valor["cancelando"], false);
+        assert_eq!(
+            serde_json::to_value(Evento::Cancelado).unwrap()["tipo"],
+            "cancelado"
+        );
+        assert_eq!(
+            serde_json::to_value(ResultadoTerminal::Cancelado {
+                download_id: "d-1".into(),
+                altura_youtube: Some(240),
+            })
+            .unwrap(),
+            serde_json::json!({"tipo":"cancelado","downloadId":"d-1","alturaYoutube":240})
+        );
     }
     #[test]
     fn resultado_terminal_tem_discriminante_e_id_para_a_ui_reidratada() {
@@ -723,6 +780,9 @@ mod tests {
                     caminho, renomeado, ..
                 }) => Ok((PathBuf::from(caminho), renomeado)),
                 Some(ResultadoTerminal::Erro { erro, .. }) => Err(erro),
+                Some(ResultadoTerminal::Cancelado { .. }) => {
+                    panic!("Download real inesperadamente cancelado")
+                }
                 None => panic!("Download real sem resultado terminal"),
             };
             match resultado {
@@ -900,6 +960,7 @@ mod tests {
             altura_youtube: None,
             percentual: None,
             etapa: "baixando_video".into(),
+            cancelando: false,
             previa: None,
         });
         assert!(matches!(
@@ -1277,6 +1338,8 @@ pub struct EstadoDownload {
     pub altura_youtube: Option<u32>,
     pub percentual: Option<f64>,
     pub etapa: String,
+    #[serde(default)]
+    pub cancelando: bool,
     pub previa: Option<crate::previa::Previa>,
 }
 #[derive(Serialize)]
@@ -1305,6 +1368,10 @@ pub enum ResultadoTerminal {
         altura_youtube: Option<u32>,
         erro: ErroClipora,
     },
+    Cancelado {
+        download_id: String,
+        altura_youtube: Option<u32>,
+    },
 }
 #[derive(Default)]
 pub struct Dados {
@@ -1315,6 +1382,7 @@ pub struct Dados {
     pub previas_ativas: usize,
     pub arquivos: std::collections::HashMap<String, PathBuf>,
     pub tarefa: Option<tokio::task::AbortHandle>,
+    pub(crate) tentativa: Option<Arc<CancelamentoTentativa>>,
     pub encerrando: bool,
     pub temporario: Option<PathBuf>,
     #[cfg(unix)]
@@ -1322,9 +1390,122 @@ pub struct Dados {
     #[cfg(windows)]
     pub grupo: Option<Arc<crate::processos::GrupoWindows>>,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FaseTentativa {
+    Executando,
+    CancelamentoAceito,
+    Promovendo,
+    Terminal,
+}
+pub struct CancelamentoTentativa {
+    id: String,
+    sinal: tokio::sync::watch::Sender<bool>,
+    fase: Mutex<FaseTentativa>,
+}
+impl CancelamentoTentativa {
+    pub(crate) fn nova(id: String) -> Arc<Self> {
+        let (sinal, _) = tokio::sync::watch::channel(false);
+        Arc::new(Self {
+            id,
+            sinal,
+            fase: Mutex::new(FaseTentativa::Executando),
+        })
+    }
+    /// Um receptor novo considera visto o valor atual; se o cancelamento já foi aceito
+    /// antes da inscrição, marca-o como alterado para que o primeiro `changed()` dispare.
+    fn inscricao(&self) -> tokio::sync::watch::Receiver<bool> {
+        let mut receptor = self.sinal.subscribe();
+        if *receptor.borrow() {
+            receptor.mark_changed();
+        }
+        receptor
+    }
+    fn solicitar(&self) -> Result<bool, &'static str> {
+        let mut fase = self.fase.lock().map_err(|_| "ERRO_INTERNO")?;
+        match *fase {
+            FaseTentativa::Executando => {
+                *fase = FaseTentativa::CancelamentoAceito;
+                self.sinal.send_replace(true);
+                Ok(true)
+            }
+            FaseTentativa::CancelamentoAceito => Ok(true),
+            FaseTentativa::Promovendo | FaseTentativa::Terminal => Ok(false),
+        }
+    }
+    fn iniciar_promocao(&self) -> Result<bool, &'static str> {
+        let mut fase = self.fase.lock().map_err(|_| "ERRO_INTERNO")?;
+        if *fase == FaseTentativa::Executando {
+            *fase = FaseTentativa::Promovendo;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+    fn terminal(&self) -> Result<Option<bool>, &'static str> {
+        let mut fase = self.fase.lock().map_err(|_| "ERRO_INTERNO")?;
+        let cancelado = *fase == FaseTentativa::CancelamentoAceito;
+        if *fase == FaseTentativa::Terminal {
+            return Ok(None);
+        }
+        *fase = FaseTentativa::Terminal;
+        Ok(Some(cancelado))
+    }
+}
 #[derive(Default)]
 pub struct Controle(pub Arc<Mutex<Dados>>);
 impl Controle {
+    #[cfg(test)]
+    pub fn iniciar_tentativa(
+        &self,
+        id: &str,
+        altura: Option<u32>,
+        previa: Option<crate::previa::Previa>,
+    ) -> Result<(), &'static str> {
+        let mut dados = self.0.lock().map_err(|_| "ERRO_INTERNO")?;
+        if dados.encerrando {
+            return Err("ERRO_INTERNO");
+        }
+        if dados.ativo.is_some() {
+            return Err("DOWNLOAD_EM_ANDAMENTO");
+        }
+        dados.ativo = Some(EstadoDownload {
+            download_id: id.into(),
+            altura_youtube: altura,
+            percentual: None,
+            etapa: "preparando".into(),
+            cancelando: false,
+            previa,
+        });
+        dados.ultimo_resultado = None;
+        dados.tentativa = Some(CancelamentoTentativa::nova(id.into()));
+        Ok(())
+    }
+    fn tentativa_para_execucao(
+        &self,
+        id: &str,
+    ) -> Result<Arc<CancelamentoTentativa>, &'static str> {
+        let mut dados = self.0.lock().map_err(|_| "ERRO_INTERNO")?;
+        if let Some(t) = dados.tentativa.as_ref().filter(|t| t.id == id) {
+            return Ok(t.clone());
+        }
+        let t = CancelamentoTentativa::nova(id.into());
+        dados.tentativa = Some(t.clone());
+        Ok(t)
+    }
+    pub fn cancelar_download(&self, id: &str) -> Result<(), &'static str> {
+        let mut dados = self.0.lock().map_err(|_| "ERRO_INTERNO")?;
+        if !dados.ativo.as_ref().is_some_and(|a| a.download_id == id) {
+            return Ok(());
+        }
+        let Some(tentativa) = dados.tentativa.as_ref().filter(|t| t.id == id) else {
+            return Ok(());
+        };
+        let aceito = tentativa.solicitar()?;
+        if aceito && let Some(a) = dados.ativo.as_mut().filter(|a| a.download_id == id) {
+            a.cancelando = true;
+        }
+        Ok(())
+    }
     pub fn encerrar(&self) {
         if let Ok(mut dados) = self.0.lock() {
             dados.encerrando = true;
@@ -1463,6 +1644,7 @@ pub enum Evento {
     Erro {
         erro: ErroClipora,
     },
+    Cancelado,
 }
 fn err(c: &str, detalhe: impl Into<String>) -> ErroClipora {
     ErroClipora::novo(c, Some(detalhe.into()))
@@ -1595,6 +1777,7 @@ mod historico_tests {
             altura_youtube: None,
             percentual: None,
             etapa: "finalizando".into(),
+            cancelando: false,
             previa: Some(crate::previa::Previa {
                 requisicao_id: 1,
                 url_original: original.into(),
@@ -1753,7 +1936,7 @@ mod youtube_runtime_tests {
         .unwrap();
         let prova = raiz.join("probe.json");
         fs::write(&prova, probe).unwrap();
-        fs::write(bin.join("clipora-falso.json"),serde_json::to_vec(&serde_json::json!({"CLIPORA_FALSO_CENARIO_ARQUIVO":configuracao,"CLIPORA_FALSO_REGISTRO":raiz.join("processos.jsonl"),"CLIPORA_FFPROBE_JSON":prova,"CLIPORA_FALSO_INTERVALO_MS":0})).unwrap()).unwrap();
+        fs::write(bin.join("clipora-falso.json"),serde_json::to_vec(&serde_json::json!({"CLIPORA_FALSO_CENARIO_ARQUIVO":configuracao,"CLIPORA_FALSO_REGISTRO":raiz.join("processos.jsonl"),"CLIPORA_FFPROBE_JSON":prova,"CLIPORA_FALSO_INTERVALO_MS":40})).unwrap()).unwrap();
         FerramentasDownload {
             yt_dlp: bin.join("clipora-yt-dlp"),
             ffmpeg: bin.join("clipora-ffmpeg"),
@@ -1763,6 +1946,255 @@ mod youtube_runtime_tests {
     }
     const META: &str = include_str!("../../tests/fixtures/youtube/normal.json");
     const PROBE: &str = r#"{"streams":[{"codec_type":"video","codec_name":"h264","width":1280,"height":720},{"codec_type":"audio","codec_name":"aac"}],"format":{"format_name":"mov,mp4,m4a,3gp,3g2,mj2"}}"#;
+    #[tokio::test]
+    async fn cancelamento_por_id_descarta_fixture_e_libera_controle_para_nova_tentativa() {
+        let d = tempfile::tempdir().unwrap();
+        let destino = d.path().join("videos");
+        fs::create_dir(&destino).unwrap();
+        let ferramentas = preparar(d.path(), META, PROBE, "sucesso");
+        let controle = Controle::default();
+        let historico = Arc::new(crate::historico::Repositorio::novo(
+            d.path().join("historico.json"),
+        ));
+        let eventos = Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));
+        let capturados = eventos.clone();
+        let canal = Channel::new(move |mensagem| {
+            if let tauri::ipc::InvokeResponseBody::Json(json) = mensagem {
+                capturados
+                    .lock()
+                    .unwrap()
+                    .push(serde_json::from_str(&json).unwrap());
+            }
+            Ok(())
+        });
+        let id = "fixture-cancel-1";
+        controle.iniciar_tentativa(id, Some(720), None).unwrap();
+        let tarefa = tokio::spawn(executar(
+            controle.0.clone(),
+            historico.clone(),
+            canal,
+            id.into(),
+            URL.into(),
+            destino.clone(),
+            ferramentas,
+            Some(720),
+        ));
+        let prazo = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            if eventos.lock().unwrap().iter().any(|e| {
+                e["tipo"] == "progresso" && e["percentual"].as_f64().is_some_and(|p| p > 0.0)
+            }) {
+                controle.cancelar_download(id).unwrap();
+                break;
+            }
+            assert!(
+                tokio::time::Instant::now() < prazo,
+                "fixture não reportou progresso positivo"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        tarefa.await.unwrap();
+        assert!(matches!(
+            controle.0.lock().unwrap().ultimo_resultado,
+            Some(ResultadoTerminal::Cancelado { .. })
+        ));
+        assert!(
+            eventos
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|e| e["tipo"] == "cancelado")
+        );
+        assert_eq!(fs::read_dir(&destino).unwrap().count(), 0);
+        assert!(historico.listar().unwrap().is_empty());
+        assert!(controle.0.lock().unwrap().ativo.is_none());
+
+        let canal = Channel::new(|_| Ok(()));
+        let id = "fixture-cancel-2";
+        controle.iniciar_tentativa(id, Some(720), None).unwrap();
+        let ferramentas = preparar(d.path(), META, PROBE, "sucesso");
+        executar(
+            controle.0.clone(),
+            historico.clone(),
+            canal,
+            id.into(),
+            URL.into(),
+            destino.clone(),
+            ferramentas,
+            Some(720),
+        )
+        .await;
+        assert!(matches!(
+            controle.0.lock().unwrap().ultimo_resultado,
+            Some(ResultadoTerminal::Concluido { .. })
+        ));
+        assert_eq!(fs::read_dir(&destino).unwrap().count(), 1);
+        assert_eq!(historico.listar().unwrap().len(), 1);
+    }
+    #[tokio::test]
+    async fn cancelamento_aceito_antes_da_inscricao_nao_inicia_extracao_fixture() {
+        let d = tempfile::tempdir().unwrap();
+        let destino = d.path().join("videos");
+        fs::create_dir(&destino).unwrap();
+        let ferramentas = preparar(d.path(), META, PROBE, "com-filho");
+        let controle = Controle::default();
+        let historico = Arc::new(crate::historico::Repositorio::novo(
+            d.path().join("historico.json"),
+        ));
+        controle
+            .iniciar_tentativa("antes-da-inscricao", None, None)
+            .unwrap();
+        controle.cancelar_download("antes-da-inscricao").unwrap();
+        let eventos = Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));
+        let recebidos = eventos.clone();
+        let canal = Channel::new(move |mensagem| {
+            if let tauri::ipc::InvokeResponseBody::Json(json) = mensagem {
+                recebidos
+                    .lock()
+                    .unwrap()
+                    .push(serde_json::from_str(&json).unwrap());
+            }
+            Ok(())
+        });
+        let task = tokio::spawn(executar(
+            controle.0.clone(),
+            historico.clone(),
+            canal,
+            "antes-da-inscricao".into(),
+            "https://instagram.com/reel/cancel-race/".into(),
+            destino.clone(),
+            ferramentas,
+            None,
+        ));
+        let mut task = task;
+        let terminou = tokio::time::timeout(std::time::Duration::from_secs(2), &mut task)
+            .await
+            .is_ok();
+        let iniciou_fixture = fs::read_to_string(d.path().join("processos.jsonl"))
+            .unwrap_or_default()
+            .lines()
+            .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+            .any(|e| e["programa"] == "yt-dlp" && e["evento"] == "inicio");
+        if !terminou {
+            controle.encerrar();
+            let _ = task.await;
+        }
+        assert!(
+            terminou,
+            "cancelamento prévio não encerrou a tentativa; iniciou_fixture={iniciou_fixture}"
+        );
+        assert!(
+            !iniciou_fixture,
+            "worker iniciou yt-dlp após cancelamento já aceito"
+        );
+        assert!(matches!(
+            controle.0.lock().unwrap().ultimo_resultado,
+            Some(ResultadoTerminal::Cancelado { .. })
+        ));
+        assert!(
+            eventos
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|e| e["tipo"] == "cancelado")
+        );
+        assert_eq!(fs::read_dir(&destino).unwrap().count(), 0);
+        assert!(historico.listar().unwrap().is_empty());
+    }
+    #[tokio::test]
+    async fn cancelamento_apos_eof_dos_pipes_mata_processo_e_descendente() {
+        let d = tempfile::tempdir().unwrap();
+        let destino = d.path().join("videos");
+        fs::create_dir(&destino).unwrap();
+        let base = preparar(d.path(), META, PROBE, "sucesso");
+        let ferramentas = FerramentasDownload {
+            yt_dlp: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../tests/fixtures/bin/clipora-yt-dlp-eof-aberto"),
+            ffmpeg: base.ffmpeg,
+            ffprobe: base.ffprobe,
+            deno: None,
+        };
+        let controle = Controle::default();
+        let historico = Arc::new(crate::historico::Repositorio::novo(
+            d.path().join("historico.json"),
+        ));
+        controle
+            .iniciar_tentativa("cancel-eof-1", None, None)
+            .unwrap();
+        let mut task = tokio::spawn(executar(
+            controle.0.clone(),
+            historico.clone(),
+            Channel::new(|_| Ok(())),
+            "cancel-eof-1".into(),
+            "https://instagram.com/reel/cancel-eof-1/".into(),
+            destino.clone(),
+            ferramentas,
+            None,
+        ));
+        controle.0.lock().unwrap().tarefa = Some(task.abort_handle());
+        let prazo = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        let marcador = loop {
+            let achado = fs::read_dir(&destino)
+                .unwrap()
+                .flatten()
+                .find_map(|entrada| {
+                    let path = entrada.path().join("eof-ready.json");
+                    fs::read(&path)
+                        .ok()
+                        .map(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).unwrap())
+                });
+            if let Some(marcador) = achado {
+                break marcador;
+            }
+            assert!(
+                tokio::time::Instant::now() < prazo,
+                "fixture não fechou os pipes"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        };
+        // Dá ao leitor dos pipes tempo para consumir EOF e chegar em filho.wait().
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        controle.cancelar_download("cancel-eof-1").unwrap();
+        let terminou_pelo_cancelamento =
+            tokio::time::timeout(std::time::Duration::from_secs(2), &mut task)
+                .await
+                .is_ok();
+        if !terminou_pelo_cancelamento {
+            controle.encerrar();
+            let _ = task.await;
+        }
+        for pid in [
+            marcador["pid"].as_u64().unwrap(),
+            marcador["filhoPid"].as_u64().unwrap(),
+        ] {
+            let limite = std::time::Instant::now() + std::time::Duration::from_secs(2);
+            loop {
+                let status = std::process::Command::new("ps")
+                    .args(["-p", &pid.to_string(), "-o", "stat="])
+                    .output()
+                    .unwrap();
+                let texto = String::from_utf8_lossy(&status.stdout);
+                if texto.trim().is_empty() || texto.contains('Z') {
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < limite,
+                    "processo {pid} sobreviveu ao cancelamento: {texto}"
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        }
+        assert!(
+            terminou_pelo_cancelamento,
+            "cancelamento não interrompeu filho.wait() após EOF"
+        );
+        assert!(matches!(
+            controle.0.lock().unwrap().ultimo_resultado,
+            Some(ResultadoTerminal::Cancelado { .. })
+        ));
+        assert_eq!(fs::read_dir(&destino).unwrap().count(), 0);
+        assert!(historico.listar().unwrap().is_empty());
+    }
     #[test]
     fn youtube_ipc_rejeita_altura_estranha() {
         use crate::links::Plataforma::*;
@@ -1828,6 +2260,9 @@ mod youtube_runtime_tests {
         let h = Arc::new(crate::historico::Repositorio::novo(
             d.path().join("historico.json"),
         ));
+        controle
+            .iniciar_tentativa("cancelado", Some(720), None)
+            .unwrap();
         let tarefa = tokio::spawn(executar(
             c,
             h.clone(),
@@ -1853,10 +2288,20 @@ mod youtube_runtime_tests {
             assert!(std::time::Instant::now() < limite, "extração não iniciou");
             tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         };
-        controle.encerrar();
-        assert!(tarefa.await.unwrap_err().is_cancelled());
+        controle.cancelar_download("cancelado").unwrap();
+        tarefa.await.unwrap();
+        assert!(matches!(
+            controle.0.lock().unwrap().ultimo_resultado,
+            Some(ResultadoTerminal::Cancelado { .. })
+        ));
         assert_eq!(fs::read_dir(&destino).unwrap().count(), 0);
         assert!(h.listar().unwrap().is_empty());
+        {
+            let dados = controle.0.lock().unwrap();
+            assert!(dados.ativo.is_none());
+            assert!(dados.temporario.is_none());
+            assert!(dados.grupo.is_none());
+        }
         let limite = std::time::Instant::now() + std::time::Duration::from_secs(2);
         loop {
             let status = std::process::Command::new("ps")
@@ -1874,6 +2319,137 @@ mod youtube_runtime_tests {
             tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         }
     }
+    #[tokio::test]
+    async fn youtube_cancelamento_durante_uniao_descarta_parciais_e_bloqueia_historico() {
+        let d = tempfile::tempdir().unwrap();
+        let destino = d.path().join("videos");
+        fs::create_dir(&destino).unwrap();
+        let f = preparar(d.path(), META, PROBE, "sucesso");
+        let config = f.yt_dlp.parent().unwrap().join("clipora-falso.json");
+        let mut dados: serde_json::Value =
+            serde_json::from_slice(&fs::read(&config).unwrap()).unwrap();
+        dados["CLIPORA_FFMPEG_ATRASO_MS"] = serde_json::json!(2_000);
+        fs::write(&config, serde_json::to_vec(&dados).unwrap()).unwrap();
+        let controle = Controle::default();
+        let historico = Arc::new(crate::historico::Repositorio::novo(
+            d.path().join("historico.json"),
+        ));
+        controle
+            .iniciar_tentativa("uniao", Some(720), None)
+            .unwrap();
+        let eventos = Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));
+        let recebidos = eventos.clone();
+        let canal = Channel::new(move |mensagem| {
+            if let tauri::ipc::InvokeResponseBody::Json(json) = mensagem {
+                recebidos
+                    .lock()
+                    .unwrap()
+                    .push(serde_json::from_str(&json).unwrap());
+            }
+            Ok(())
+        });
+        let tarefa = tokio::spawn(executar(
+            controle.0.clone(),
+            historico.clone(),
+            canal,
+            "uniao".into(),
+            URL.into(),
+            destino.clone(),
+            f,
+            Some(720),
+        ));
+        let prazo = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            if eventos
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|e| e["etapa"] == "unindo")
+            {
+                controle.cancelar_download("uniao").unwrap();
+                break;
+            }
+            assert!(
+                tokio::time::Instant::now() < prazo,
+                "fixture não entrou na união"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        tarefa.await.unwrap();
+        assert!(matches!(
+            controle.0.lock().unwrap().ultimo_resultado,
+            Some(ResultadoTerminal::Cancelado { .. })
+        ));
+        assert!(
+            eventos
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|e| e["tipo"] == "cancelado")
+        );
+        assert_eq!(fs::read_dir(&destino).unwrap().count(), 0);
+        assert!(historico.listar().unwrap().is_empty());
+    }
+    #[tokio::test]
+    async fn youtube_cancelamento_durante_ffprobe_descarta_arquivo_ainda_nao_promovido() {
+        let d = tempfile::tempdir().unwrap();
+        let destino = d.path().join("videos");
+        fs::create_dir(&destino).unwrap();
+        let f = preparar(d.path(), META, PROBE, "sucesso");
+        let config = f.yt_dlp.parent().unwrap().join("clipora-falso.json");
+        let mut dados: serde_json::Value =
+            serde_json::from_slice(&fs::read(&config).unwrap()).unwrap();
+        dados["CLIPORA_FFMPEG_ATRASO_MS"] = serde_json::json!(2_000);
+        fs::write(&config, serde_json::to_vec(&dados).unwrap()).unwrap();
+        let controle = Controle::default();
+        let historico = Arc::new(crate::historico::Repositorio::novo(
+            d.path().join("historico.json"),
+        ));
+        controle
+            .iniciar_tentativa("ffprobe", Some(720), None)
+            .unwrap();
+        let tarefa = tokio::spawn(executar(
+            controle.0.clone(),
+            historico.clone(),
+            Channel::new(|_| Ok(())),
+            "ffprobe".into(),
+            URL.into(),
+            destino.clone(),
+            f,
+            Some(720),
+        ));
+        let log = d.path().join("processos.jsonl");
+        let prazo = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            let linhas = fs::read_to_string(&log).unwrap_or_default();
+            let iniciou_ffprobe = linhas
+                .lines()
+                .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+                .any(|e| {
+                    e["programa"] == "ffprobe"
+                        && e["evento"] == "inicio"
+                        && e["argv"]
+                            .as_array()
+                            .is_some_and(|a| a.iter().any(|v| v == "-show_streams"))
+                });
+            if iniciou_ffprobe {
+                controle.cancelar_download("ffprobe").unwrap();
+                break;
+            }
+            assert!(
+                tokio::time::Instant::now() < prazo,
+                "fixture não iniciou FFprobe de validação"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        tarefa.await.unwrap();
+        assert!(matches!(
+            controle.0.lock().unwrap().ultimo_resultado,
+            Some(ResultadoTerminal::Cancelado { .. })
+        ));
+        assert_eq!(fs::read_dir(&destino).unwrap().count(), 0);
+        assert!(historico.listar().unwrap().is_empty());
+    }
     #[test]
     fn youtube_recuperacao_eco_altura_sem_previa() {
         for altura in [None, Some(720)] {
@@ -1882,6 +2458,7 @@ mod youtube_runtime_tests {
                 altura_youtube: altura,
                 percentual: None,
                 etapa: "preparando".into(),
+                cancelando: false,
                 previa: None,
             };
             let v = serde_json::to_value(ativo).unwrap();
@@ -2026,6 +2603,7 @@ mod youtube_runtime_tests {
                 altura_youtube: Some(altura),
                 percentual: None,
                 etapa: "preparando".into(),
+                cancelando: false,
                 previa: Some(previa.clone()),
             });
             executar(
@@ -2075,6 +2653,9 @@ mod youtube_runtime_tests {
                     assert!(Path::new(&caminho).is_file());
                 }
                 ResultadoTerminal::Erro { erro, .. } => panic!("download real falhou: {erro:?}"),
+                ResultadoTerminal::Cancelado { .. } => {
+                    panic!("download real inesperadamente cancelado")
+                }
             }
         }
         let maior = *alturas.iter().max().unwrap();
@@ -2083,6 +2664,7 @@ mod youtube_runtime_tests {
             altura_youtube: None,
             percentual: None,
             etapa: "preparando".into(),
+            cancelando: false,
             previa: Some(previa.clone()),
         });
         executar(
@@ -2101,6 +2683,9 @@ mod youtube_runtime_tests {
         let caminho = match terminal {
             ResultadoTerminal::Concluido { caminho, .. } => caminho,
             ResultadoTerminal::Erro { erro, .. } => panic!("download real falhou: {erro:?}"),
+            ResultadoTerminal::Cancelado { .. } => {
+                panic!("download real inesperadamente cancelado")
+            }
         };
         let sonda = std::process::Command::new(&ferramenta().ffprobe)
             .args([
@@ -2164,6 +2749,161 @@ mod youtube_runtime_tests {
             assert_eq!(h.listar().unwrap().len(), 3);
             assert_eq!(fs::read_dir(&destino).unwrap().count(), quantidade);
         }
+    }
+    #[tokio::test]
+    #[ignore = "aceitação real cancelamento YouTube: requer rede e sidecars empacotados; usa somente pasta temporária"]
+    async fn youtube_cancelamento_real_1080_e_nova_tentativa_240_no_mesmo_controle() {
+        let raiz = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
+        let ferramentas = || FerramentasDownload {
+            yt_dlp: raiz
+                .join("yt-dlp")
+                .join(format!("yt-dlp{}", std::env::consts::EXE_SUFFIX)),
+            ffmpeg: raiz.join(format!(
+                "clipora-ffmpeg-{}{}",
+                env!("CLIPORA_TARGET"),
+                std::env::consts::EXE_SUFFIX
+            )),
+            ffprobe: raiz.join(format!(
+                "clipora-ffprobe-{}{}",
+                env!("CLIPORA_TARGET"),
+                std::env::consts::EXE_SUFFIX
+            )),
+            deno: Some(
+                raiz.join("deno")
+                    .join(format!("clipora-deno{}", std::env::consts::EXE_SUFFIX)),
+            ),
+        };
+        let raiz_temporaria = tempfile::tempdir().unwrap();
+        let destino = raiz_temporaria.path().join("videos");
+        fs::create_dir(&destino).unwrap();
+        let historico = Arc::new(crate::historico::Repositorio::novo(
+            raiz_temporaria.path().join("historico.json"),
+        ));
+        let controle = Controle::default();
+        let url_longa = "https://www.youtube.com/watch?v=reKsG2Al6lc";
+        let f = ferramentas();
+        let previa_longa = crate::previa::obter_com_motor(
+            url_longa.into(),
+            1,
+            tokio::sync::watch::channel(false).1,
+            &f.yt_dlp,
+            &f.ffmpeg,
+            f.deno.as_deref(),
+        )
+        .await
+        .expect("prévia 1080 real");
+        assert!(
+            previa_longa
+                .qualidades_youtube
+                .as_ref()
+                .is_some_and(|q| q.contains(&1080))
+        );
+        controle
+            .iniciar_tentativa("real-cancelado", Some(1080), Some(previa_longa))
+            .unwrap();
+        let eventos = Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));
+        let recebidos = eventos.clone();
+        let canal = Channel::new(move |mensagem| {
+            if let tauri::ipc::InvokeResponseBody::Json(json) = mensagem {
+                recebidos
+                    .lock()
+                    .unwrap()
+                    .push(serde_json::from_str(&json).unwrap());
+            }
+            Ok(())
+        });
+        let tarefa = tokio::spawn(executar(
+            controle.0.clone(),
+            historico.clone(),
+            canal,
+            "real-cancelado".into(),
+            url_longa.into(),
+            destino.clone(),
+            ferramentas(),
+            Some(1080),
+        ));
+        let prazo = tokio::time::Instant::now() + std::time::Duration::from_secs(90);
+        loop {
+            let progresso = eventos.lock().unwrap().iter().any(|e| {
+                e["tipo"] == "progresso"
+                    && matches!(
+                        e["etapa"].as_str(),
+                        Some("baixando_video" | "baixando_audio")
+                    )
+                    && (e["percentual"].as_f64().is_some_and(|p| p > 0.0)
+                        || e["bytesBaixados"].as_u64().is_some_and(|b| b > 0))
+            });
+            if progresso {
+                controle.cancelar_download("real-cancelado").unwrap();
+                break;
+            }
+            assert!(
+                tokio::time::Instant::now() < prazo,
+                "transferência 1080 não apresentou bytes positivos"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        tarefa.await.unwrap();
+        assert!(matches!(
+            controle.0.lock().unwrap().ultimo_resultado,
+            Some(ResultadoTerminal::Cancelado {
+                altura_youtube: Some(1080),
+                ..
+            })
+        ));
+        assert_eq!(
+            eventos
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|e| e["tipo"] == "cancelado")
+                .count(),
+            1
+        );
+        assert_eq!(fs::read_dir(&destino).unwrap().count(), 0);
+        assert!(historico.listar().unwrap().is_empty());
+
+        let url_curta = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
+        let f = ferramentas();
+        let previa_curta = crate::previa::obter_com_motor(
+            url_curta.into(),
+            2,
+            tokio::sync::watch::channel(false).1,
+            &f.yt_dlp,
+            &f.ffmpeg,
+            f.deno.as_deref(),
+        )
+        .await
+        .expect("prévia 240 real");
+        assert!(
+            previa_curta
+                .qualidades_youtube
+                .as_ref()
+                .is_some_and(|q| q.contains(&240))
+        );
+        controle
+            .iniciar_tentativa("real-retry-240", Some(240), Some(previa_curta))
+            .unwrap();
+        executar(
+            controle.0.clone(),
+            historico.clone(),
+            Channel::new(|_| Ok(())),
+            "real-retry-240".into(),
+            url_curta.into(),
+            destino.clone(),
+            ferramentas(),
+            Some(240),
+        )
+        .await;
+        assert!(matches!(
+            controle.0.lock().unwrap().ultimo_resultado,
+            Some(ResultadoTerminal::Concluido {
+                altura_youtube: Some(240),
+                ..
+            })
+        ));
+        assert_eq!(fs::read_dir(&destino).unwrap().count(), 1);
+        assert_eq!(historico.listar().unwrap().len(), 1);
     }
     #[tokio::test]
     async fn youtube_revalida_catalogo_antes_de_baixar() {
@@ -2259,6 +2999,7 @@ mod youtube_runtime_tests {
                 &destino,
                 &f,
                 Some(720),
+                tokio::sync::watch::channel(false).1,
                 None,
             )
             .await;
@@ -2320,6 +3061,7 @@ mod youtube_runtime_tests {
                 d.path(),
                 &f,
                 None,
+                tokio::sync::watch::channel(false).1,
                 None,
             )
             .await;
@@ -2344,6 +3086,10 @@ pub async fn executar(
     ferramentas: FerramentasDownload,
     altura_youtube: Option<u32>,
 ) {
+    let controle_estado = Controle(controle.clone());
+    let tentativa = controle_estado
+        .tentativa_para_execucao(&id)
+        .unwrap_or_else(|_| CancelamentoTentativa::nova(id.clone()));
     let resultado = executar_com_ferramentas(
         &controle,
         &canal,
@@ -2351,10 +3097,29 @@ pub async fn executar(
         &pasta,
         &ferramentas,
         altura_youtube,
+        tentativa.inscricao(),
         #[cfg(test)]
         None,
     )
     .await;
+    let Some(cancelado) = tentativa.terminal().ok().flatten() else {
+        return;
+    };
+    if cancelado {
+        if let Ok(mut dados) = controle.lock() {
+            dados.ativo = None;
+            dados.ultimo_resultado = Some(ResultadoTerminal::Cancelado {
+                download_id: id,
+                altura_youtube,
+            });
+            dados.tarefa = None;
+            dados.grupo = None;
+            dados.temporario = None;
+            dados.tentativa = None;
+        }
+        let _ = canal.send(Evento::Cancelado);
+        return;
+    }
     concluir_com_altura(&controle, &historico, &id, &url, altura_youtube, &resultado);
     match resultado {
         Ok((caminho, renomeado)) => {
@@ -2391,10 +3156,12 @@ async fn executar_interno(
         destino,
         &FerramentasDownload::legadas(bin, ffmpeg),
         None,
+        tokio::sync::watch::channel(false).1,
         cenario,
     )
     .await
 }
+#[allow(clippy::too_many_arguments)]
 async fn executar_com_ferramentas(
     controle: &Arc<Mutex<Dados>>,
     canal: &Channel<Evento>,
@@ -2402,6 +3169,7 @@ async fn executar_com_ferramentas(
     destino: &Path,
     ferramentas: &FerramentasDownload,
     altura_youtube: Option<u32>,
+    mut cancelado: tokio::sync::watch::Receiver<bool>,
     #[cfg(test)] cenario: Option<&str>,
 ) -> Result<(PathBuf, bool), ErroClipora> {
     let bin = &ferramentas.yt_dlp;
@@ -2427,7 +3195,10 @@ async fn executar_com_ferramentas(
         .kill_on_drop(true);
     #[cfg(windows)]
     versao.creation_flags(0x08000000);
-    let status = tokio::time::timeout(std::time::Duration::from_secs(5), versao.status()).await;
+    let status = tokio::select! { biased;
+        _ = cancelado.changed() => return Err(err("CANCELAMENTO_SOLICITADO", "cancelado")),
+        status = tokio::time::timeout(std::time::Duration::from_secs(5), versao.status()) => status,
+    };
     if !matches!(status, Ok(Ok(s)) if s.success()) {
         return Err(err(
             "FFMPEG_INDISPONIVEL",
@@ -2452,8 +3223,11 @@ async fn executar_com_ferramentas(
             .deno
             .as_deref()
             .ok_or_else(|| err("MOTOR_YOUTUBE_INDISPONIVEL", "Motor não resolvido"))?;
-        crate::motor_youtube::verificar_motor(deno).await?;
-        let (_tx, rx) = tokio::sync::watch::channel(false);
+        tokio::select! { biased;
+            _ = cancelado.changed() => return Err(err("CANCELAMENTO_SOLICITADO", "cancelado")),
+            r = crate::motor_youtube::verificar_motor(deno) => r?,
+        }
+        let rx = cancelado.clone();
         let saida = crate::processos::metadados_youtube(bin, ffmpeg, url, deno, rx)
             .await
             .map_err(|c| err(c, "Metadados da tentativa"))?;
@@ -2558,6 +3332,12 @@ async fn executar_com_ferramentas(
     let mut ultima_etapa = "";
     while stdout_aberto || stderr_aberto {
         let (linha, eh_stderr) = tokio::select! {
+            biased;
+            _ = cancelado.changed() => {
+                grupo.terminar();
+                let _ = filho.wait().await;
+                return Err(err("CANCELAMENTO_SOLICITADO", "cancelado"));
+            },
             linha = stdout.next_line(), if stdout_aberto => (linha, false),
             linha = stderr.next_line(), if stderr_aberto => (linha, true),
         };
@@ -2612,10 +3392,19 @@ async fn executar_com_ferramentas(
             }
         }
     }
-    let status = filho
-        .wait()
-        .await
-        .map_err(|e| err("DOWNLOAD_FALHOU", e.to_string()))?;
+    // Os dois pipes podem fechar com o processo (ou descendentes) ainda vivo; a espera
+    // final também precisa observar o cancelamento e encerrar o grupo.
+    let espera = tokio::select! {
+        biased;
+        _ = cancelado.changed() => None,
+        status = filho.wait() => Some(status),
+    };
+    let Some(status) = espera else {
+        grupo.terminar();
+        let _ = filho.wait().await;
+        return Err(err("CANCELAMENTO_SOLICITADO", "cancelado"));
+    };
+    let status = status.map_err(|e| err("DOWNLOAD_FALHOU", e.to_string()))?;
     if !status.success() {
         let codigo = if escolha.is_some()
             && detalhe
@@ -2686,11 +3475,32 @@ async fn executar_com_ferramentas(
         return Err(err("ARQUIVO_INCOMPLETO", "arquivo inválido ou parcial"));
     }
     if let Some(escolha) = escolha {
-        conferir_saida_youtube(&ferramentas.ffprobe, &caminho, escolha.altura).await?;
+        conferir_saida_youtube(
+            &ferramentas.ffprobe,
+            &caminho,
+            escolha.altura,
+            cancelado.clone(),
+        )
+        .await?;
     }
     etapa(controle, canal, "finalizando", None);
     let (_, plataforma) = crate::links::validar(url)
         .map_err(|codigo| err(codigo, "URL inválida ao formar o nome"))?;
+    let tentativa = controle
+        .lock()
+        .map_err(|_| err("ERRO_INTERNO", "estado indisponível"))?
+        .tentativa
+        .clone()
+        .unwrap_or_else(|| CancelamentoTentativa::nova("fixture".into()));
+    if !tentativa
+        .iniciar_promocao()
+        .map_err(|c| err(c, "gate de promoção indisponível"))?
+    {
+        return Err(err(
+            "CANCELAMENTO_SOLICITADO",
+            "cancelado antes da promoção",
+        ));
+    }
     finalizar(&caminho, destino, &nome_base(&metadados, &id, plataforma))
         .map_err(|e| err("DOWNLOAD_FALHOU", e.to_string()))
 }
@@ -2699,6 +3509,7 @@ async fn conferir_saida_youtube(
     ffprobe: &Path,
     caminho: &Path,
     altura: u32,
+    cancelado: tokio::sync::watch::Receiver<bool>,
 ) -> Result<(), ErroClipora> {
     let args = vec![
         "-v".into(),
@@ -2709,11 +3520,10 @@ async fn conferir_saida_youtube(
         "-show_format".into(),
         caminho.as_os_str().into(),
     ];
-    let (_tx, rx) = tokio::sync::watch::channel(false);
     let saida = crate::processos::executar_limitado(
         ffprobe,
         args,
-        rx,
+        cancelado,
         std::time::Duration::from_secs(15),
         1024 * 1024,
     )

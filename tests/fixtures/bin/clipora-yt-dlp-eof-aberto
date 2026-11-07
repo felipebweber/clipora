@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+// Fixture de corrida: fecha stdout/stderr após um resultado sintético, mas
+// mantém o processo e um descendente vivos até o grupo receber encerramento.
+const { spawn } = require('node:child_process');
+const { dirname, join } = require('node:path');
+const { closeSync, writeFileSync, writeSync } = require('node:fs');
+
+const args = process.argv.slice(2);
+const indiceSaida = args.indexOf('-o');
+if (indiceSaida < 0 || !args[indiceSaida + 1]) process.exit(64);
+const temporario = dirname(args[indiceSaida + 1]);
+const filho = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1 << 30)'], { stdio: 'ignore' });
+const resultado = [
+  JSON.stringify(join(temporario, 'nao-criado.mp4')),
+  JSON.stringify('Fixture EOF'),
+  JSON.stringify('cancel-eof-1'),
+  JSON.stringify(''),
+  JSON.stringify('fixture'),
+  JSON.stringify('Fixture'),
+  JSON.stringify('Fixture'),
+].join('\t');
+
+// process.stdout.end() não fecha o descritor 1 no Node; fecha 1 e 2 de fato
+// para que o Clipora leia EOF nos dois pipes com o processo ainda vivo.
+writeSync(1, `CLIPORA_RESULT:${resultado}\n`);
+closeSync(1);
+closeSync(2);
+writeFileSync(join(temporario, 'eof-ready.json'), JSON.stringify({ pid: process.pid, filhoPid: filho.pid }));
+setInterval(() => {}, 1 << 30);

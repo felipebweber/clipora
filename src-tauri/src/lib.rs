@@ -232,12 +232,14 @@ async fn iniciar_download(
         altura_youtube,
         percentual: None,
         etapa: "preparando".into(),
+        cancelando: false,
         previa: dados
             .previa
             .as_ref()
             .filter(|p| p.url_normalizada == normalizada.as_str())
             .cloned(),
     });
+    dados.tentativa = Some(download::CancelamentoTentativa::nova(download_id.clone()));
     dados.ultimo_resultado = None;
     let shared = controle.0.clone();
     let tarefa = tauri::async_runtime::spawn(download::executar(
@@ -259,6 +261,15 @@ async fn iniciar_download(
     ));
     dados.tarefa = Some(tarefa.inner().abort_handle());
     Ok(())
+}
+#[tauri::command]
+fn cancelar_download(
+    controle: State<'_, download::Controle>,
+    download_id: String,
+) -> Result<(), previa::ErroClipora> {
+    controle
+        .cancelar_download(&download_id)
+        .map_err(|codigo| previa::ErroClipora::novo(codigo, None))
 }
 #[tauri::command]
 async fn obter_historico(
@@ -515,6 +526,7 @@ pub fn run() {
             obter_pasta_destino,
             selecionar_pasta_destino,
             iniciar_download,
+            cancelar_download,
             abrir_pasta_download,
             abrir_arquivo_download,
             obter_historico,

@@ -14,11 +14,13 @@ type EtapaDownload = 'preparando' | 'baixando_video' | 'baixando_audio' | 'unind
 type EventoDownload =
   | { tipo: 'progresso'; etapa: EtapaDownload; percentual: number | null; bytesBaixados?: number; bytesTotais?: number }
   | { tipo: 'concluido'; caminho: string; nomeArquivo: string; renomeado: boolean }
-  | { tipo: 'erro'; erro: ErroClipora };
-type EstadoDownload = { downloadId: string; alturaYoutube: number | null; percentual: number | null; etapa: EtapaDownload; previa: Previa | null };
+  | { tipo: 'erro'; erro: ErroClipora }
+  | { tipo: 'cancelado' };
+type EstadoDownload = { downloadId: string; alturaYoutube: number | null; percentual: number | null; etapa: EtapaDownload; previa: Previa | null; cancelando: boolean };
 type ResultadoTerminal =
   | { downloadId: string; alturaYoutube: number | null; tipo: 'concluido'; caminho: string; nomeArquivo: string; renomeado: boolean }
-  | { downloadId: string; alturaYoutube: number | null; tipo: 'erro'; erro: ErroClipora };
+  | { downloadId: string; alturaYoutube: number | null; tipo: 'erro'; erro: ErroClipora }
+  | { downloadId: string; alturaYoutube: number | null; tipo: 'cancelado' };
 type Estado = { download: EstadoDownload | null; atualizacaoEmAndamento: boolean; ultimoResultado: ResultadoTerminal | null };
 type PastaDestino = { caminho: string | null; estado: 'nao_definida' | 'valida' | 'ausente' | 'sem_permissao' };
 type VerificacaoYtdlp = { versaoAtual: string; versaoDisponivel: string | null; atualizacaoDisponivel: boolean; origem: 'empacotada' | 'atualizada'; erroVerificacao: ErroClipora | null };
@@ -29,6 +31,7 @@ type EventoAtualizacao = { tipo: 'progresso'; etapa: string; percentual: number 
 type Comandos = {
   obter_previa: (args: { url: string; requisicaoId: number }) => Promise<Previa>;
   iniciar_download: (args: { downloadId: string; url: string; alturaYoutube?: number | null; onEvento: Channel<EventoDownload> }) => Promise<void>;
+  cancelar_download: (args: { downloadId: string }) => Promise<void>;
   obter_estado: () => Promise<Estado>;
   abrir_pasta_download: (args: { downloadId: string }) => Promise<void>;
   abrir_arquivo_download: (args: { downloadId: string }) => Promise<void>;
@@ -75,13 +78,14 @@ enum EventoDownload {
   Progresso { etapa: EtapaDownload, percentual: Option<f64>, #[serde(skip_serializing_if = "Option::is_none")] bytes_baixados: Option<u64>, #[serde(skip_serializing_if = "Option::is_none")] bytes_totais: Option<u64> },
   Concluido { caminho: String, nome_arquivo: String, renomeado: bool },
   Erro { erro: ErroClipora },
+  Cancelado,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct EstadoDownload { download_id: String, altura_youtube: Option<u32>, percentual: Option<f64>, etapa: EtapaDownload, previa: Option<Previa> }
+struct EstadoDownload { download_id: String, altura_youtube: Option<u32>, percentual: Option<f64>, etapa: EtapaDownload, previa: Option<Previa>, cancelando: bool }
 #[derive(Serialize)]
 #[serde(tag = "tipo", rename_all = "snake_case", rename_all_fields = "camelCase")]
-enum ResultadoTerminal { Concluido { download_id: String, altura_youtube: Option<u32>, caminho: String, nome_arquivo: String, renomeado: bool }, Erro { download_id: String, altura_youtube: Option<u32>, erro: ErroClipora } }
+enum ResultadoTerminal { Concluido { download_id: String, altura_youtube: Option<u32>, caminho: String, nome_arquivo: String, renomeado: bool }, Erro { download_id: String, altura_youtube: Option<u32>, erro: ErroClipora }, Cancelado { download_id: String, altura_youtube: Option<u32> } }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Estado { download: Option<EstadoDownload>, atualizacao_em_andamento: bool, ultimo_resultado: Option<ResultadoTerminal> }
@@ -109,6 +113,7 @@ struct ResultadoAtualizacao { versao_instalada: String }
 // Assinaturas lógicas:
 async fn obter_previa(url: String, requisicao_id: u64) -> Result<Previa, ErroClipora>;
 async fn iniciar_download(download_id: String, url: String, altura_youtube: Option<u32>, on_evento: Channel<EventoDownload>) -> Result<(), ErroClipora>;
+fn cancelar_download(download_id: String) -> Result<(), ErroClipora>;
 fn obter_estado() -> Result<Estado, ErroClipora>;
 async fn abrir_pasta_download(download_id: String) -> Result<(), ErroClipora>;
 async fn abrir_arquivo_download(download_id: String) -> Result<(), ErroClipora>;
@@ -133,8 +138,15 @@ O frontend gera `requisicaoId` e ignora `PREVIA_CANCELADA`. A última chamada re
 
 1. Frontend solicita `iniciar_download` com ID próprio, canal novo e ouvinte lógico do download. Caso receba `PASTA_NAO_DEFINIDA`, `PASTA_AUSENTE` ou `PASTA_SEM_PERMISSAO`, chama `selecionar_pasta_destino`.
 2. Diálogo nativo aberto pelo Rust valida diretório e escrita real e persiste em `app_config_dir`. Cancelamento retorna `null` e mantém a pasta anterior; nesse caso não repetir o download. Se selecionada, repetir com o mesmo ID e ouvinte lógico, criando um **novo `Channel<EventoDownload>` para cada chamada IPC/tentativa**. O Channel da chamada rejeitada foi descartado pelo Rust e não pode ser reutilizado; o frontend reanexa o ouvinte lógico ao novo canal.
-3. Eventos são ordenados no canal, com percentual da transferência calculado no backend pelos bytes somados dos formatos selecionados e limitado a aproximadamente 10/s. Os tamanhos vêm de `filesize` e `total_bytes` exatos do yt-dlp, sem pesos fixos por etapa nem estimativas por bitrate. Se faltar um total confiável, `percentual` é `null`. Retomadas do mesmo formato não somam os bytes duas vezes. `100%` indica transferência dos arquivos, não conclusão da operação: `unindo` e `finalizando` têm `percentual: null` e ficam indeterminados até a validação e finalização. O evento terminal é `concluido` ou `erro`; conclusão exige saída zero, arquivo final existente e não vazio, sem `.part`. Saída zero sem arquivo válido (inexistente, vazio, `.part`, mensagem `already downloaded` ou caminho fora da pasta) retorna `ARQUIVO_INCOMPLETO`. Após recarga, `obter_estado` recupera o download ativo e estado da atualização.
+3. Eventos são ordenados no canal, com percentual da transferência calculado no backend pelos bytes somados dos formatos selecionados e limitado a aproximadamente 10/s. Os tamanhos vêm de `filesize` e `total_bytes` exatos do yt-dlp, sem pesos fixos por etapa nem estimativas por bitrate. Se faltar um total confiável, `percentual` é `null`. Retomadas do mesmo formato não somam os bytes duas vezes. `100%` indica transferência dos arquivos, não conclusão da operação: `unindo` e `finalizando` têm `percentual: null` e ficam indeterminados até a validação e finalização. O evento terminal é `concluido`, `erro` ou `cancelado`; conclusão exige saída zero, arquivo final existente e não vazio, sem `.part`. Saída zero sem arquivo válido (inexistente, vazio, `.part`, mensagem `already downloaded` ou caminho fora da pasta) retorna `ARQUIVO_INCOMPLETO`. Após recarga, `obter_estado` recupera o download ativo e estado da atualização.
+
 4. Backend forma `@perfil - descrição [id].mp4`, usando até oito palavras da descrição; na ausência dela, usa título significativo. Títulos genéricos como `Video by …` são omitidos. Sem rótulo, usa `@perfil [id].mp4`; sem perfil, usa o rótulo ou `Vídeo [id].mp4`. No Instagram, prefere `channel`, depois `uploader_id` textual e `uploader`; no TikTok, `uploader`, depois `channel` e `uploader_id`. Um perfil legível precede IDs numéricos. Normaliza um `@`, espaços, controles e caracteres incompatíveis, preserva Unicode e limita o nome completo a 255 bytes, reservando extensão e o maior sufixo de colisão. O ID entre colchetes evita nomes de dispositivo reservados no Windows. Usa ` (2)`, ` (3)` etc. em caso de colisão; baixa em pasta temporária no mesmo volume e finaliza com reserva exclusiva sem sobrescrever. `renomeado` indica colisão. `abrir_pasta_download` revela exclusivamente arquivo produzido pelo backend, identificado por ID, sem aceitar caminho do frontend.
+
+### Cancelamento de download
+
+`cancelar_download({ downloadId })` é idempotente e só sinaliza a tentativa ativa com o mesmo ID. ID antigo, desconhecido, já encerrado ou diferente do ativo é no-op; falhas reais ao adquirir o controle rejeitam com `ERRO_INTERNO`. O frontend deve aguardar a resposta de `iniciar_download` antes de enviar o cancelamento dessa tentativa. Enquanto a limpeza de processos e temporários não termina, `obter_estado.download` permanece ativo com `cancelando: true`, bloqueando nova tentativa. Consumidores antigos tratam `cancelando` ausente como `false`.
+
+Cancelamento aceito termina o grupo de processos/descendentes, descarta somente temporários próprios e publica um único `{ tipo: 'cancelado' }` e `ultimoResultado: { tipo: 'cancelado', downloadId, alturaYoutube }`; não grava histórico nem cria arquivo final. Pedidos repetidos ou IDs antigos não geram terminais adicionais nem atingem outra tentativa. A promoção usa gate compartilhado com o pedido: se cancelamento vencer, não promove; se promoção vencer primeiro, o resultado normal da finalização (`concluido` ou `erro`) prevalece. `encerrar()` permanece reservado ao encerramento do aplicativo e não é a API reutilizável de cancelamento.
 
 ## Evolução YouTube e qualidade — contrato final acordado
 
