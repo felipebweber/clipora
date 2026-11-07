@@ -53,7 +53,11 @@ On Windows 11 with **Smart App Control** turned on, unsigned apps are blocked wi
 
 #### Linux
 
-Install the `.deb` (Debian, Ubuntu, Linux Mint, Pop!_OS) or the `.rpm` (Fedora, openSUSE, RHEL-based distros). Compare the file with the published SHA-256 checksums if you want to verify it.
+- **Debian, Ubuntu, Linux Mint, Pop!_OS:** install the `.deb`.
+- **Fedora, openSUSE, RHEL-based distros:** install the `.rpm`.
+- **Arch Linux, Manjaro, EndeavourOS, CachyOS:** install `clipora-bin` from the AUR (coming with the first release), for example `yay -S clipora-bin`.
+
+Compare the file with the published SHA-256 checksums if you want to verify it.
 
 ### Disclaimer and responsible use
 
@@ -155,7 +159,11 @@ No Windows 11 com o **Controle Inteligente de Aplicativos** ativado, apps sem as
 
 #### Linux
 
-Instale o `.deb` (Debian, Ubuntu, Linux Mint, Pop!_OS) ou o `.rpm` (Fedora, openSUSE e derivados do RHEL). Se quiser conferir o arquivo, compare com as somas SHA-256 publicadas.
+- **Debian, Ubuntu, Linux Mint, Pop!_OS:** instale o `.deb`.
+- **Fedora, openSUSE e derivados do RHEL:** instale o `.rpm`.
+- **Arch Linux, Manjaro, EndeavourOS, CachyOS:** instale o `clipora-bin` pelo AUR (disponível a partir da primeira release), por exemplo com `yay -S clipora-bin`.
+
+Se quiser conferir o arquivo, compare com as somas SHA-256 publicadas.
 
 ### Aviso legal e uso responsável
 

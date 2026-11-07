@@ -1,0 +1,36 @@
+# Maintainer: Felipe Weber <weberecomp at gmail dot com>
+#
+# Gerado por scripts/gerar-pkgbuild.mjs a partir de packaging/aur/PKGBUILD.in.
+# Não edite o PKGBUILD publicado no AUR à mão: altere o modelo e gere de novo.
+
+pkgname=clipora-bin
+pkgver=@VERSAO@
+pkgrel=1
+pkgdesc='Download one public video at a time from Instagram Reels, TikTok and YouTube'
+arch=('x86_64' 'aarch64')
+url='https://github.com/felipebweber/clipora'
+license=('GPL-3.0-or-later')
+depends=('gtk3' 'webkit2gtk-4.1' 'hicolor-icon-theme')
+provides=('clipora')
+conflicts=('clipora')
+# Sem strip: o Clipora confere o SHA-256 do yt-dlp e do Deno embutidos contra os
+# manifestos do pacote; qualquer alteração nos binários faz o app recusá-los.
+options=('!strip' '!debug')
+source_x86_64=("Clipora_${pkgver}_amd64.deb::@URL_X86_64@")
+source_aarch64=("Clipora_${pkgver}_arm64.deb::@URL_AARCH64@")
+sha256sums_x86_64=('@SHA256_X86_64@')
+sha256sums_aarch64=('@SHA256_AARCH64@')
+noextract=("Clipora_${pkgver}_amd64.deb" "Clipora_${pkgver}_arm64.deb")
+
+package() {
+  local deb
+  case "$CARCH" in
+    x86_64) deb="Clipora_${pkgver}_amd64.deb" ;;
+    aarch64) deb="Clipora_${pkgver}_arm64.deb" ;;
+  esac
+  bsdtar -xOf "$srcdir/$deb" 'data.tar.*' | bsdtar -xf - -C "$pkgdir"
+  install -Dm644 /dev/stdin "$pkgdir/usr/share/licenses/$pkgname/README" <<'EOF'
+Clipora is licensed under GPL-3.0-or-later. Bundled third-party components keep
+their own licenses; see /usr/lib/Clipora/licencas/THIRD_PARTY_LICENSES.txt.
+EOF
+}

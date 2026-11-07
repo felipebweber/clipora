@@ -4,7 +4,7 @@ O Clipora baixa um vídeo público por vez do Instagram Reels, TikTok e YouTube.
 
 ## Instalação
 
-Instale o pacote publicado para seu sistema e arquitetura: Windows x64/arm64 (`.exe` NSIS; MSI x64 opcional), macOS (`.dmg`) ou Linux (`.deb` ou `.rpm`). Use apenas os downloads e hashes publicados pelo projeto. O projeto ainda não tem página de releases pública; o primeiro CI ainda não foi executado, e a compatibilidade real de cada sistema depende de testes nesse sistema.
+Instale o pacote publicado para seu sistema e arquitetura: Windows x64/arm64 (`.exe` NSIS; MSI x64 opcional), macOS (`.dmg`) ou Linux (`.deb`, `.rpm` ou `clipora-bin` no AUR para Arch). Use apenas os downloads e hashes publicados pelo projeto. O projeto ainda não tem página de releases pública; o primeiro CI ainda não foi executado, e a compatibilidade real de cada sistema depende de testes nesse sistema.
 
 - **Windows**: abra o instalador e siga as etapas. Sem assinatura Authenticode, o Windows pode mostrar avisos do SmartScreen; o Smart App Control pode impedir a execução.
 - **macOS**: abra o `.dmg` e arraste Clipora para Aplicativos. Uma release sem assinatura Developer ID e notarização pode ser bloqueada pelo Gatekeeper. Não há conta nem certificado configurados neste momento.
