@@ -1,6 +1,6 @@
 # Build do Clipora (etapa 7) — dono: Estaleiro. Documentação: docs/distribuicao.md §3 e §7.
 #
-# Dois estágios:
+# Estágios:
 #   1. ffmpeg: compila o FFmpeg mínimo LGPL por alvo (scripts/compilar-ffmpeg.mjs), com cache.
 #      Windows é compilado de forma cruzada em Linux com llvm-mingw (versão e SHA-256 no lock).
 #   2. build: yt-dlp verificado (pnpm binarios), testes, avisos de licença e `tauri build` SEM
@@ -12,6 +12,8 @@
 #      Windows: ativação bloqueada até implementar a pré-assinatura completa do onedir
 #      com o provedor escolhido pelo usuário (inclusive .pyd e hashes pós-assinatura no manifesto).
 #      Nenhum segredo é usado enquanto as variáveis não forem 'true'.
+#   3. release (só em tag v*): monta e publica a release do GitHub a partir dos artefatos
+#      deste run (scripts/montar-release.mjs; notas em docs/releases/<tag>.md).
 
 name: build
 
@@ -426,3 +428,87 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: 'artefatos/clipora-*/**'
+
+  # Release do GitHub da tag `v*`, montada e publicada aqui mesmo: os instaladores saem dos
+  # artefatos deste run (conferidos contra o SHA256SUMS do build) e os fontes exigidos pelas
+  # licenças são baixados e conferidos contra scripts/binarios.lock (scripts/montar-release.mjs).
+  # Notas: docs/releases/<tag>.md. Sem esse arquivo, cria um rascunho com notas automáticas
+  # para revisar e publicar à mão. Tag com hífen (v1.0.0-beta.1) vira pré-release.
+  release:
+    name: Publicar release da tag
+    needs: [build, attest]
+    if: >-
+      !cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') &&
+      needs.build.result == 'success' &&
+      (needs.attest.result == 'success' || needs.attest.result == 'skipped')
+    runs-on: ubuntu-22.04
+    environment:
+      name: release
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: A release ainda não pode existir
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::A release $TAG já existe. Apague-a (ou use outra tag) antes de publicar de novo."
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: clipora-*
+          path: artefatos
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: ffmpeg-*
+          path: artefatos
+
+      # Mesmo cache do job ffmpeg: evita depender do ffmpeg.org, que tem quedas frequentes.
+      - name: Cache do código-fonte do FFmpeg
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/clipora-ffmpeg-*/ffmpeg-*.tar.xz*
+          key: ffmpeg-fonte-${{ hashFiles('scripts/binarios.lock') }}
+          enableCrossOsArchive: true
+
+      - name: Montar a pasta da release
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          node scripts/montar-release.mjs --artefatos artefatos --saida release --versao "${TAG#v}"
+          ls -l release
+
+      - name: Criar a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          opcoes=(--verify-tag --title "Clipora ${TAG#v}")
+          case "$TAG" in
+            *-*) opcoes+=(--prerelease --latest=false) ;;
+            *) opcoes+=(--latest) ;;
+          esac
+          notas="docs/releases/$TAG.md"
+          if [ -f "$notas" ]; then
+            opcoes+=(--notes-file "$notas")
+          else
+            echo "::warning::Sem $notas: a release fica como rascunho, com notas automáticas."
+            opcoes+=(--draft --generate-notes)
+          fi
+          gh release create "$TAG" "${opcoes[@]}" release/*
+          gh release view "$TAG" --json url,isDraft,assets -q '"\(.url) rascunho=\(.isDraft) arquivos=\(.assets | length)"'

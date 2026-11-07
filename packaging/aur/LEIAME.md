@@ -14,7 +14,7 @@ O CI (job `aur` em `.github/workflows/build.yml`) faz as três coisas a cada bui
 
 Pré-requisitos (uma vez só, feitos pelo mantenedor): conta em <https://aur.archlinux.org>, chave SSH cadastrada nela e o nome `clipora-bin` livre (o primeiro push cria o pacote).
 
-1. Publique a release `vX.Y.Z` no GitHub com `Clipora_X.Y.Z_amd64.deb` e `Clipora_X.Y.Z_arm64.deb`, **os mesmos arquivos** do build que gerou o artefato `aur-clipora-bin` (os hashes precisam bater).
+1. Espere o CI da tag `vX.Y.Z` publicar a release (job `release`). Ela leva `Clipora_X.Y.Z_amd64.deb` e `Clipora_X.Y.Z_arm64.deb` do mesmo run que gera o artefato `aur-clipora-bin`, então os hashes batem.
 2. Baixe o artefato `aur-clipora-bin` desse build. Ou gere localmente:
 
    ```sh
