@@ -293,12 +293,15 @@ jobs:
           if [[ ",$BUNDLES," == *",appimage,"* ]]; then
             outros=$(tr ',' '\n' <<<"$BUNDLES" | grep -vx appimage | paste -sd, -)
             pnpm tauri build --ci --verbose --target "$TRIPLE" --bundles "$outros"
-            # Só as duas libs ausentes: a pasta _internal inteira traz uma libz antiga que
-            # quebra as ferramentas do plugin gtk (ZLIB_1.2.9 not found).
+            # Só as libs que o sistema não tem (libreadline.so.6, libtinfo.so.5, libmpdec…):
+            # a pasta _internal inteira traria, por exemplo, uma libz antiga que quebra as
+            # ferramentas do plugin gtk (ZLIB_1.2.9 not found).
             libs="$RUNNER_TEMP/libs-yt-dlp"
             mkdir -p "$libs"
-            for lib in libreadline.so.6 libtinfo.so.5; do
-              ln -sf "$GITHUB_WORKSPACE/src-tauri/binaries/yt-dlp/_internal/$lib" "$libs/$lib"
+            sistema=$(ldconfig -p)
+            for caminho in "$GITHUB_WORKSPACE"/src-tauri/binaries/yt-dlp/_internal/lib*.so*; do
+              lib=$(basename "$caminho")
+              grep -q " $lib " <<<"$sistema" || { ln -sf "$caminho" "$libs/$lib"; echo "exposta: $lib"; }
             done
             LD_LIBRARY_PATH="$libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
               pnpm tauri bundle --ci --verbose --target "$TRIPLE" --bundles appimage
