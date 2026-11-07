@@ -115,8 +115,14 @@ jobs:
             *windows*) ;;  # compilação cruzada: não executa no runner Linux
             *)
               ff="src-tauri/binaries/clipora-ffmpeg-$TRIPLE"
-              "$ff" -hide_banner -L | grep -q 'GNU Lesser General Public License'
-              test "$("$ff" -hide_banner -encoders | sed -n '/------/,$p' | tail -n +2 | wc -l)" -eq 0
+              # Saída guardada antes do grep: com pipefail, `grep -q` fecha o pipe cedo e o
+              # SIGPIPE no ffmpeg derrubaria o passo mesmo com a licença correta.
+              # O `-L` quebra "GNU Lesser General Public / License" em duas linhas.
+              licenca=$("$ff" -hide_banner -L)
+              grep -q 'terms of the GNU Lesser General Public' <<<"$licenca"
+              grep -q 'version 2.1 of the License' <<<"$licenca"
+              encoders=$("$ff" -hide_banner -encoders)
+              test "$(sed -n '/------/,$p' <<<"$encoders" | tail -n +2 | wc -l)" -eq 0
               ;;
           esac
 
