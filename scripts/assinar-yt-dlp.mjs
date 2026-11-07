@@ -195,9 +195,9 @@ async function importarCertificado() {
 async function identificadorBase() {
   try {
     const conf = JSON.parse(await readFile(join(RAIZ, 'src-tauri', 'tauri.conf.json'), 'utf8'));
-    return conf.identifier ?? 'app.clipora.desktop';
+    return conf.identifier ?? 'io.github.felipebweber.clipora';
   } catch {
-    return 'app.clipora.desktop';
+    return 'io.github.felipebweber.clipora';
   }
 }
 

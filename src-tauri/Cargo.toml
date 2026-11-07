@@ -1,7 +1,10 @@
 [package]
 name = "clipora"
 version = "0.1.0"
-description = "Clipora"
+description = "Download one public video at a time from Instagram Reels, TikTok and YouTube"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/felipebweber/clipora"
+publish = false
 authors = ["Felipe Weber"]
 edition = "2024"
 

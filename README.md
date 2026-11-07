@@ -211,5 +211,3 @@ pnpm build
 ```
 
 `pnpm build` compila o frontend; `pnpm tauri build` também gera o aplicativo desktop. Os testes Rust (`pnpm test:rust`) não exigem os binários auxiliares. Consulte também [o contrato IPC](docs/contrato-ipc.md).
-
-O identificador `app.clipora.desktop` é provisório.

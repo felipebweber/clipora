@@ -399,11 +399,11 @@ Raiz: `app_local_data_dir()/bin/yt-dlp/` (Tauri `PathResolver`), resolvido como 
 └── .tmp-2026.11.20-<rand>/  # só existe durante uma atualização; lixo se o app cair no meio
 ```
 
-| Sistema | Raiz (identifier atual `app.clipora.desktop`) |
+| Sistema | Raiz (identifier `io.github.felipebweber.clipora`) |
 |---|---|
-| Windows | `%LOCALAPPDATA%\app.clipora.desktop\bin\yt-dlp\` (Local, não Roaming: binário não deve sincronizar entre máquinas) |
-| macOS | `~/Library/Application Support/app.clipora.desktop/bin/yt-dlp/` |
-| Linux | `${XDG_DATA_HOME:-~/.local/share}/app.clipora.desktop/bin/yt-dlp/` |
+| Windows | `%LOCALAPPDATA%\io.github.felipebweber.clipora\bin\yt-dlp\` (Local, não Roaming: binário não deve sincronizar entre máquinas) |
+| macOS | `~/Library/Application Support/io.github.felipebweber.clipora/bin/yt-dlp/` |
+| Linux | `${XDG_DATA_HOME:-~/.local/share}/io.github.felipebweber.clipora/bin/yt-dlp/` |
 
 **Por que um arquivo-ponteiro e não um link simbólico ou renomear o diretório**:
 - No Windows, links simbólicos exigem privilégio ou Modo de Desenvolvedor.
@@ -488,7 +488,7 @@ Lista consolidada para liberar o lançamento; nenhuma escolha abaixo foi presumi
 | Decisão | O que falta definir ou disponibilizar |
 |---|---|
 | Termos e avisos | EULA/termos e texto final de Sobre/Licenças e da página de download. A licença do Clipora já foi escolhida: GPL-3.0-or-later. |
-| Identidade | Confirmar ou substituir o identificador provisório `app.clipora.desktop` antes de distribuir. |
+| Identidade | Decidido em 2026-11-07: `io.github.felipebweber.clipora` (antes, o provisório `app.clipora.desktop`). Não trocar depois de publicar: muda a pasta de dados e o histórico. |
 | Sistemas, arquiteturas e formatos | Confirmar mínimos finais, Windows/Linux arm64, macOS universal ou pacotes separados e inclusão de RPM. A matriz atual é pretendida; somente macOS arm64 foi exercitado nesta máquina. |
 | Repositório e publicação | Escolher remoto, plano de hospedagem e hospedagem dos instaladores e fontes correspondentes de yt-dlp/FFmpeg, incluindo a política de espelhamento. O código será público, conforme decisão de 2026-11-06. Isso libera executar o CI e preparar a publicação. |
 | Apple | Disponibilizar conta Apple Developer, Developer ID e credenciais de notarização quando desejar distribuição assinada. O pacote local não foi notarizado. |

@@ -26,6 +26,9 @@ accepted = [
 ]
 
 # Só dependências que entram no binário final (não as de build/dev).
+# O próprio Clipora (publish = false) não entra nos avisos de terceiros: sua licença é o LICENSE
+# da raiz (GPL-3.0-or-later).
+private = { ignore = true }
 ignore-build-dependencies = true
 ignore-dev-dependencies = true
 
