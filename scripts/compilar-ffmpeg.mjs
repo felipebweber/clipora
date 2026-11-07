@@ -199,7 +199,7 @@ async function obterFonte(lock, cache) {
   const asc = `${tarball}.asc`;
   if (!existsSync(tarball) || (await sha256Arquivo(tarball)) !== ff.tarball.sha256) {
     log(`baixando ${ff.tarball.url}`);
-    await baixar(ff.tarball.url, tarball);
+    await baixar(ff.tarball.url, tarball, 12);
   }
   const h = await sha256Arquivo(tarball);
   if (h !== ff.tarball.sha256) {
@@ -215,14 +215,14 @@ async function obterFonte(lock, cache) {
       chave: join(DIR_SCRIPTS, ff.chaveGpg.arquivo),
       fingerprint: ff.chaveGpg.fingerprint,
     });
-  if (!existsSync(asc)) await baixar(ff.tarball.assinaturaUrl, asc, 6);
+  if (!existsSync(asc)) await baixar(ff.tarball.assinaturaUrl, asc, 12);
   let gpg;
   try {
     gpg = await verificar();
   } catch (e) {
     log(`assinatura em cache não validou (${e.message.split('\n')[0]}); baixando de novo.`);
     await rm(asc, { force: true });
-    await baixar(ff.tarball.assinaturaUrl, asc, 6);
+    await baixar(ff.tarball.assinaturaUrl, asc, 12);
     gpg = await verificar();
   }
   if (gpg === 'ok') log(`assinatura GPG do tarball válida (chave ${ff.chaveGpg.fingerprint}).`);

@@ -92,7 +92,8 @@ export async function baixar(url, destino, tentativas = 4) {
       await unlink(parcial).catch(() => {});
       if (i < tentativas) {
         aviso(`download falhou (${e.message}); nova tentativa ${i + 1}/${tentativas}: ${url}`);
-        await new Promise((r) => setTimeout(r, 1500 * i));
+        // Espera exponencial (1,5 s, 3 s, 6 s… até 30 s): o ffmpeg.org tem quedas de vários minutos.
+        await new Promise((r) => setTimeout(r, Math.min(1500 * 2 ** (i - 1), 30_000)));
       }
     }
   }
