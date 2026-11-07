@@ -77,7 +77,7 @@ O workflow anterior foi conferido com `actionlint` 1.7.12 e `shellcheck` 0.11.0;
 
 | Alvo | Runner | Como |
 |---|---|---|
-| `aarch64-apple-darwin`, `universal-apple-darwin` | `macos-14` | clang nativo; universal = `lipo` |
+| `aarch64-apple-darwin`, `universal-apple-darwin` | `macos-15` | clang nativo; universal = `lipo` |
 | `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` | `ubuntu-22.04` | compilação cruzada com llvm-mingw `20261020` (§4.4) |
 | `x86_64-unknown-linux-gnu` | `ubuntu-22.04` | nativo (glibc 2.35) |
 | `aarch64-unknown-linux-gnu` | `ubuntu-22.04-arm` | nativo |
@@ -88,8 +88,8 @@ Em todos: `--exigir-gpg`, checagem de que o `configure` registrado tem `--disabl
 
 | Artefato | Runner | Target | `--bundles` | Testes |
 |---|---|---|---|---|
-| macOS arm64 | `macos-14` | `aarch64-apple-darwin` | app, dmg | sim |
-| macOS universal | `macos-14` | `universal-apple-darwin` | app, dmg | não (mesmo host do arm64) |
+| macOS arm64 | `macos-15` | `aarch64-apple-darwin` | app, dmg | sim |
+| macOS universal | `macos-15` | `universal-apple-darwin` | app, dmg | não (mesmo host do arm64) |
 | Windows x64 | `windows-2022` | `x86_64-pc-windows-msvc` | nsis, msi | sim |
 | Windows arm64 | `windows-11-arm` | `aarch64-pc-windows-msvc` | nsis | sim (nativo) |
 | Linux x64 | `ubuntu-22.04` | `x86_64-unknown-linux-gnu` | deb, rpm, appimage | sim |
