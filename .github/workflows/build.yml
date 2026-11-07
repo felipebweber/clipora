@@ -255,15 +255,16 @@ jobs:
         if: matrix.testes
         run: node --test scripts/test-conferir-pacote.mjs scripts/test-deno.mjs scripts/test-deno-licencas.mjs
 
-      - name: Testes do Rust
-        if: matrix.testes
-        run: pnpm test:rust
-
       - name: cargo-about (avisos de licença das crates)
         run: cargo install --locked cargo-about --version 0.9.2 --features cli
 
       - name: THIRD_PARTY_LICENSES
         run: node scripts/gerar-licencas.mjs --target "$TRIPLE"
+
+      # Depois das licenças: o build script do Tauri exige que binaries/licencas exista.
+      - name: Testes do Rust
+        if: matrix.testes
+        run: pnpm test:rust
 
       - name: tauri build (sem assinatura)
         if: >-

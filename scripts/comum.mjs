@@ -115,6 +115,21 @@ export function encontrarGpg() {
   ]);
 }
 
+/** `C:\a\b` → `/c/a/b`, o formato que o gpg do MSYS (Git for Windows) entende. */
+export function caminhoMsys(caminho) {
+  return caminho.replace(/^([A-Za-z]):[\\/]/, (_, d) => `/${d.toLowerCase()}/`).replace(/\\/g, '/');
+}
+
+/**
+ * No Windows, o gpg do PATH costuma ser o do Git for Windows (MSYS), que trata `C:\...` como
+ * caminho relativo. Ele se identifica porque o "Home:" do `gpg --version` é um caminho POSIX.
+ */
+function gpgEhMsys(gpg) {
+  if (process.platform !== 'win32') return false;
+  const r = spawnSync(gpg, ['--version'], { encoding: 'utf8' });
+  return /^Home:\s*\//m.test(r.stdout ?? '');
+}
+
 /**
  * Verifica uma assinatura destacada com um chaveiro temporário e isolado (não toca no ~/.gnupg do usuário).
  * Exige que a chave primária que assinou tenha exatamente o fingerprint fixado.
@@ -124,11 +139,14 @@ export async function verificarAssinaturaGpg({ arquivo, assinatura, chave, finge
   const gpg = encontrarGpg();
   if (!gpg) return 'sem-gpg';
   const home = await mkdtemp(join(tmpdir(), 'clipora-gpg-'));
+  const p = gpgEhMsys(gpg) ? caminhoMsys : (c) => c;
   try {
-    const base = ['--homedir', home, '--batch', '--no-tty', '--no-autostart'];
-    const imp = spawnSync(gpg, [...base, '--import', chave], { encoding: 'utf8' });
+    const base = ['--homedir', p(home), '--batch', '--no-tty', '--no-autostart'];
+    const imp = spawnSync(gpg, [...base, '--import', p(chave)], { encoding: 'utf8' });
     if (imp.status !== 0) throw new ErroBinarios(`gpg --import falhou: ${imp.stderr}`);
-    const ver = spawnSync(gpg, [...base, '--status-fd', '1', '--verify', assinatura, arquivo], { encoding: 'utf8' });
+    const ver = spawnSync(gpg, [...base, '--status-fd', '1', '--verify', p(assinatura), p(arquivo)], {
+      encoding: 'utf8',
+    });
     const validsig = (ver.stdout ?? '').split('\n').find((l) => l.startsWith('[GNUPG:] VALIDSIG '));
     // VALIDSIG <fpr-da-subchave> ... <fpr-da-chave-primária>
     const primaria = validsig?.trim().split(/\s+/).pop();
