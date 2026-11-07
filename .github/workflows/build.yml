@@ -181,12 +181,12 @@ jobs:
           - triple: x86_64-unknown-linux-gnu
             runner: ubuntu-22.04
             rust-targets: x86_64-unknown-linux-gnu
-            bundles: deb,rpm,appimage
+            bundles: deb,rpm
             testes: true
           - triple: aarch64-unknown-linux-gnu
             runner: ubuntu-22.04-arm
             rust-targets: aarch64-unknown-linux-gnu
-            bundles: deb,rpm,appimage
+            bundles: deb,rpm
             testes: true
     env:
       TRIPLE: ${{ matrix.triple }}
@@ -283,31 +283,9 @@ jobs:
             runner.os == 'macOS' && vars.CLIPORA_ASSINAR_MACOS == 'true') ||
             (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') &&
             runner.os == 'Windows' && vars.CLIPORA_ASSINAR_WINDOWS == 'true'))
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: '1'
-          NO_STRIP: 'true'
-        # O AppImage é gerado à parte: o linuxdeploy precisa achar libreadline.so.6 e
-        # libtinfo.so.5 que o yt-dlp onedir traz em _internal/, e esse LD_LIBRARY_PATH
-        # não pode valer para a compilação (as libs do yt-dlp atrapalhariam cc/ld).
-        run: |
-          if [[ ",$BUNDLES," == *",appimage,"* ]]; then
-            outros=$(tr ',' '\n' <<<"$BUNDLES" | grep -vx appimage | paste -sd, -)
-            pnpm tauri build --ci --verbose --target "$TRIPLE" --bundles "$outros"
-            # Só as libs que o sistema não tem (libreadline.so.6, libtinfo.so.5, libmpdec…):
-            # a pasta _internal inteira traria, por exemplo, uma libz antiga que quebra as
-            # ferramentas do plugin gtk (ZLIB_1.2.9 not found).
-            libs="$RUNNER_TEMP/libs-yt-dlp"
-            mkdir -p "$libs"
-            sistema=$(ldconfig -p | awk 'NR > 1 { print $1 }')
-            for caminho in "$GITHUB_WORKSPACE"/src-tauri/binaries/yt-dlp/_internal/lib*.so*; do
-              lib=$(basename "$caminho")
-              grep -qxF "$lib" <<<"$sistema" || { ln -sf "$caminho" "$libs/$lib"; echo "exposta: $lib"; }
-            done
-            LD_LIBRARY_PATH="$libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-              pnpm tauri bundle --ci --verbose --target "$TRIPLE" --bundles appimage
-          else
-            pnpm tauri build --ci --verbose --target "$TRIPLE" --bundles "$BUNDLES"
-          fi
+        # Sem AppImage: o linuxdeploy reescreve os ELF do yt-dlp e do Deno (rpath), e os
+        # hashes deixam de bater com os manifestos de integridade (decisão de 2026-11-07).
+        run: pnpm tauri build --ci --verbose --target "$TRIPLE" --bundles "$BUNDLES"
 
       # ── Assinatura macOS: DESATIVADA até vars.CLIPORA_ASSINAR_MACOS == 'true' ──────────────
       # Pré-assinatura do yt-dlp onedir: scripts/assinar-yt-dlp.mjs, antes do tauri build.

@@ -18,7 +18,7 @@ Legenda de confiabilidade usada abaixo:
 | Tema | Recomendação |
 |---|---|
 | Alvos | Windows 10 22H2+/11 (x64, arm64); macOS 11+ (binário universal arm64+x64); Linux x64 e arm64 com WebKitGTK 4.1 (base Ubuntu 22.04 / Debian 12). Sem Windows 32 bits nem Linux armv7 na v1. |
-| Pacotes | Windows: instalador NSIS (`-setup.exe`) como principal, MSI opcional. macOS: `.app` dentro de `.dmg`. Linux: AppImage + `.deb` (e `.rpm` opcional). |
+| Pacotes | Windows: instalador NSIS (`-setup.exe`) como principal, MSI opcional. macOS: `.app` dentro de `.dmg`. Linux: `.deb` e `.rpm`. AppImage removido em 2026-11-07: o linuxdeploy reescreve o rpath dos ELF do yt-dlp e do Deno e quebra os manifestos de integridade. |
 | yt-dlp embutido | **Decidido (2026-11-05): build *onedir* oficial** (`yt-dlp_macos.zip`, `yt-dlp_win.zip`, `yt-dlp_win_arm64.zip`, `yt-dlp_linux.zip`, `yt-dlp_linux_aarch64.zip`; há onedir oficial para os 6 alvos), com versão fixa, verificação de SHA-256 e da assinatura GPG de `SHA2-256SUMS`, extraído em diretório. O *onefile* fica só como opção (`--formato onefile`): custa ~14 s em toda execução no macOS (§4.2). |
 | Motor JavaScript para YouTube | Deno **2.7.0**, recurso executável `deno/clipora-deno[.exe]` com manifesto adjacente; ZIP oficial por alvo com SHA-256 fixado em `scripts/binarios.lock`; macOS universal combina os assets arm64 e x64 oficiais com `lipo`. Exigido somente nos fluxos YouTube. |
 | FFmpeg embutido | Build **próprio, mínimo e LGPL** (apenas remux, sem `--enable-gpl`), compilado a partir do tarball oficial assinado do ffmpeg.org, para os 6 alvos. Inclui `ffmpeg` e `ffprobe`. |
@@ -92,8 +92,8 @@ Em todos: `--exigir-gpg`, checagem de que o `configure` registrado tem `--disabl
 | macOS universal | `macos-15` | `universal-apple-darwin` | app, dmg | não (mesmo host do arm64) |
 | Windows x64 | `windows-2022` | `x86_64-pc-windows-msvc` | nsis, msi | sim |
 | Windows arm64 | `windows-11-arm` | `aarch64-pc-windows-msvc` | nsis | sim (nativo) |
-| Linux x64 | `ubuntu-22.04` | `x86_64-unknown-linux-gnu` | deb, rpm, appimage | sim |
-| Linux arm64 | `ubuntu-22.04-arm` | `aarch64-unknown-linux-gnu` | deb, rpm, appimage | sim |
+| Linux x64 | `ubuntu-22.04` | `x86_64-unknown-linux-gnu` | deb, rpm | sim |
+| Linux arm64 | `ubuntu-22.04-arm` | `aarch64-unknown-linux-gnu` | deb, rpm | sim |
 
 Passos do estágio 2:
 1. Baixa o FFmpeg do estágio 1 e restaura o bit de execução, que os artefatos perdem.
