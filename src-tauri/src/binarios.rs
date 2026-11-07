@@ -1,3 +1,4 @@
+use crate::caminho::Canonico;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -149,7 +150,7 @@ fn motor_em(raiz: &Path) -> Result<PathBuf, String> {
         "clipora-deno"
     };
     // Canonicalizar o diretório permite aliases legítimos sem seguir symlink no executável.
-    let raiz = raiz.canonicalize().map_err(|e| e.to_string())?;
+    let raiz = raiz.canonico().map_err(|e| e.to_string())?;
     let caminho = raiz.join(nome);
     if std::fs::symlink_metadata(&caminho).is_err() {
         return Err("Motor YouTube não encontrado".into());

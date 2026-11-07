@@ -1,3 +1,7 @@
 scripts/licencas/deno/*.txt -text -whitespace
 scripts/licencas/deno/*.sources.json -text
 scripts/licencas/deno/LICENSE.md -text -whitespace
+# Arquivos assinados ou conferidos por hash: o checkout no Windows não pode trocar LF por CRLF.
+src-tauri/tests/fixtures/** -text
+scripts/chaves/*.asc -text
+scripts/binarios.lock -text

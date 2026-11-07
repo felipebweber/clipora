@@ -383,6 +383,12 @@ fn extrair(
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Nome do executável do yt-dlp app-local, como o código de produção espera.
+    const YTDLP: &str = if cfg!(windows) {
+        "yt-dlp.exe"
+    } else {
+        "yt-dlp"
+    };
     fn verificador_teste(resultado: &'static str) -> VerificadorCompatibilidade {
         std::sync::Arc::new(move |_, _| {
             Box::pin(async move {
@@ -796,23 +802,20 @@ mod tests {
         let raiz = tempfile::tempdir().unwrap();
         fn preparar(dir: &Path, versao: &str) {
             fs::create_dir_all(dir).unwrap();
-            fs::write(dir.join("yt-dlp"), b"abc").unwrap();
+            fs::write(dir.join(YTDLP), b"abc").unwrap();
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
-                fs::set_permissions(dir.join("yt-dlp"), fs::Permissions::from_mode(0o755)).unwrap();
+                fs::set_permissions(dir.join(YTDLP), fs::Permissions::from_mode(0o755)).unwrap();
             }
             let m = Manifesto {
                 versao: versao.into(),
-                executavel: "yt-dlp".into(),
+                executavel: YTDLP.into(),
                 asset: String::new(),
                 sha256_zip: String::new(),
                 sha256_somas: String::new(),
                 sha256_assinatura: String::new(),
-                arquivos: BTreeMap::from([(
-                    "yt-dlp".into(),
-                    format!("{:x}", Sha256::digest(b"abc")),
-                )]),
+                arquivos: BTreeMap::from([(YTDLP.into(), format!("{:x}", Sha256::digest(b"abc")))]),
             };
             fs::write(
                 dir.join("clipora-yt-dlp.json"),
@@ -837,7 +840,7 @@ mod tests {
         );
         assert_eq!(
             resolver_atual(raiz.path()).unwrap(),
-            raiz.path().join("2026.10.25/yt-dlp")
+            raiz.path().join("2026.10.25").join(YTDLP)
         );
         let novo_antes = raiz.path().join(".tmp-novo-antes");
         preparar(&novo_antes, "2026.10.27");
@@ -847,7 +850,7 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             resolver_atual(raiz.path()).unwrap(),
-            raiz.path().join("2026.10.25/yt-dlp")
+            raiz.path().join("2026.10.25").join(YTDLP)
         );
     }
     #[test]
@@ -885,7 +888,7 @@ mod tests {
             b"",
         )
         .unwrap();
-        assert!(bom.path().join("yt-dlp").is_file());
+        assert!(bom.path().join(YTDLP).is_file());
         assert!(bom.path().join("clipora-yt-dlp.json").is_file());
     }
     #[test]
@@ -911,23 +914,29 @@ mod tests {
         assert!(resolver_atual(dir.path()).is_none());
         let pasta = dir.path().join("2026.10.26");
         std::fs::create_dir(&pasta).unwrap();
-        std::fs::write(pasta.join("yt-dlp"), b"abc").unwrap();
+        std::fs::write(pasta.join(YTDLP), b"abc").unwrap();
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(pasta.join("yt-dlp"), fs::Permissions::from_mode(0o755)).unwrap();
+            fs::set_permissions(pasta.join(YTDLP), fs::Permissions::from_mode(0o755)).unwrap();
         }
-        std::fs::write(pasta.join("clipora-yt-dlp.json"), r#"{"versao":"2026.10.26","executavel":"yt-dlp","arquivos":{"yt-dlp":"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}}"#).unwrap();
+        std::fs::write(
+            pasta.join("clipora-yt-dlp.json"),
+            format!(
+                r#"{{"versao":"2026.10.26","executavel":"{YTDLP}","arquivos":{{"{YTDLP}":"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}}}}"#
+            ),
+        )
+        .unwrap();
         std::fs::write(dir.path().join("atual"), "2026.10.26\n").unwrap();
         assert!(resolver_atual(dir.path()).is_some());
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(pasta.join("yt-dlp"), fs::Permissions::from_mode(0o644)).unwrap();
+            fs::set_permissions(pasta.join(YTDLP), fs::Permissions::from_mode(0o644)).unwrap();
             assert!(resolver_atual(dir.path()).is_none());
-            fs::set_permissions(pasta.join("yt-dlp"), fs::Permissions::from_mode(0o755)).unwrap();
+            fs::set_permissions(pasta.join(YTDLP), fs::Permissions::from_mode(0o755)).unwrap();
         }
-        std::fs::write(pasta.join("yt-dlp"), b"adulterado").unwrap();
+        std::fs::write(pasta.join(YTDLP), b"adulterado").unwrap();
         assert!(resolver_atual(dir.path()).is_none());
     }
 

@@ -1,3 +1,4 @@
+use crate::caminho::Canonico;
 use crate::previa::ErroClipora;
 use std::path::Path;
 fn versao_cli_compativel(texto: &str) -> bool {
@@ -209,7 +210,7 @@ fn ler_solver_candidato(executavel: &Path) -> Result<(Vec<u8>, Vec<u8>), ErroCli
     let raiz = executavel
         .parent()
         .ok_or_else(|| erro_atualizacao_nao_suportada("diretório do candidato ausente"))?
-        .canonicalize()
+        .canonico()
         .map_err(erro_atualizacao_nao_suportada)?;
     let executavel = raiz.join(nome_esperado);
     arquivo_regular(&executavel)?;

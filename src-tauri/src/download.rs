@@ -1,3 +1,4 @@
+use crate::caminho::Canonico;
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -478,7 +479,7 @@ mod tests {
     #[tokio::test]
     async fn download_normaliza_url_do_processo_e_preserva_original_no_historico() {
         let dir = tempfile::tempdir().unwrap();
-        let raiz = dir.path().canonicalize().unwrap();
+        let raiz = dir.path().canonico().unwrap();
         let bin = raiz.join("bin");
         let registro = raiz.join("processos.jsonl");
         let saida = std::process::Command::new("node")
@@ -774,7 +775,7 @@ mod tests {
             "https://tiktok.com/@scout2015/video/6718335390845095173",
         ] {
             let pasta = tempfile::tempdir().unwrap();
-            let raiz = pasta.path().canonicalize().unwrap();
+            let raiz = pasta.path().canonico().unwrap();
             let historico_arquivo = raiz.join("historico.json");
             let historico = Arc::new(crate::historico::Repositorio::novo(
                 historico_arquivo.clone(),
@@ -880,6 +881,10 @@ mod tests {
         }
     }
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "yt-dlp/FFmpeg falsos são scripts Node sem extensão, que o Windows não executa"
+    )]
     async fn fixture_tres_downloads_nao_sobrescrevem() {
         let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/bin");
         let dir = tempfile::tempdir().unwrap();
@@ -1044,6 +1049,10 @@ mod tests {
         assert_eq!(erro.codigo, "FFMPEG_INDISPONIVEL");
     }
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "yt-dlp/FFmpeg falsos são scripts Node sem extensão, que o Windows não executa"
+    )]
     async fn fixture_envia_progresso_de_video_e_audio_sem_recuar() {
         let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/bin");
         let dir = tempfile::tempdir().unwrap();
@@ -1086,6 +1095,10 @@ mod tests {
         assert!(valores.windows(2).all(|w| w[0] <= w[1]));
     }
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "yt-dlp/FFmpeg falsos são scripts Node sem extensão, que o Windows não executa"
+    )]
     async fn fixtures_testam_sucesso_e_falhas() {
         let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/bin");
         assert!(fixtures.join("clipora-yt-dlp").is_file(), "fixture ausente");
@@ -1709,7 +1722,7 @@ fn concluir_com_altura(
         .map(|(p, renomeado)| {
             let caminho = p
                 .parent()
-                .and_then(|pai| pai.canonicalize().ok())
+                .and_then(|pai| pai.canonico().ok())
                 .zip(p.file_name())
                 .map(|(pai, nome)| pai.join(nome))
                 .unwrap_or_else(|| p.clone());
@@ -1788,7 +1801,7 @@ mod historico_tests {
     #[test]
     fn conclusao_preserva_original_da_previa_associada() {
         let dir = tempfile::tempdir().unwrap();
-        let raiz = dir.path().canonicalize().unwrap();
+        let raiz = dir.path().canonico().unwrap();
         let arquivo = raiz.join("Vídeo [abc].mp4");
         fs::write(&arquivo, b"\x00\x00\x00\x18ftypisom").unwrap();
         let original = "http://instagram.com/reel/abc/?igsh=colado";
@@ -1828,7 +1841,7 @@ mod historico_tests {
     #[test]
     fn conclusao_com_destino_alias_guarda_caminho_canonico() {
         let dir = tempfile::tempdir().unwrap();
-        let raiz = dir.path().canonicalize().unwrap();
+        let raiz = dir.path().canonico().unwrap();
         let destino = raiz.join("real");
         fs::create_dir(&destino).unwrap();
         let alias = raiz.join("alias");
@@ -1861,7 +1874,7 @@ mod historico_tests {
     #[test]
     fn so_sucesso_alimenta_historico_e_falha_de_persistencia_preserva_abertura() {
         let dir = tempfile::tempdir().unwrap();
-        let raiz = dir.path().canonicalize().unwrap();
+        let raiz = dir.path().canonico().unwrap();
         let arquivo = raiz.join("Vídeo [abc].mp4");
         fs::write(
             &arquivo,
@@ -2603,7 +2616,7 @@ mod youtube_runtime_tests {
             "resoluções do preflight não disponíveis: {alturas:?}"
         );
         let temporario = tempfile::tempdir().unwrap();
-        let destino = temporario.path().canonicalize().unwrap().join("videos");
+        let destino = temporario.path().canonico().unwrap().join("videos");
         fs::create_dir(&destino).unwrap();
         let c = Arc::new(Mutex::new(Dados::default()));
         let h = Arc::new(crate::historico::Repositorio::novo(
@@ -3482,11 +3495,11 @@ async fn executar_com_ferramentas(
         return Err(err("ARQUIVO_INCOMPLETO", "ID final divergente da URL"));
     }
     let caminho = PathBuf::from(caminho)
-        .canonicalize()
+        .canonico()
         .map_err(|e| err("ARQUIVO_INCOMPLETO", e.to_string()))?;
     let raiz = temp
         .path()
-        .canonicalize()
+        .canonico()
         .map_err(|e| err("ARQUIVO_INCOMPLETO", e.to_string()))?;
     if !caminho.starts_with(&raiz)
         || caminho.extension().is_none_or(|e| e != "mp4")

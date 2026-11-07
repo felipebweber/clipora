@@ -472,6 +472,10 @@ mod tests {
         }
     }
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "yt-dlp/FFmpeg falsos são scripts Node sem extensão, que o Windows não executa"
+    )]
     async fn erros_reais_dos_fixtures_e_titulo_vazio() {
         let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../tests/fixtures/preparar-bin.mjs");

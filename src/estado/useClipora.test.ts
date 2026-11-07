@@ -129,11 +129,10 @@ describe("useClipora: edição de link e carregamento de prévia", () => {
     servico.definirPastaParaTeste({ caminho: "/tmp/destino", estado: "valida" });
     const { result } = renderHook(() => useClipora(servico));
 
-    await act(async () => {
-      result.current.aoAlterarLink("https://www.instagram.com/reel/abc/");
-      await new Promise((r) => setTimeout(r, 450));
-    });
-    expect(result.current.estado.tipo).toBe("pronto");
+    act(() => result.current.aoAlterarLink("https://www.instagram.com/reel/abc/"));
+    // Espera o estado, não um tempo fixo: com a máquina carregada (CI no Windows), a prévia
+    // simulada podia passar dos 450 ms e o teste falhava em "carregando_previa".
+    await waitFor(() => expect(result.current.estado.tipo).toBe("pronto"), { timeout: 5000 });
 
     act(() => result.current.baixar());
     expect(result.current.estado.tipo).toBe("baixando");

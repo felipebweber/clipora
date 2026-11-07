@@ -279,6 +279,14 @@ fn validar_componentes(caminho: &Path) -> Result<(), ErroClipora> {
             return Err(ausente());
         }
         prefixo.push(componente);
+        // Unidade (`C:`, `\\?\C:`, `\\servidor\share`) e raiz não são pastas que possam ser
+        // symlink; `symlink_metadata("C:")` nem aponta para a raiz (é relativo à unidade).
+        if matches!(
+            componente,
+            std::path::Component::Prefix(_) | std::path::Component::RootDir
+        ) {
+            continue;
+        }
         if std::fs::symlink_metadata(&prefixo)
             .map_err(|_| ausente())?
             .file_type()
@@ -293,12 +301,10 @@ fn validar_componentes(caminho: &Path) -> Result<(), ErroClipora> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::caminho::Canonico;
     use std::sync::Arc;
     fn item(dir: &Path, id: &str, data: u64) -> ItemHistorico {
-        let caminho = dir
-            .canonicalize()
-            .unwrap()
-            .join(format!("Vídeo [{id}].mp4"));
+        let caminho = dir.canonico().unwrap().join(format!("Vídeo [{id}].mp4"));
         std::fs::write(
             &caminho,
             b"\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isommp42",

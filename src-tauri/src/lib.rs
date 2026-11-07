@@ -1,4 +1,6 @@
+use crate::caminho::Canonico;
 mod binarios;
+mod caminho;
 mod download;
 mod historico;
 mod instalacao;
@@ -215,7 +217,7 @@ async fn iniciar_download(
         None
     };
     let destino = destino
-        .canonicalize()
+        .canonico()
         .map_err(|e| previa::ErroClipora::novo("PASTA_AUSENTE", Some(e.to_string())))?;
     let mut dados = controle
         .0
@@ -548,7 +550,7 @@ mod licencas_tests {
     #[test]
     fn abertura_por_id_preserva_pasta_quando_video_foi_removido() {
         let dir = tempfile::tempdir().unwrap();
-        let raiz = dir.path().canonicalize().unwrap();
+        let raiz = dir.path().canonico().unwrap();
         let arquivo = raiz.join("Vídeo [abc].mp4");
         std::fs::write(
             &arquivo,
@@ -580,7 +582,7 @@ mod licencas_tests {
     #[test]
     fn abertura_de_id_persistido_sem_mapa_e_fallback_validam_caminho() {
         let dir = tempfile::tempdir().unwrap();
-        let raiz = dir.path().canonicalize().unwrap();
+        let raiz = dir.path().canonico().unwrap();
         let arquivo = raiz.join("Vídeo [abc].mp4");
         std::fs::write(
             &arquivo,
@@ -625,7 +627,7 @@ mod licencas_tests {
     #[test]
     fn pasta_app_persistida_com_video_ausente_so_pode_ser_revelada() {
         let dir = tempfile::tempdir().unwrap();
-        let raiz = dir.path().canonicalize().unwrap();
+        let raiz = dir.path().canonico().unwrap();
         let pacote = raiz.join("Armadilha.app");
         std::fs::create_dir(&pacote).unwrap();
         let arquivo = pacote.join("Vídeo [abc].mp4");
