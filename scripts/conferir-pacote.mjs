@@ -404,10 +404,13 @@ async function conferirWindows(bundle, triple, versaoYt) {
         versaoYt,
         binsPermitidos: ['clipora.exe', 'clipora-ffmpeg.exe', 'clipora-ffprobe.exe', 'yt-dlp', 'deno', 'licencas', ...(p.nsis ? ['uninstall.exe'] : [])],
       });
-      if (p.nsis) spawnSync(join(p.raiz, 'uninstall.exe'), ['/S']);
+      // `_?=<pasta>` faz o desinstalador do NSIS rodar no lugar e esperar; sem isso ele se
+      // copia para o %TEMP%, volta na hora e mantém uninstall.exe aberto durante a limpeza.
+      if (p.nsis) spawnSync(join(p.raiz, 'uninstall.exe'), ['/S', `_?=${p.raiz}`]);
     }
   } finally {
-    await rm(tmp, { recursive: true, force: true });
+    // No Windows, antivírus e processos recém-encerrados seguram arquivos por um instante (EPERM/EBUSY).
+    await rm(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 }
 
