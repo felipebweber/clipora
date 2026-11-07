@@ -286,7 +286,8 @@ jobs:
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
           NO_STRIP: 'true'
-        run: pnpm tauri build --ci --target "$TRIPLE" --bundles "$BUNDLES"
+        # --verbose mostra a saída do linuxdeploy quando o AppImage falha.
+        run: pnpm tauri build --ci --verbose --target "$TRIPLE" --bundles "$BUNDLES"
 
       # ── Assinatura macOS: DESATIVADA até vars.CLIPORA_ASSINAR_MACOS == 'true' ──────────────
       # Pré-assinatura do yt-dlp onedir: scripts/assinar-yt-dlp.mjs, antes do tauri build.
@@ -321,7 +322,8 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/apple/AuthKey.p8
-        run: pnpm tauri build --ci --target "$TRIPLE" --bundles "$BUNDLES"
+        # --verbose mostra a saída do linuxdeploy quando o AppImage falha.
+        run: pnpm tauri build --ci --verbose --target "$TRIPLE" --bundles "$BUNDLES"
 
       - name: Remover chave da API do App Store Connect
         if: always() && runner.os == 'macOS'
