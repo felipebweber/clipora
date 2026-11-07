@@ -202,8 +202,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential curl wget file gnupg xz-utils libxdo-dev libssl-dev \
-            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
-            libtinfo5  # o readline do yt-dlp onedir exige libtinfo.so.5 (linuxdeploy/AppImage)
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
 
       - name: gpg (macOS)
         if: runner.os == 'macOS'
@@ -287,8 +286,18 @@ jobs:
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
           NO_STRIP: 'true'
-        # --verbose mostra a saída do linuxdeploy quando o AppImage falha.
-        run: pnpm tauri build --ci --verbose --target "$TRIPLE" --bundles "$BUNDLES"
+        # O AppImage é gerado à parte: o linuxdeploy precisa achar libreadline.so.6 e
+        # libtinfo.so.5 que o yt-dlp onedir traz em _internal/, e esse LD_LIBRARY_PATH
+        # não pode valer para a compilação (as libs do yt-dlp atrapalhariam cc/ld).
+        run: |
+          if [[ ",$BUNDLES," == *",appimage,"* ]]; then
+            outros=$(tr ',' '\n' <<<"$BUNDLES" | grep -vx appimage | paste -sd, -)
+            pnpm tauri build --ci --verbose --target "$TRIPLE" --bundles "$outros"
+            LD_LIBRARY_PATH="$GITHUB_WORKSPACE/src-tauri/binaries/yt-dlp/_internal${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+              pnpm tauri bundle --ci --verbose --target "$TRIPLE" --bundles appimage
+          else
+            pnpm tauri build --ci --verbose --target "$TRIPLE" --bundles "$BUNDLES"
+          fi
 
       # ── Assinatura macOS: DESATIVADA até vars.CLIPORA_ASSINAR_MACOS == 'true' ──────────────
       # Pré-assinatura do yt-dlp onedir: scripts/assinar-yt-dlp.mjs, antes do tauri build.
