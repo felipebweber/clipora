@@ -97,7 +97,18 @@ jobs:
             src-tauri/binaries/ffmpeg-build-info-${{ matrix.triple }}.txt
           key: ffmpeg-${{ matrix.triple }}-${{ matrix.runner }}-${{ steps.native-toolchain.outputs.fingerprint }}-${{ hashFiles('scripts/compilar-ffmpeg.mjs', 'scripts/comum.mjs', 'scripts/binarios.lock') }}
 
+      # O ffmpeg.org tem quedas frequentes; o tarball oficial fica em cache por versão e
+      # continua sendo conferido (SHA-256 fixado + GPG) a cada uso pelo script.
+      - name: Cache do código-fonte do FFmpeg
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/clipora-ffmpeg-*/ffmpeg-*.tar.xz*
+          key: ffmpeg-fonte-${{ hashFiles('scripts/binarios.lock') }}
+          enableCrossOsArchive: true
+
       - name: Compilar (idempotente; com cache válido não recompila)
+        env:
+          TMPDIR: ${{ runner.temp }}
         run: node scripts/compilar-ffmpeg.mjs --target "$TRIPLE" --exigir-gpg
 
       - name: Conferir licença do build (LGPL, sem GPL/nonfree)
